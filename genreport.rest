@@ -1,0 +1,9 @@
+curl --location 'http://localhost:3000/api/cotizador/generar' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "solicitud": "Windows Server 2025 Remote Desktop Services External Connector - License 1",
+    "cliente": {
+      "nombre": "Juan Perez",
+      "email": "abraham.pardo@compucad.com.mx"
+    }
+  }'

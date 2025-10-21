@@ -1,0 +1,68 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { errorHandler } from './shared/middleware/error.middleware.js';
+import { apiKeyAuth } from './shared/middleware/auth.middleware.js';
+
+// Importar rutas de agentes
+import cotizadorRoutes from './agents/cotizador/routes/cotizacion.routes.js';
+
+const app = express();
+
+// Middlewares globales
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100 // límite de 100 peticiones por ventana
+});
+app.use(limiter);
+
+// Rutas públicas (sin auth)
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API de Agentes - Bienvenido',
+    version: '1.0.0',
+    agentes: [
+      {
+        nombre: 'Cotizador',
+        descripcion: 'Genera cotizaciones desde archivos Excel',
+        endpoints: [
+          'POST /agente/cotizador/generar',
+          'GET /agente/cotizador/productos'
+        ]
+      }
+      // Aquí se agregarán más agentes en el futuro
+    ]
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Aplicar autenticación a todas las rutas de API (opcional)
+// app.use('/agente', apiKeyAuth);
+
+// Rutas de agentes
+app.use('/agente/cotizador', cotizadorRoutes);
+
+
+// Middleware de manejo de errores (debe ir al final)
+app.use(errorHandler);
+
+// Ruta 404
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint no encontrado'
+  });
+});
+
+export default app;
