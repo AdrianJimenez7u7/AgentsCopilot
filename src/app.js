@@ -49,7 +49,7 @@ app.get('/health', (req, res) => {
 
 // Aplicar autenticación a todas las rutas de API (opcional)
 // app.use('/agente', apiKeyAuth);
-
+app.use(apiKeyAuth);
 // Rutas de agentes
 app.use('/agente/cotizador', cotizadorRoutes);
 

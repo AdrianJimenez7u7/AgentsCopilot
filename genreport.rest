@@ -1,9 +1,56 @@
-curl --location 'http://localhost:3000/api/cotizador/generar' \
---header 'Content-Type: application/json' \
---data-raw '{
-    "solicitud": "Windows Server 2025 Remote Desktop Services External Connector - License 1",
-    "cliente": {
-      "nombre": "Juan Perez",
-      "email": "abraham.pardo@compucad.com.mx"
-    }
-  }'
+# Proceso de Cotización en 2 Pasos
+
+### Paso 1: Descubrir Productos (Discovery)
+POST http://localhost:3000/agente/cotizador/generar/candidates
+Content-Type: application/json
+
+{
+    "solicitud": "Windows Server 2025 Remote Desktop Services External Connector - License 1"
+}
+
+// Respuesta esperada:
+// {
+//     "success": true,
+//     "data": {
+//         "sessionId": "abc123...",        // Guardar este ID para el paso 2
+//         "candidates": [...],             // Lista de productos candidatos
+//         "initialMatches": 15,           // Total de coincidencias iniciales
+//         "expiresIn": 1800000           // TTL de la sesión en ms (30 min)
+//     },
+//     "message": "Candidates generados"
+// }
+
+### Paso 2: Seleccionar y Generar Cotización (Selection)
+POST http://localhost:3000/agente/cotizador/generar/seleccionar
+Content-Type: application/json
+
+{
+    "sessionId": "abc123...",              // El sessionId recibido en el paso 1
+    "cliente": {                           // Opcional: datos del cliente
+        "nombre": "Juan Perez",
+        "email": "abraham.pardo@compucad.com.mx"
+    },
+    "selection": [                         // Array de índices seleccionados
+        { "index": 0, "quantity": 1 },     // quantity es opcional, default: 1
+        { "index": 2, "quantity": 2 }
+    ]
+}
+
+// Respuesta esperada:
+// {
+//     "success": true,
+//     "data": {
+//         "productos": [...],              // Productos seleccionados con cantidades
+//         "totalProductos": 2,
+//         "totalCotizacion": 45000,
+//         "documentoGenerado": true,
+//         "correoEnviado": true           // si se proporcionó email
+//     },
+//     "message": "Cotización generada exitosamente (selection)"
+// }
+
+### Notas Importantes:
+# 1. El sessionId expira después del tiempo indicado en expiresIn (30 minutos por defecto)
+# 2. Los índices en selection deben corresponder a las posiciones en el array de candidates
+# 3. Si el sessionId expira, necesitarás volver al paso 1
+# 4. El campo quantity es opcional en la selección, por defecto es 1

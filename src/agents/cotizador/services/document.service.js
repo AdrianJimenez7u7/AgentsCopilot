@@ -17,19 +17,27 @@ export class DocumentService {
       linebreaks: true
     });
 
-    const total = productos.reduce((sum, p) => sum + (p.precio * (p.cantidad || 1)), 0);
+    const subtotal = productos.reduce((sum, p) => sum + (p.precio * (p.cantidad || 1)), 0);
+    const iva = subtotal * 0.16; // IVA del 16%
+    const total = subtotal + iva;
 
     doc.render({
       fecha: new Date().toLocaleDateString('es-MX'),
       cliente: clienteInfo.nombre || 'Cliente',
       email: clienteInfo.email || '',
-      productos: productos.map(p => ({
-        nombre: p.nombre,
-        descripcion: p.descripcion,
-        cantidad: p.cantidad || 1,
-        precio: p.precio.toFixed(2),
-        subtotal: (p.precio * (p.cantidad || 1)).toFixed(2)
-      })),
+      productos: productos.map(p => {
+        // Obtener la cantidad ya sea de quantity o cantidad, con fallback a 1
+        const cantidad = p.quantity ?? p.cantidad ?? 1;
+        return {
+          nombre: p.nombre,
+          descripcion: p.descripcion,
+          cantidad: cantidad,
+          precio: p.precio.toFixed(2),
+          subtotal: (p.precio * cantidad).toFixed(2)
+        };
+      }),
+      subtotal: subtotal.toFixed(2),
+      iva: iva.toFixed(2),
       total: total.toFixed(2)
     });
 
