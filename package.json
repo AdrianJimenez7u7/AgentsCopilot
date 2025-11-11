@@ -9,16 +9,19 @@
   },
   "type": "module",
   "dependencies": {
-    "express": "^4.18.2",
-    "xlsx": "^0.18.5",
+    "@azure-rest/ai-document-intelligence": "^1.1.0",
+    "cors": "^2.8.5",
     "docxtemplater": "^3.42.3",
-    "pizzip": "^3.1.4",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "multer": "^2.0.2",
     "nodemailer": "^6.9.7",
     "openai": "^4.20.1",
-    "dotenv": "^16.3.1",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.5"
+    "pdf-lib": "^1.17.1",
+    "pizzip": "^3.1.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

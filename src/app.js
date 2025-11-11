@@ -7,6 +7,7 @@ import { apiKeyAuth } from './shared/middleware/auth.middleware.js';
 
 // Importar rutas de agentes
 import cotizadorRoutes from './agents/cotizador/routes/cotizacion.routes.js';
+import contadoresRoutes from './agents/contadores/routes/contadores.routes.js';
 
 const app = express();
 
@@ -37,8 +38,17 @@ app.get('/', (req, res) => {
           'POST /agente/cotizador/generar',
           'GET /agente/cotizador/productos'
         ]
+      },
+      {
+        nombre: 'Contadores',
+        descripcion: 'Analiza archivos de impresoras y divide PDFs por páginas',
+        endpoints: [
+          'POST /agente/contadores/split-pdf',
+          'DELETE /agente/contadores/clean-output',
+          'POST /agente/contadores/analyze-pdfs',
+          'POST /agente/contadores/process-pdf'
+        ]
       }
-      // Aquí se agregarán más agentes en el futuro
     ]
   });
 });
@@ -52,6 +62,7 @@ app.get('/health', (req, res) => {
 app.use(apiKeyAuth);
 // Rutas de agentes
 app.use('/agente/cotizador', cotizadorRoutes);
+app.use('/agente/contadores', contadoresRoutes);
 
 
 // Middleware de manejo de errores (debe ir al final)
