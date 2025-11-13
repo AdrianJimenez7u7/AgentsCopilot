@@ -1,5 +1,6 @@
 import { PdfService } from '../services/pdf.service.js';
 import { AzureService } from '../services/azure.service.js';
+import { ReportService } from '../services/report.service.js';
 import { successResponse, errorResponse } from '../../../shared/utils/response.js';
 import { logger } from '../../../shared/utils/logger.js';
 import multer from 'multer';
@@ -166,14 +167,19 @@ export class ContadoresController {
         }
       }
 
-      // 3. Limpiar carpeta de salida
+      // 3. Generar reporte Excel
+      const validResults = results.filter(r => r.datos && !r.datos.mensaje);
+      const reportPath = await ReportService.generateReport(validResults, originalName);
+
+      // 4. Limpiar carpeta de salida
       await ContadoresController.cleanOutputInternal();
 
-      logger.info('Procesamiento completo', { totalPaginas: splitFiles.length });
+      logger.info('Procesamiento completo', { totalPaginas: splitFiles.length, reportPath });
 
       return successResponse(res, {
         totalPaginas: splitFiles.length,
-        resultados: results
+        resultados: results,
+        reporteExcel: reportPath
       }, 'PDF procesado completamente');
 
     } catch (error) {
