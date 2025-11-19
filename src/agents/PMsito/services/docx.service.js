@@ -53,7 +53,7 @@ async function buildChartPng({ categories, series, chartType }) {
   return buffer;
 }
 
-export async function generateDocxReport(data, templateName, outputName = `reporte_${Date.now()}`, chartType = 'bar') {
+export async function generateDocxReport(data, templateName, outputName = `reporte_${Date.now()}`, chartType = 'bar', nameReport) {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
@@ -117,7 +117,7 @@ export async function generateDocxReport(data, templateName, outputName = `repor
   const doc = new Docxtemplater(zip, { modules: [imageModule], paragraphLoop: true, linebreaks: true });
 
   const context = {
-    proyecto: 'Trupper',
+    proyecto: nameReport || 'Reporte de Proyecto',
     fecha: new Date().toLocaleDateString('es-ES'),
     groups,
     // pasar la RUTA al placeholder {chart_img} (imageModule leerá el fichero)
