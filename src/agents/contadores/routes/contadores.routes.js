@@ -15,4 +15,7 @@ router.post('/analyze-pdfs', ContadoresController.analyzePdfs);
 // Endpoint combinado: dividir y analizar PDF
 router.post('/process-pdf', ContadoresController.uploadPdf, ContadoresController.processPdf);
 
+// Endpoint para generar reportes
+router.get('/generate-report', ContadoresController.generateReport);
+
 export default router;
