@@ -1,14 +1,16 @@
 import { PdfService } from '../services/pdf.service.js';
 import { AzureService } from '../services/azure.service.js';
 import { ReportService } from '../services/report.service.js';
+import { EmailService } from '../services/email.service.js';
 import { successResponse, errorResponse } from '../../../shared/utils/response.js';
 import { logger } from '../../../shared/utils/logger.js';
 import multer from 'multer';
+import { PrismaClient } from '@prisma/client';
 
 // Configurar multer para subida de archivos
 const upload = multer({
   dest: 'src/agents/contadores/data/', // Carpeta temporal para uploads
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB límite
+  limits: { fileSize: 16 * 1024 * 1024 } // 16MB límite
 });
 
 export class ContadoresController {
@@ -103,6 +105,13 @@ export class ContadoresController {
   }
 
   static async processPdf(req, res) {
+    const prisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL
+        }
+      }
+    });
     try {
       // El archivo ya fue procesado por multer
       if (!req.files || req.files.length === 0) {
@@ -113,10 +122,15 @@ export class ContadoresController {
       const pdfPath = file.path;
       const originalName = file.originalname;
 
-      logger.info('Procesando PDF completo', { originalName });
+      // Determinar el cliente: usar el campo Cliente del form o el nombre del archivo
+      const cliente = req.body.Cliente || originalName.replace(/\.[^/.]+$/, ''); // Remover extensión
+
+      console.log(`Procesando PDF: ${originalName} (Cliente: ${cliente})`);
 
       // 1. Dividir el PDF
       const splitFiles = await PdfService.splitPdfByPages(pdfPath, originalName);
+
+      console.log(`${splitFiles.length} páginas encontradas`);
 
       // Limpiar archivo temporal
       const fs = await import('fs');
@@ -127,8 +141,11 @@ export class ContadoresController {
       // 2. Analizar cada página con Azure
       const azureService = new AzureService();
       const results = [];
+      let completedPages = 0;
 
-      for (const splitFile of splitFiles) {
+      for (let i = 0; i < splitFiles.length; i++) {
+        const splitFile = splitFiles[i];
+        const pageNumber = i + 1;
         try {
           const analysis = await azureService.analyzeDocument(splitFile.ruta);
 
@@ -147,11 +164,39 @@ export class ContadoresController {
                   extractedData[fieldName] = fields[fieldName].value;
                 }
               }
+
+              // Insertar en la base de datos
+              try {
+                const impresionesBN = parseInt(extractedData.Impresiones) || 0;
+                const impresionesColor = parseInt(extractedData.ImpresionesColor) || 0;
+
+                await prisma.contadores.create({
+                  data: {
+                    Modelo: extractedData.Modelo || null,
+                    TipoImpresion: extractedData.TipoImpresion || null,
+                    Ip: extractedData.ip || null,
+                    Serie: extractedData.Serie || null,
+                    ImpresionesBN: impresionesBN,
+                    ImpresionesColor: impresionesColor,
+                    TotalImpresiones: impresionesBN + impresionesColor,
+                    Cliente: cliente,
+                    FechaCaptura: new Date(),
+                    // Otros campos opcionales
+                  }
+                });
+
+                completedPages++;
+                console.log(`Página ${pageNumber} completada`);
+              } catch (dbError) {
+                console.log(`Página ${pageNumber} sin completar: Error en base de datos`);
+              }
             } else {
               extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
+              console.log(`Página ${pageNumber} sin completar por falta de entrenamiento`);
             }
           } else {
             extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
+            console.log(`Página ${pageNumber} sin completar por falta de entrenamiento`);
           }
 
           results.push({
@@ -164,26 +209,62 @@ export class ContadoresController {
             pagina: splitFile.nombre,
             error: error.message
           });
+          console.log(`Página ${pageNumber} sin completar: ${error.message}`);
         }
       }
 
-      // 3. Generar reporte Excel
-      const validResults = results.filter(r => r.datos && !r.datos.mensaje);
-      const reportPath = await ReportService.generateReport(validResults, originalName);
-
-      // 4. Limpiar carpeta de salida
+      // 3. Limpiar carpeta de salida
       await ContadoresController.cleanOutputInternal();
 
-      logger.info('Procesamiento completo', { totalPaginas: splitFiles.length, reportPath });
+      console.log(`${completedPages}/${splitFiles.length} páginas completadas`);
 
       return successResponse(res, {
         totalPaginas: splitFiles.length,
-        resultados: results,
-        reporteExcel: reportPath
+        resultados: results
       }, 'PDF procesado completamente');
 
     } catch (error) {
       logger.error('Error procesando PDF', error);
+      return errorResponse(res, error.message, 500);
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+
+  static async generateReport(req, res) {
+    try {
+      const { cliente, mes, estatus } = req.query;
+
+      if (!cliente && !mes && estatus !== 'null') {
+        return errorResponse(res, 'Debe proporcionar al menos uno de los parámetros: cliente, mes, o estatus=null', 400);
+      }
+
+      const result = await ReportService.generateReportFromDB({ cliente, mes, estatus });
+      const emailDestino = 'abraham.pardo@compucad.com.mx';
+
+      if (estatus === 'null') {
+        // Resultado es un array de reportes por cliente
+        // Enviar cada reporte por correo
+        for (const item of result) {
+          if (item.reporte) {
+            await EmailService.sendReport(emailDestino, item.reporte);
+          }
+        }
+
+        return successResponse(res, {
+          reportes: result
+        }, 'Reportes generados y enviados exitosamente');
+      } else {
+        // Resultado es un solo path
+        await EmailService.sendReport(emailDestino, result);
+
+        return successResponse(res, {
+          reporteExcel: result
+        }, 'Reporte generado y enviado exitosamente');
+      }
+
+    } catch (error) {
+      logger.error('Error generando reporte', error);
       return errorResponse(res, error.message, 500);
     }
   }
