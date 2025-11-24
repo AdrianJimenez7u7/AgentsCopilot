@@ -16,7 +16,8 @@ export class PMsitoController {
                 templateName,
                 recipient,
                 chartType = 'bar',
-                outputName = `reporte_${Date.now()}`
+                outputName = `reporte_${Date.now()}`,
+                nameReport
             } = payload;
 
             console.log(payload);
@@ -31,8 +32,8 @@ export class PMsitoController {
                 ? String(chartType).toLowerCase()
                 : 'bar';
 
-            // pasar outputName como 3er arg y chartType como 4to
-            const {outPath: docPath, outChartPath: chartPath} = await generateDocxReport(data, templateName, outputName, ct);
+            // pasar outputName como 3er arg y chartType como 4to, nameReport como 5to
+            const {outPath: docPath, outChartPath: chartPath} = await generateDocxReport(data, templateName, outputName, ct, nameReport);
 
             const docName = path.basename(docPath);
             let correoEnviado = false;
