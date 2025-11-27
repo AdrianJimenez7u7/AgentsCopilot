@@ -151,7 +151,7 @@ export class ContadoresController {
 
           // Extraer campos específicos
           const extractedData = {};
-          const targetFields = ['Modelo', 'TipoImpresion', 'ip', 'Serie', 'Impresiones', 'ImpresionesColor'];
+          const targetFields = ['Modelo', 'TipoImpresion', 'ip', 'Serie', 'Impresiones', 'ImpresionesColor', 'TipoImpresora'];
 
           if (analysis.documents && analysis.documents.length > 0) {
             const fields = analysis.documents[0].fields;
@@ -181,7 +181,7 @@ export class ContadoresController {
                     TotalImpresiones: impresionesBN + impresionesColor,
                     Cliente: cliente,
                     FechaCaptura: new Date(),
-                    // Otros campos opcionales
+                    TipoImpresora: extractedData.TipoImpresora || null,
                   }
                 });
 
@@ -189,6 +189,7 @@ export class ContadoresController {
                 console.log(`Página ${pageNumber} completada`);
               } catch (dbError) {
                 console.log(`Página ${pageNumber} sin completar: Error en base de datos`);
+                console.error(dbError);
               }
             } else {
               extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
@@ -230,7 +231,6 @@ export class ContadoresController {
       await prisma.$disconnect();
     }
   }
-
   static async generateReport(req, res) {
     try {
       const { cliente, mes, estatus } = req.query;
@@ -241,13 +241,21 @@ export class ContadoresController {
 
       const result = await ReportService.generateReportFromDB({ cliente, mes, estatus });
       const emailDestino = 'abraham.pardo@compucad.com.mx';
+      const fs = await import('fs');
 
       if (estatus === 'null') {
         // Resultado es un array de reportes por cliente
-        // Enviar cada reporte por correo
         for (const item of result) {
           if (item.reporte) {
             await EmailService.sendReport(emailDestino, item.reporte);
+
+            const paths = Array.isArray(item.reporte) ? item.reporte : [item.reporte];
+            for (const p of paths) {
+              if (fs.existsSync(p)) {
+                fs.unlinkSync(p);
+                logger.info(`Reporte eliminado: ${p}`);
+              }
+            }
           }
         }
 
@@ -255,11 +263,19 @@ export class ContadoresController {
           reportes: result
         }, 'Reportes generados y enviados exitosamente');
       } else {
-        // Resultado es un solo path
+        // Resultado es un array de paths
         await EmailService.sendReport(emailDestino, result);
 
+        const paths = Array.isArray(result) ? result : [result];
+        for (const p of paths) {
+          if (fs.existsSync(p)) {
+            fs.unlinkSync(p);
+            logger.info(`Reporte eliminado: ${p}`);
+          }
+        }
+
         return successResponse(res, {
-          reporteExcel: result
+          reportes: result
         }, 'Reporte generado y enviado exitosamente');
       }
 
@@ -269,7 +285,6 @@ export class ContadoresController {
     }
   }
 
-  // Método interno para limpiar sin respuesta HTTP
   static async cleanOutputInternal() {
     try {
       const fs = await import('fs');

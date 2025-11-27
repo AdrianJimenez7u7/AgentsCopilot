@@ -3,20 +3,21 @@ import { logger } from '../../../shared/utils/logger.js';
 import path from 'path';
 
 export class EmailService {
-    static async sendReport(email, reportPath) {
+    static async sendReport(email, reportPaths) {
         try {
-            const filename = path.basename(reportPath);
+            const paths = Array.isArray(reportPaths) ? reportPaths : [reportPaths];
+            const attachments = paths.map(p => ({
+                filename: path.basename(p),
+                path: p
+            }));
 
             await transporter.sendMail({
                 from: process.env.EMAIL_USER || "transformacion.digital@compucad.com.mx",
                 to: email,
                 subject: 'Reporte de Contadores Generado',
-                text: 'Adjunto encontrará el reporte de contadores generado.',
-                html: '<p>Adjunto encontrará el reporte de contadores generado.</p>',
-                attachments: [{
-                    filename: filename,
-                    path: reportPath
-                }]
+                text: 'Adjunto encontrará los reportes de contadores generados.',
+                html: '<p>Adjunto encontrará los reportes de contadores generados.</p>',
+                attachments: attachments
             });
 
             logger.info(`Reporte enviado exitosamente a ${email}`);
