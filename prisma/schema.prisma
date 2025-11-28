@@ -50,7 +50,10 @@ model ContadoresInfoClientes {
   Color                Int?
   Tecnico              String?   @db.NVarChar(MAX)
   FechaLimiteReporte   DateTime? @db.DateTime
-  Adicional            String?   @db.NVarChar(MAX)
+  PrecioBN             Decimal?  @db.Decimal(10, 2)
+  PrecioColor          Decimal?  @db.Decimal(10, 2)
+  RentaFija            Decimal?  @db.Decimal(10, 2)
+  CostoExtra           Decimal?  @db.Decimal(10, 2)
 
   @@map("ContadoresInfoClientes")
 }

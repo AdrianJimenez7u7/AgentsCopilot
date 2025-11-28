@@ -244,18 +244,13 @@ export class ContadoresController {
       const fs = await import('fs');
 
       if (estatus === 'null') {
-        // Resultado es un array de reportes por cliente
-        for (const item of result) {
-          if (item.reporte) {
-            await EmailService.sendReport(emailDestino, item.reporte);
+        // Resultado es un array de todos los paths de reportes
+        await EmailService.sendReport(emailDestino, result);
 
-            const paths = Array.isArray(item.reporte) ? item.reporte : [item.reporte];
-            for (const p of paths) {
-              if (fs.existsSync(p)) {
-                fs.unlinkSync(p);
-                logger.info(`Reporte eliminado: ${p}`);
-              }
-            }
+        for (const p of result) {
+          if (fs.existsSync(p)) {
+            fs.unlinkSync(p);
+            logger.info(`Reporte eliminado: ${p}`);
           }
         }
 

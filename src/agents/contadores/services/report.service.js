@@ -4,20 +4,39 @@ import ExcelJS from 'exceljs';
 import { logger } from '../../../shared/utils/logger.js';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
-import PdfPrinter from 'pdfmake';
+import { PdfReportService } from './pdf.report.service.js';
 
-const fonts = {
-  Helvetica: {
-    normal: 'Helvetica',
-    bold: 'Helvetica-Bold',
-    italics: 'Helvetica-Oblique',
-    bolditalics: 'Helvetica-BoldOblique'
-  }
-};
-
-const printer = new PdfPrinter(fonts);
 
 export class ReportService {
+  static filterUniqueSerieByMaxId(registros) {
+    const map = new Map();
+    for (const r of registros) {
+      const existing = map.get(r.Serie);
+      if (!existing) {
+        map.set(r.Serie, r);
+      } else {
+        // Prefer the one with Estatus != null
+        const existingHasStatus = existing.Estatus != null;
+        const currentHasStatus = r.Estatus != null;
+        if (currentHasStatus && !existingHasStatus) {
+          map.set(r.Serie, r);
+        } else if (!currentHasStatus && !existingHasStatus) {
+          // Both null, take higher ImpresionesBN
+          if ((r.ImpresionesBN || 0) > (existing.ImpresionesBN || 0)) {
+            map.set(r.Serie, r);
+          }
+        } else if (currentHasStatus && existingHasStatus) {
+          // Both have status, take higher ImpresionesBN
+          if ((r.ImpresionesBN || 0) > (existing.ImpresionesBN || 0)) {
+            map.set(r.Serie, r);
+          }
+        }
+        // If existing has status and current doesn't, keep existing
+      }
+    }
+    return Array.from(map.values());
+  }
+
   static async fetchImage(url) {
     try {
       const response = await axios.get(url, { responseType: 'arraybuffer' });
@@ -68,7 +87,7 @@ export class ReportService {
         { key: 'Hojas', width: 16 }
       ];
 
-      // Logo - Ocupa A1:B2
+      // Logo - Ocupa A1:B1, tamaño reducido
       const logoUrl = 'https://compucad.com.mx/wp-content/uploads/2024/05/compucad-logotipo-2024-copy.png';
       const logoBuffer = await this.fetchImage(logoUrl);
       if (logoBuffer) {
@@ -78,32 +97,33 @@ export class ReportService {
         });
         ws.addImage(imageId, {
           tl: { col: 0, row: 0 },
-          br: { col: 2, row: 2 }
+          br: { col: 1, row: 1 },
+          ext: { width: 120, height: 60 } // Tamaño reducido al 40%
         });
       }
 
       // Ajustar altura de las filas del header
-      ws.getRow(1).height = 25;
       ws.getRow(2).height = 25;
+      ws.getRow(3).height = 25;
 
-      // Header personalizado - Fila 1
-      ws.mergeCells('C1:D1');
-      ws.getCell('C1').value = `Cliente: ${headerData.cliente || ''}`;
-      ws.getCell('C1').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
-      ws.getCell('C1').alignment = { vertical: 'middle', horizontal: 'left' };
-      ws.getCell('C1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
+      // Header personalizado - Fila 2
+      ws.mergeCells('C2:D2');
+      ws.getCell('C2').value = `Cliente: ${headerData.cliente || ''}`;
+      ws.getCell('C2').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
+      ws.getCell('C2').alignment = { vertical: 'middle', horizontal: 'left' };
+      ws.getCell('C2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
 
-      ws.mergeCells('E1:G1');
-      ws.getCell('E1').value = `Periodo: ${headerData.inicio || ''} - ${headerData.fin || ''}`;
-      ws.getCell('E1').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
-      ws.getCell('E1').alignment = { vertical: 'middle', horizontal: 'center' };
-      ws.getCell('E1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
+      ws.mergeCells('E2:G2');
+      ws.getCell('E2').value = `Periodo: ${headerData.inicio || ''} - ${headerData.fin || ''}`;
+      ws.getCell('E2').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
+      ws.getCell('E2').alignment = { vertical: 'middle', horizontal: 'center' };
+      ws.getCell('E2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
 
-      ws.mergeCells('H1:H1');
-      ws.getCell('H1').value = `Mes: ${headerData.mes || ''}`;
-      ws.getCell('H1').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
-      ws.getCell('H1').alignment = { vertical: 'middle', horizontal: 'center' };
-      ws.getCell('H1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
+      ws.mergeCells('H2:H2');
+      ws.getCell('H2').value = `Mes: ${headerData.mes || ''}`;
+      ws.getCell('H2').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
+      ws.getCell('H2').alignment = { vertical: 'middle', horizontal: 'center' };
+      ws.getCell('H2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
 
       // Aplicar bordes
       const headerBorder = {
@@ -112,12 +132,12 @@ export class ReportService {
         bottom: { style: 'thin', color: { argb: 'FF000000' } },
         right: { style: 'thin', color: { argb: 'FF000000' } }
       };
-      ws.getCell('C1').border = headerBorder;
-      ws.getCell('E1').border = headerBorder;
-      ws.getCell('H1').border = headerBorder;
+      ws.getCell('C2').border = headerBorder;
+      ws.getCell('E2').border = headerBorder;
+      ws.getCell('H2').border = headerBorder;
 
       // Título principal
-      let cursorRow = 3;
+      let cursorRow = 4;
       ws.mergeCells(`A${cursorRow}:H${cursorRow}`);
       const titleCell = ws.getCell(`A${cursorRow}`);
       titleCell.value = 'REPORTE DE IMPRESIONES';
@@ -209,13 +229,56 @@ export class ReportService {
       ws.getCell(`A${cursorRow}`).font = { bold: true };
       cursorRow++;
 
+      // Consultar precios del cliente
+      const prisma = new PrismaClient({
+        datasources: {
+          db: {
+            url: process.env.DATABASE_URL
+          }
+        }
+      });
+      let clientRecords = [];
+      let precioBN = 0.18;
+      let precioColor = 0.95;
+      try {
+        clientRecords = await prisma.contadoresInfoClientes.findMany({
+          where: { Cliente: headerData.cliente },
+          select: {
+            Modelo: true,
+            Serie: true,
+            PrecioBN: true,
+            PrecioColor: true,
+            RentaFija: true
+          }
+        });
+        if (clientRecords.length > 0) {
+          // Tomar precios del primer registro (todos los equipos tienen los mismos precios de impresión)
+          precioBN = clientRecords[0].PrecioBN ? clientRecords[0].PrecioBN.toNumber() : 0.18;
+          precioColor = clientRecords[0].PrecioColor ? clientRecords[0].PrecioColor.toNumber() : 0.95;
+        }
+      } catch (error) {
+        logger.error('Error consultando precios del cliente', error);
+      } finally {
+        await prisma.$disconnect();
+      }
+
       const totals = [
-        { concepto: 'Total de hojas Blanco y Negro equipo monocromatico', cantidad: this.sumField(monochromeBW, 'Impresiones'), precio: 0.18 },
-        { concepto: 'Total de hojas Blanco y Negro equipo monocromatico (otro precio)', cantidad: this.sumField(monochromeBW, 'Impresiones'), precio: 0.28 },
-        { concepto: 'Total de hojas impresas Blanco y Negro equipo color', cantidad: this.sumField(colorBW, 'Impresiones'), precio: 0.23 },
-        { concepto: 'Total de hojas impresas Color equipo color', cantidad: this.sumField(colorColor, 'ImpresionesColor'), precio: 0.95 },
-        { concepto: 'MONTO FIJO RENTA DE EQUIPO', cantidad: 1, precio: 14375 }
+        { concepto: 'Total de hojas Blanco y Negro equipo monocromatico', cantidad: this.sumField(monochromeBW, 'Impresiones'), precio: precioBN },
+        { concepto: 'Total de hojas Blanco y Negro equipo monocromatico (otro precio)', cantidad: this.sumField(monochromeBW, 'Impresiones'), precio: precioBN },
+        { concepto: 'Total de hojas impresas Blanco y Negro equipo color', cantidad: this.sumField(colorBW, 'Impresiones'), precio: precioBN },
+        { concepto: 'Total de hojas impresas Color equipo color', cantidad: this.sumField(colorColor, 'ImpresionesColor'), precio: precioColor }
       ];
+
+      // Agregar rentas fijas por equipo
+      clientRecords.forEach(record => {
+        if (record.RentaFija) {
+          totals.push({
+            concepto: `Renta Equipo ${record.Modelo || 'N/A'} (${record.Serie || 'N/A'})`,
+            cantidad: 1,
+            precio: record.RentaFija.toNumber()
+          });
+        }
+      });
 
       const totHeader = ws.getRow(cursorRow);
       totHeader.getCell(1).value = 'Concepto';
@@ -246,7 +309,7 @@ export class ReportService {
       // Formatting
       for (let r = 1; r <= cursorRow + 1; r++) {
         const row = ws.getRow(r);
-        if (r > 3) {
+        if (r > 4) {
           row.getCell(2).numFmt = '#,##0';
           row.getCell(3).numFmt = '$#,##0.00';
           row.getCell(4).numFmt = '$#,##0.00';
@@ -271,181 +334,6 @@ export class ReportService {
     }
   }
 
-  static async generatePdfReport(extractedData, originalFileName, headerData = {}) {
-    try {
-      const monochromePrinters = [];
-      const colorPrinters = [];
-
-      for (const item of extractedData) {
-        if (item.datos && !item.datos.mensaje) {
-          const data = item.datos;
-          const tipo = (data.TipoImpresora || '').toLowerCase();
-          const isColor = tipo.includes('color');
-          if (isColor) colorPrinters.push(data);
-          else monochromePrinters.push(data);
-        }
-      }
-
-      const monochromeBW = monochromePrinters.map(d => ({ ...d, ImpresionesColor: 0 }));
-      const colorBW = colorPrinters.map(d => ({ ...d, ImpresionesColor: 0 }));
-      const colorColor = colorPrinters.map(d => ({ ...d, Impresiones: 0 }));
-
-      const logoUrl = 'https://compucad.com.mx/wp-content/uploads/2024/05/compucad-logotipo-2024-copy.png';
-      const logoBuffer = await this.fetchImage(logoUrl);
-      const logoBase64 = logoBuffer ? `data:image/png;base64,${logoBuffer.toString('base64')}` : null;
-
-      const docDefinition = {
-        content: [
-          {
-            columns: [
-              logoBase64 ? { image: logoBase64, width: 100 } : { text: 'COMPUCAD', bold: true },
-              {
-                stack: [
-                  { text: `Cliente: ${headerData.cliente || ''}`, bold: true },
-                  { text: `Periodo: ${headerData.inicio || ''} - ${headerData.fin || ''}`, bold: true },
-                  { text: `Mes: ${headerData.mes || ''}`, bold: true }
-                ],
-                alignment: 'right'
-              }
-            ]
-          },
-          { text: 'REPORTE DE IMPRESIONES', style: 'header', margin: [0, 10, 0, 10] },
-        ],
-        styles: {
-          header: { fontSize: 14, bold: true, alignment: 'center', color: 'white', fillColor: '#B15000' },
-          sectionHeader: { fontSize: 12, bold: true, color: 'white', fillColor: '#B15000', margin: [0, 5, 0, 5] },
-          tableHeader: { bold: true, fontSize: 10, color: 'white', fillColor: '#8C3300', alignment: 'center' },
-          tableCell: { fontSize: 9 }
-        },
-        defaultStyle: { font: 'Helvetica' }
-      };
-
-      const buildTable = (title, data) => {
-        const esBN = title.includes('BLANCO Y NEGRO');
-        const body = [];
-
-        // Header
-        body.push([
-          { text: 'Modelo', style: 'tableHeader' },
-          { text: 'Tipo', style: 'tableHeader' },
-          { text: 'IP', style: 'tableHeader' },
-          { text: 'Serie', style: 'tableHeader' },
-          { text: 'Ubicación', style: 'tableHeader' },
-          { text: esBN ? 'Inicio BN' : 'Inicio Color', style: 'tableHeader' },
-          { text: esBN ? 'Fin BN' : 'Fin Color', style: 'tableHeader' },
-          { text: esBN ? 'Impresiones BN' : 'Impresiones Color', style: 'tableHeader' }
-        ]);
-
-        data.forEach(item => {
-          const inicio = esBN ? (item.InicioBN || 0) : (item.InicioColor || 0);
-          const fin = esBN ? (item.FinBN || 0) : (item.FinColor || 0);
-          const hojas = esBN ? (item.Impresiones || 0) : (item.ImpresionesColor || 0);
-
-          body.push([
-            { text: item.Modelo || '', style: 'tableCell' },
-            { text: item.TipoImpresion || '', style: 'tableCell' },
-            { text: item.ip || item.Ip || '', style: 'tableCell' },
-            { text: item.Serie || '', style: 'tableCell' },
-            { text: item.Ubicacion || '', style: 'tableCell' },
-            { text: inicio.toString(), style: 'tableCell' },
-            { text: fin.toString(), style: 'tableCell' },
-            { text: hojas.toString(), style: 'tableCell' }
-          ]);
-        });
-
-        // Total
-        const total = esBN ? this.sumField(data, 'Impresiones') : this.sumField(data, 'ImpresionesColor');
-        body.push([
-          { text: `TOTAL ${title}`, colSpan: 7, bold: true, style: 'tableCell', alignment: 'right' }, {}, {}, {}, {}, {}, {},
-          { text: total.toString(), bold: true, style: 'tableCell' }
-        ]);
-
-        return {
-          table: {
-            headerRows: 1,
-            widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
-            body: body
-          },
-          layout: 'lightHorizontalLines'
-        };
-      };
-
-      docDefinition.content.push({ text: 'EQUIPO MONOCROMATICO IMPRESIONES BLANCO Y NEGRO', style: 'sectionHeader' });
-      docDefinition.content.push(buildTable('MONO BN', monochromeBW));
-
-      docDefinition.content.push({ text: 'EQUIPO COLOR IMPRESIONES BLANCO Y NEGRO', style: 'sectionHeader' });
-      docDefinition.content.push(buildTable('COLOR BN', colorBW));
-
-      docDefinition.content.push({ text: 'EQUIPO COLOR IMPRESIONES COLOR', style: 'sectionHeader' });
-      docDefinition.content.push(buildTable('COLOR COLOR', colorColor));
-
-      // Totales finales
-      docDefinition.content.push({ text: 'TOTALES', style: 'sectionHeader', margin: [0, 20, 0, 5] });
-
-      const totals = [
-        { c: 'Total Hojas BN Mono', q: this.sumField(monochromeBW, 'Impresiones'), p: 0.18 },
-        { c: 'Total Hojas BN Mono (otro)', q: this.sumField(monochromeBW, 'Impresiones'), p: 0.28 },
-        { c: 'Total Hojas BN Color', q: this.sumField(colorBW, 'Impresiones'), p: 0.23 },
-        { c: 'Total Hojas Color', q: this.sumField(colorColor, 'ImpresionesColor'), p: 0.95 },
-        { c: 'Renta Equipo', q: 1, p: 14375 }
-      ];
-
-      let grandTotal = 0;
-      const totalsBody = [
-        [{ text: 'Concepto', style: 'tableHeader' }, { text: 'Cantidad', style: 'tableHeader' }, { text: 'Precio', style: 'tableHeader' }, { text: 'Total', style: 'tableHeader' }]
-      ];
-
-      totals.forEach(t => {
-        const total = (Number(t.q) || 0) * t.p;
-        grandTotal += total;
-        totalsBody.push([
-          { text: t.c, style: 'tableCell' },
-          { text: t.q.toString(), style: 'tableCell' },
-          { text: `$${t.p.toFixed(2)}`, style: 'tableCell' },
-          { text: `$${total.toFixed(2)}`, style: 'tableCell' }
-        ]);
-      });
-
-      totalsBody.push([
-        { text: 'GRAN TOTAL', colSpan: 3, bold: true, style: 'tableCell' }, {}, {},
-        { text: `$${grandTotal.toFixed(2)}`, bold: true, style: 'tableCell' }
-      ]);
-
-      docDefinition.content.push({
-        table: {
-          headerRows: 1,
-          widths: ['*', 'auto', 'auto', 'auto'],
-          body: totalsBody
-        }
-      });
-
-      const reportsDir = path.join('src', 'agents', 'contadores', 'Reports');
-      if (!fs.existsSync(reportsDir)) {
-        fs.mkdirSync(reportsDir, { recursive: true });
-      }
-      const baseName = path.parse(originalFileName).name;
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const fileName = `${baseName}_reporte_${timestamp}.pdf`;
-      const filePath = path.join(reportsDir, fileName);
-
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      const writeStream = fs.createWriteStream(filePath);
-      pdfDoc.pipe(writeStream);
-      pdfDoc.end();
-
-      return new Promise((resolve, reject) => {
-        writeStream.on('finish', () => {
-          logger.info('Reporte PDF generado', { filePath });
-          resolve(filePath);
-        });
-        writeStream.on('error', reject);
-      });
-
-    } catch (error) {
-      logger.error('Error generando reporte PDF', error);
-      throw error;
-    }
-  }
 
   static sumField(data, field) {
     return data.reduce((sum, item) => {
@@ -483,14 +371,17 @@ export class ReportService {
           distinct: ['Cliente']
         });
 
-        const reports = [];
+        const allReports = [];
         for (const c of clientes) {
-          const registros = await prisma.contadores.findMany({
+          let registros = await prisma.contadores.findMany({
             where: {
               Cliente: c.Cliente,
               Estatus: null
             }
           });
+
+          // Filtrar para tomar solo el registro con id más alto por Serie
+          registros = this.filterUniqueSerieByMaxId(registros);
 
           if (registros.length > 0) {
             const extractedData = await Promise.all(registros.map(async (r) => {
@@ -556,12 +447,9 @@ export class ReportService {
             const headerData = getHeaderData(c.Cliente, firstDate);
 
             const excelPath = await this.generateReport(extractedData, `Reporte_${c.Cliente}`, headerData);
-            const pdfPath = await this.generatePdfReport(extractedData, `Reporte_${c.Cliente}`, headerData);
+            const pdfPath = await PdfReportService.generatePdfReport(extractedData, `Reporte_${c.Cliente}`, headerData);
 
-            reports.push({
-              cliente: c.Cliente,
-              reporte: [excelPath, pdfPath]
-            });
+            allReports.push(excelPath, pdfPath);
 
             if (!params.dryRun) {
               for (const r of registros) {
@@ -610,12 +498,15 @@ export class ReportService {
             }
           }
         }
-        return reports;
+        return allReports;
       } else {
         const where = {};
         if (params.cliente) where.Cliente = params.cliente;
 
-        const registros = await prisma.contadores.findMany({ where });
+        let registros = await prisma.contadores.findMany({ where });
+
+        // Filtrar para tomar solo el registro con id más alto por Serie
+        registros = this.filterUniqueSerieByMaxId(registros);
 
         const extractedData = await Promise.all(registros.map(async (r) => {
           // Estrategia de búsqueda robusta:
@@ -680,7 +571,7 @@ export class ReportService {
         const headerData = getHeaderData(params.cliente || 'General', firstDate);
 
         const excelPath = await this.generateReport(extractedData, `Reporte_${params.cliente || 'General'}`, headerData);
-        const pdfPath = await this.generatePdfReport(extractedData, `Reporte_${params.cliente || 'General'}`, headerData);
+        const pdfPath = await PdfReportService.generatePdfReport(extractedData, `Reporte_${params.cliente || 'General'}`, headerData);
 
         if (!params.dryRun) {
           for (const r of registros) {
