@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Contadores {
+  id                  Int      @id @default(autoincrement())
+  Modelo              String?  @db.NVarChar(MAX)
+  TipoImpresion       String?  @db.NVarChar(MAX)
+  Ip                  String?  @db.NVarChar(MAX)
+  Serie               String?  @db.NVarChar(MAX)
+  ImpresionesBN       Int?
+  ImpresionesColor    Int?
+  TotalImpresiones    Int?
+  Cliente             String?  @db.NVarChar(MAX)
+  FechaCaptura        DateTime? @db.DateTime
+  CostoTotal          Decimal?  @db.Decimal(18, 4)
+  Responsable         String?  @db.NVarChar(MAX)
+  Estatus             String?  @db.NVarChar(MAX)
+  TipoImpresora       String?  @db.NVarChar(MAX)
+  Adicional2          String?  @db.NVarChar(MAX)
+  Adicional3          String?  @db.NVarChar(MAX)
+  Adicional4          String?  @db.NVarChar(MAX)
+  Adicional5          String?  @db.NVarChar(MAX)
+  Adicional6          String?  @db.NVarChar(MAX)
+  Adicional7          String?  @db.NVarChar(MAX)
+  Adicional8          String?  @db.NVarChar(MAX)
+  Adicional9          String?  @db.NVarChar(MAX)
+  Adicional10         String?  @db.NVarChar(MAX)
+
+  @@map("Contadores")
+}
+
+model ContadoresInfoClientes {
+  id                   Int       @id @default(autoincrement())
+  Cliente              String?   @db.NVarChar(MAX)
+  Modelo               String?   @db.NVarChar(MAX)
+  Serie                String?   @db.NVarChar(MAX)
+  IP                   String?   @db.NVarChar(MAX)
+  ImpresionesActuales  Int?
+  BN                   Int?
+  Color                Int?
+  Tecnico              String?   @db.NVarChar(MAX)
+  FechaLimiteReporte   DateTime? @db.DateTime
+  PrecioBN             Decimal?  @db.Decimal(10, 2)
+  PrecioColor          Decimal?  @db.Decimal(10, 2)
+  RentaFija            Decimal?  @db.Decimal(10, 2)
+  CostoExtra           Decimal?  @db.Decimal(10, 2)
+
+  @@map("ContadoresInfoClientes")
+}
