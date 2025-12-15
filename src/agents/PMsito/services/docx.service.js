@@ -58,20 +58,46 @@ export async function generateDocxReport(data, templateName, outputName = `repor
   const __dirname = path.dirname(__filename);
 
   // --- prepara datos para el gráfico (usa tu mismo cálculo) ---
-  const groupsMap = data.reduce((acc, t) => {
+  // ordenar por posicion global para mantener el orden del planner
+  const sortedData = Array.isArray(data)
+    ? [...data].sort((a, b) => {
+        const pa = Number(a.posicion ?? a.pos ?? 0);
+        const pb = Number(b.posicion ?? b.pos ?? 0);
+        return pa - pb;
+      })
+    : [];
+
+  // construir mapa de grupos en el orden en que aparecen en sortedData
+  const groupsMap = sortedData.reduce((acc, t) => {
     const g = String(t.Grupo ?? 'Sin grupo');
-    (acc[g] ||= []).push(t);
+    if (!acc[g]) acc[g] = [];
+    acc[g].push(t);
     return acc;
   }, {});
+
+  // transformar tareas incluyendo nivel (nivel_tarea) y posicion para la plantilla
   const groups = Object.entries(groupsMap).map(([grupo, tasks]) => {
     const tareas = tasks.map((t, i) => {
       const v = Number(t.porcentaje_100 ?? t.porcentaje ?? 0);
       const Estado = v === 100 ? 'Completado' : v === 0 ? 'Sin iniciar' : v > 0 && v < 100 ? 'En proceso' : 'Sin datos';
-      return { index: i + 1, Tarea: t.Tarea ?? '', Estado, porcentaje: t.porcentaje ?? '-', porcentaje_100: t.porcentaje_100 ?? '-' };
+      const nivel = Number(t.nivel_tarea ?? t.nivel ?? 1);
+      const posicion = Number(t.posicion ?? t.pos ?? (i + 1));
+      // opcional: campo para mostrar indentación en la plantilla
+      const indent = '  '.repeat(Math.max(0, nivel - 1)); // usa espacio no separable para Word
+      return {
+        index: i + 1,
+        Tarea: t.Tarea ?? '',
+        TareaDisplay: `${indent}${t.Tarea ?? ''}`,
+        Estado,
+        porcentaje: t.porcentaje ?? '-',
+        porcentaje_100: t.porcentaje_100 ?? '-',
+        nivel,
+        posicion,
+      };
     });
     return { grupo, count: tasks.length, tareas };
   });
-  const total = data.length;
+  const total = sortedData.length;
   // calcular conteos por estado: Completado, En proceso, Sin iniciar
   const counts = groups.reduce((acc, g) => {
     g.tareas.forEach(t => {

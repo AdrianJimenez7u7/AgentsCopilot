@@ -8,7 +8,7 @@ import { apiKeyAuth } from './shared/middleware/auth.middleware.js';
 // Importar rutas de agentes
 import cotizadorRoutes from './agents/cotizador/routes/cotizacion.routes.js';
 import contadoresRoutes from './agents/contadores/routes/contadores.routes.js';
-// import PMsitoRoutes from './agents/PMsito/routes/reportes.routes.js';
+import PMsitoRoutes from './agents/PMsito/routes/reportes.routes.js';
 
 const app = express();
 
@@ -63,7 +63,7 @@ app.get('/health', (req, res) => {
 
 // Aplicar autenticación a todas las rutas de API (opcional)
 // app.use('/agente', apiKeyAuth);
-// app.use('/agente/PMsito', PMsitoRoutes);
+app.use('/agente/PMsito', PMsitoRoutes);
 app.use(apiKeyAuth);
 // Rutas de agentes
 app.use('/agente/cotizador', cotizadorRoutes);

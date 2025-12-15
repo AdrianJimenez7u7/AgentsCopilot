@@ -8,6 +8,7 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
+  url      = env("DATABASE_URL")
 }
 
 model Contadores {
@@ -24,7 +25,7 @@ model Contadores {
   CostoTotal          Decimal?  @db.Decimal(18, 4)
   Responsable         String?  @db.NVarChar(MAX)
   Estatus             String?  @db.NVarChar(MAX)
-  Adicional1          String?  @db.NVarChar(MAX)
+  TipoImpresora       String?  @db.NVarChar(MAX)
   Adicional2          String?  @db.NVarChar(MAX)
   Adicional3          String?  @db.NVarChar(MAX)
   Adicional4          String?  @db.NVarChar(MAX)
@@ -36,4 +37,21 @@ model Contadores {
   Adicional10         String?  @db.NVarChar(MAX)
 
   @@map("Contadores")
+}
+
+model ContadoresInfoClientes {
+  id                  Int      @id @default(autoincrement())
+  Cliente             String?  @db.NVarChar(MAX)
+  Modelo              String?  @db.NVarChar(MAX)
+  Serie               String?  @db.NVarChar(MAX)
+  IP                  String?  @db.NVarChar(MAX)
+  ImpresionesActuales Int?
+  BN                  Int?
+  Color               Int?
+  Tecnico             String?  @db.NVarChar(MAX)
+  FechaLimiteReporte  DateTime?
+  PrecioBN            Decimal? @db.Decimal(18, 4)
+  PrecioColor         Decimal? @db.Decimal(18, 4)
+  RentaFija           Decimal? @db.Decimal(18, 4)
+  CostoExtra          Decimal? @db.Decimal(18, 4)
 }

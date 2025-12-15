@@ -6,12 +6,15 @@ import { successResponse, errorResponse } from '../../../shared/utils/response.j
 import { logger } from '../../../shared/utils/logger.js';
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
+import { ContadoresService } from '../services/db/contadores.service.js';
 
 // Configurar multer para subida de archivos
 const upload = multer({
   dest: 'src/agents/contadores/data/', // Carpeta temporal para uploads
   limits: { fileSize: 16 * 1024 * 1024 } // 16MB límite
 });
+
+const prisma = new PrismaClient();
 
 export class ContadoresController {
   static async splitPdf(req, res) {
@@ -105,13 +108,6 @@ export class ContadoresController {
   }
 
   static async processPdf(req, res) {
-    const prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: process.env.DATABASE_URL
-        }
-      }
-    });
     try {
       // El archivo ya fue procesado por multer
       if (!req.files || req.files.length === 0) {
@@ -290,6 +286,104 @@ export class ContadoresController {
 
     } catch (error) {
       logger.error('Error limpiando carpeta internamente', error);
+    }
+  }
+
+
+  /**
+   * Obtiene el catálogo de clientes (ContadoresInfoClientes) ordenado por nombre.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async getClientes(req, res) {
+    try {
+      const clientes = await ClientesService.obtenerClientes();
+      return successResponse(res, clientes, 'Lista de clientes obtenida');
+    } catch (error) {
+      logger.error('Error obteniendo lista de clientes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Obtiene las impresiones/contadores ordenados por fecha de captura descendente.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async getContadores(req, res) {
+    try {
+      const impresiones = await ClientesService.obtenerContadores();
+      return successResponse(res, impresiones, 'Lista de impresiones obtenida');
+    } catch (error) {
+      logger.error('Error obteniendo lista de impresiones', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Crea una impresora/cliente en ContadoresInfoClientes.
+   * Campos obligatorios: Cliente, Modelo, Serie.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async createImpresoraCliente(req, res) {
+    try {
+      const data = req.body;
+      if (!data.Cliente || !data.Modelo || !data.Serie) {
+        return errorResponse(res, 'Faltan campos obligatorios: Cliente, Modelo, Serie', 400);
+      }
+      const nuevaImpresora = await ClientesService.crearImpresoraCliente(data);
+      return successResponse(res, nuevaImpresora, 'Impresora cliente creada exitosamente');
+    } catch (error) {
+      logger.error('Error creando impresora cliente', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Actualiza una impresora/cliente existente por id.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async updateImpresoraCliente(req, res) {
+    try {
+      const id = parseInt(req.params.id);
+      const data = req.body;
+      const impresoraActualizada = await ClientesService.actualizarImpresoraCliente(id, data);
+      return successResponse(res, impresoraActualizada, 'Impresora cliente actualizada exitosamente');
+    } catch (error) {
+      logger.error('Error actualizando impresora cliente', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Obtiene los registros con Estatus nulo o vacío (reportes faltantes).
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async obtenerReportesFaltantes(req, res) {
+    try {
+      const reportesFaltantes = await ContadoresService.obtenerReportesFaltantes();
+      return successResponse(res, reportesFaltantes, 'Reportes faltantes obtenidos exitosamente');
+    } catch (error) {
+      logger.error('Error obteniendo reportes faltantes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Envía alertas sobre reportes faltantes.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async alertarReportesFaltantes(req, res) {
+    try {
+      const alertas = await ContadoresService.alertarReportesFaltantes();
+      return successResponse(res, alertas, 'Alertas de reportes faltantes enviadas exitosamente');
+    } catch (error) {
+      logger.error('Error enviando alertas de reportes faltantes', error);
+      return errorResponse(res, error.message, 500);
     }
   }
 }
