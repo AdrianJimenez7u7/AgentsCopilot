@@ -7,6 +7,7 @@ import { logger } from '../../../shared/utils/logger.js';
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { ContadoresService } from '../services/db/contadores.service.js';
+import { ClientesService } from '../services/db/clientes.service.js';
 
 // Configurar multer para subida de archivos
 const upload = multer({
