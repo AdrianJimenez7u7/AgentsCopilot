@@ -40,18 +40,21 @@ model Contadores {
 }
 
 model ContadoresInfoClientes {
-  id                  Int      @id @default(autoincrement())
-  Cliente             String?  @db.NVarChar(MAX)
-  Modelo              String?  @db.NVarChar(MAX)
-  Serie               String?  @db.NVarChar(MAX)
-  IP                  String?  @db.NVarChar(MAX)
-  ImpresionesActuales Int?
-  BN                  Int?
-  Color               Int?
-  Tecnico             String?  @db.NVarChar(MAX)
-  FechaLimiteReporte  DateTime?
-  PrecioBN            Decimal? @db.Decimal(18, 4)
-  PrecioColor         Decimal? @db.Decimal(18, 4)
-  RentaFija           Decimal? @db.Decimal(18, 4)
-  CostoExtra          Decimal? @db.Decimal(18, 4)
+
+  id                   Int       @id @default(autoincrement())
+  Cliente              String?   @db.NVarChar(MAX)
+  Modelo               String?   @db.NVarChar(MAX)
+  Serie                String?   @db.NVarChar(MAX)
+  IP                   String?   @db.NVarChar(MAX)
+  ImpresionesActuales  Int?
+  BN                   Int?
+  Color                Int?
+  Tecnico              String?   @db.NVarChar(MAX)
+  FechaLimiteReporte   DateTime? @db.DateTime
+  PrecioBN             Decimal?  @db.Decimal(10, 2)
+  PrecioColor          Decimal?  @db.Decimal(10, 2)
+  RentaFija            Decimal?  @db.Decimal(10, 2)
+  CostoExtra           Decimal?  @db.Decimal(10, 2)
+
+  @@map("ContadoresInfoClientes")
 }

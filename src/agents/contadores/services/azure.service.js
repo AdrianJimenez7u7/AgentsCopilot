@@ -162,7 +162,6 @@ export class AzureService {
           results.push({ archivo: file, error: error.message });
         }
       }
-
       return {
         modo: mode,
         totalArchivos: files.length,

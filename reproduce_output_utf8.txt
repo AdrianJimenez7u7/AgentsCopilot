@@ -1,0 +1,48 @@
+﻿Searching for record...
+Found record with exact match: {
+  id: 57,
+  Modelo: '3GY25A',
+  TipoImpresion: 'Carta',
+  Ip: '172.22.60.1',
+  Serie: 'MXBCR1XOQR',
+  ImpresionesBN: 146175,
+  ImpresionesColor: 46331,
+  TotalImpresiones: 192406,
+  Cliente: 'Reyma',
+  FechaCaptura: 2025-11-26T22:05:34.736Z,
+  CostoTotal: null,
+  Responsable: null,
+  Estatus: null,
+  TipoImpresora: 'HP Color Laserjet MFP E57540',
+  Adicional2: null,
+  Adicional3: null,
+  Adicional4: null,
+  Adicional5: null,
+  Adicional6: null,
+  Adicional7: null,
+  Adicional8: null,
+  Adicional9: null,
+  Adicional10: null
+}
+Searching previous record for Cliente: Reyma, Serie: MXBCR1XOQR, Modelo: 3GY25A
+Registro Anterior: {
+  id: 10,
+  Cliente: 'Reyma',
+  Modelo: '3GY25A',
+  Serie: 'MXBCR1XOQR',
+  IP: '172.22.60.1',
+  ImpresionesActuales: 191406,
+  BN: 145175,
+  Color: 46231,
+  Tecnico: null,
+  FechaLimiteReporte: 2025-11-27T00:41:00.160Z,
+  Adicional: null
+}
+Calculations:
+BN Actual: 146175
+BN Anterior: 145175
+Diff BN: 1000
+Color Actual: 46331
+Color Anterior: 46231
+Diff Color: 100
+TipoImpresora: HP Color Laserjet MFP E57540, isColor: true
