@@ -18,6 +18,11 @@ const upload = multer({
 const prisma = new PrismaClient();
 
 export class ContadoresController {
+  /**
+   * Divide un PDF subido en páginas individuales.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
   static async splitPdf(req, res) {
     try {
       console.log('req.files:', req.files);
@@ -56,9 +61,17 @@ export class ContadoresController {
     }
   }
 
-  // Middleware para manejar la subida de archivos
+  /**
+   * Middleware de subida de archivos PDF (multer).
+   * @type {import('express').RequestHandler}
+   */
   static uploadPdf = upload.any();
 
+  /**
+   * Limpia la carpeta de salida (output) de PDFs procesados.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
   static async cleanOutput(req, res) {
     try {
       const fs = await import('fs');
@@ -93,6 +106,11 @@ export class ContadoresController {
     }
   }
 
+  /**
+   * Analiza todos los PDFs en la carpeta de salida usando Azure AI.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
   static async analyzePdfs(req, res) {
     try {
       const azureService = new AzureService();
@@ -108,6 +126,11 @@ export class ContadoresController {
     }
   }
 
+  /**
+   * Procesa un PDF subido: divide, analiza cada página y guarda resultados.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
   static async processPdf(req, res) {
     try {
       // El archivo ya fue procesado por multer
@@ -228,6 +251,13 @@ export class ContadoresController {
       await prisma.$disconnect();
     }
   }
+
+  /**
+   *  Genera un reporte basado en los parámetros proporcionados.
+   * @param {*} req 
+   * @param {*} res 
+   * @returns 
+   */
   static async generateReport(req, res) {
     try {
       const { cliente, mes, estatus } = req.query;
@@ -237,7 +267,8 @@ export class ContadoresController {
       }
 
       const result = await ReportService.generateReportFromDB({ cliente, mes, estatus });
-      const emailDestino = 'abraham.pardo@compucad.com.mx';
+      //const emailDestino = 'abraham.pardo@compucad.com.mx';
+      const emailDestino = 'miguel.jimenez@compucad.com.mx'
       const fs = await import('fs');
 
       if (estatus === 'null') {
@@ -277,6 +308,9 @@ export class ContadoresController {
     }
   }
 
+  /**
+   * Limpia la carpeta de salida de forma interna (sin response HTTP).
+   */
   static async cleanOutputInternal() {
     try {
       const fs = await import('fs');
@@ -397,4 +431,61 @@ export class ContadoresController {
       return errorResponse(res, error.message, 500);
     }
   }
+
+  /**
+   * Envía alertas sobre escaneos faltantes.
+   * @param {import('express').Request
+   * @param {import('express').Response} res
+   */
+  static async alertarEscaneosFaltantes(req, res) {
+    try {
+      const alertas = await ContadoresService.alertarEscaneosFaltantes();
+      return successResponse(res, alertas, 'Alertas de escaneos faltantes enviadas exitosamente');
+    } catch (error) {
+      logger.error('Error enviando alertas de escaneos faltantes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Obtiene los escaneos faltantes para el cliente.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async escaneosFaltantes(req, res) {
+    try {
+      const escaneosFaltantes = await ClientesService.obtenerEscaneosFaltantes();
+      return successResponse(res, escaneosFaltantes, 'Escaneos faltantes obtenidos exitosamente');
+    } catch (error) {
+      logger.error('Error obteniendo escaneos faltantes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  static async reportesTotalPorMes(req, res) {
+    try {
+      const { mes, anio } = req.query;
+      clietes = await ClientesService.obtenerClientes();
+      const reportes = await ReportService.generateReportFromDB(mes, anio);
+    } catch (error) {
+      logger.error('Error obteniendo reportes totales por mes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Valida todos los reportes existentes que tengan el estado nulo.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async validateAllExistReportsStateNull(req, res) {
+    try {
+      const result = await ContadoresService.validateAllExistReportsStateNull();
+      return successResponse(res, result, 'Reportes faltantes validados exitosamente');
+    } catch (error) {
+      logger.error('Error validando reportes faltantes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
 }

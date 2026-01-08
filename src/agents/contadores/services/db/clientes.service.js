@@ -53,4 +53,30 @@ export class ClientesService {
       }
     });
   }
+
+  static async obtenerEscaneosFaltantes() {
+    const now = new Date();
+    const inicio = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), -11, 0, 0, 0, 0));
+    const fin = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+
+    const clientes = await prisma.contadoresInfoClientes.findMany({
+      where: { FechaLimiteReporte: { gte: inicio, lte: fin } }
+    });
+
+    if (!clientes.length) return [];
+
+    const capturas = await prisma.contadores.findMany({
+      where: {
+        Cliente: { in: clientes.map(c => c.Cliente) },
+        FechaCaptura: {
+          gte: inicio,
+          lte: fin
+        }
+      },
+      select: { Cliente: true }
+    });
+
+    const conCaptura = new Set(capturas.map(c => c.Cliente));
+    return clientes.filter(c => !conCaptura.has(c.Cliente));
+  }
 }

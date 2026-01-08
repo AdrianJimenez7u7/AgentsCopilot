@@ -12,6 +12,20 @@ export class ContadoresService {
     });
   }
 
+  static async obtenerEscaneosFaltantes() {
+    const now = new Date();
+    const inicio = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), -11, 0, 0, 0, 0));
+    const fin = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    return prisma.contadoresInfoClientes.findMany({
+      where: {
+        FechaLimiteReporte: {
+          gte: inicio,
+          lte: fin
+        }
+      }
+    });
+  }
+
   static async alertarReportesFaltantes() {
     const reportesFaltantes = await this.obtenerReportesFaltantes();
 
@@ -150,5 +164,142 @@ export class ContadoresService {
 
     return adaptiveCard;
   }
-}
 
+
+  static async alertarEscaneosFaltantes() {
+    const escaneosFaltantes = await this.obtenerEscaneosFaltantes();
+
+    const items = escaneosFaltantes.map((escaneo) => {
+      // Formato de fecha corto y limpio (ej: "29 DIC")
+      let fechaFormatted = 'Pendiente';
+      if (escaneo.FechaLimiteReporte) {
+        fechaFormatted = new Date(escaneo.FechaLimiteReporte)
+          .toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
+          .toUpperCase();
+      }
+
+      return `
+        {
+          "type": "ColumnSet",
+          "spacing": "Large", 
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${escaneo.Cliente ?? 'Cliente Desconocido'}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                 "type": "TextBlock",
+                 "text": "S/N: ${escaneo.Serie ?? '-'} • ${escaneo.Ubicacion ?? 'Sin ubicación'}",
+                 "isSubtle": true,
+                 "size": "Small",
+                 "wrap": true,
+                 "spacing": "Small"
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "verticalContentAlignment": "Center",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${fechaFormatted}",
+                  "color": "attention",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "horizontalAlignment": "Right"
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "Límite",
+                  "isSubtle": true,
+                  "size": "Small",
+                  "horizontalAlignment": "Right",
+                  "spacing": "None"
+                }
+              ]
+            }
+          ]
+        }`;
+    }).join(',');
+
+    // Si no hay items, mostramos un mensaje sutil.
+    const bodyItems = items ? items : `
+    {
+       "type": "TextBlock",
+       "text": "✅ Todo al día. No faltan escaneos.",
+       "isSubtle": true,
+       "horizontalAlignment": "Center",
+       "spacing": "ExtraLarge"
+    }`;
+
+
+    const adaptiveCard = `
+    {
+      "type": "AdaptiveCard",
+      "$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
+      "version": "1.5",
+      "body": [
+        {
+          "type": "TextBlock",
+          "text": "Escaneos Faltantes",
+          "size": "ExtraLarge",
+          "weight": "Bolder",
+          "color": "accent"
+        },
+        {
+          "type": "TextBlock",
+          "text": "Se requiere la lectura de los siguientes equipos.",
+          "isSubtle": true,
+          "spacing": "Small",
+          "size": "Medium"
+        },
+        {
+            "type": "Container",
+            "spacing": "ExtraLarge",
+            "items": [
+                ${bodyItems}
+            ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "Action.OpenUrl",
+          "title": "Gestionar Escaneos",
+          "url": "https://tudominio.com/escaneos",
+          "style": "positive"
+        }
+      ]
+    }`;
+
+    return adaptiveCard;
+  }
+
+  static async validateAllExistReportsStateNull() {
+    const now = new Date();
+    const inicio = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const fin = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const result = prisma.contadores.findMany({
+      where: {
+        FechaLimiteReporte: {
+          $gte: inicio,
+          $lt: fin
+        },
+        Status: null
+      }
+    });
+    if (result.length > 0) {
+      return true;
+    }
+    return false;
+  }
+
+}

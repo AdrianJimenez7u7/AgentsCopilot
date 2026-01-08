@@ -366,7 +366,7 @@ export class ReportService {
 
       if (params.estatus === 'null') {
         const clientes = await prisma.contadores.findMany({
-          where: { Estatus: null },
+          where: { Estatus: null ? Estatus : '' ? Estatus : ' ' },
           select: { Cliente: true },
           distinct: ['Cliente']
         });

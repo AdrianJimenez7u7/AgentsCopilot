@@ -17,6 +17,7 @@ router.post('/process-pdf', ContadoresController.uploadPdf, ContadoresController
 
 // Endpoint para generar reportes
 router.get('/generate-report', ContadoresController.generateReport);
+router.post('/generate-report', ContadoresController.generateReport);
 
 
 // Enpoints para funciones de clientes
@@ -26,8 +27,16 @@ router.get('/contadores', ContadoresController.getContadores);
 
 router.post('/clientes', ContadoresController.createImpresoraCliente);
 
+router.put('/clientes/:id', ContadoresController.updateImpresoraCliente);
+
 router.get('/reportes-faltantes', ContadoresController.obtenerReportesFaltantes);
 
 router.get('/alerta-reportes', ContadoresController.alertarReportesFaltantes);
+
+router.get('/alerta-escaneos', ContadoresController.alertarEscaneosFaltantes);
+
+router.get('/escaneos-faltantes', ContadoresController.escaneosFaltantes);
+
+router.get('/validate-all-exist-reports-state-null', ContadoresController.validateAllExistReportsStateNull);
 
 export default router;
