@@ -567,7 +567,15 @@ export class ReportService {
           };
         }));
 
-        const firstDate = registros.length > 0 && registros[0].FechaCaptura ? new Date(registros[0].FechaCaptura).toISOString().slice(0, 7) : params.mes;
+        let firstDate = '';
+        if (registros.length > 0 && registros[0].FechaCaptura) {
+          firstDate = new Date(registros[0].FechaCaptura).toISOString().slice(0, 7);
+        } else if (params.anio && params.mes) {
+          // Construct YYYY-MM from params if no records
+          const m = params.mes.toString().padStart(2, '0');
+          firstDate = `${params.anio}-${m}`;
+        }
+
         const headerData = getHeaderData(params.cliente || 'General', firstDate);
 
         const excelPath = await this.generateReport(extractedData, `Reporte_${params.cliente || 'General'}`, headerData);

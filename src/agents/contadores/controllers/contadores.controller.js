@@ -260,20 +260,26 @@ export class ContadoresController {
    */
   static async generateReport(req, res) {
     try {
-      const { cliente, mes, estatus } = req.query;
+      // Prioritize body (for POST), fall back to query (for GET)
+      const { cliente, mes, anio, estatus, userEmail } = { ...req.query, ...req.body };
+
+      // Support 'ano' or 'anio'
+      const year = anio || req.body.ano || req.query.ano;
 
       if (!cliente && !mes && estatus !== 'null') {
         return errorResponse(res, 'Debe proporcionar al menos uno de los parámetros: cliente, mes, o estatus=null', 400);
       }
 
-      const result = await ReportService.generateReportFromDB({ cliente, mes, estatus });
-      //const emailDestino = 'abraham.pardo@compucad.com.mx';
-      const emailDestino = 'miguel.jimenez@compucad.com.mx'
+      const result = await ReportService.generateReportFromDB({ cliente, mes, anio: year, estatus });
+
+      const emailDestino = userEmail || 'miguel.jimenez@compucad.com.mx';
+      const ccEmails = ['miguel.jimenez@compucad.com.mx', 'liliana.martinez@compucad.com.mx'];
+
       const fs = await import('fs');
 
       if (estatus === 'null') {
         // Resultado es un array de todos los paths de reportes
-        await EmailService.sendReport(emailDestino, result);
+        await EmailService.sendReport(emailDestino, result, ccEmails);
 
         for (const p of result) {
           if (fs.existsSync(p)) {
@@ -287,7 +293,7 @@ export class ContadoresController {
         }, 'Reportes generados y enviados exitosamente');
       } else {
         // Resultado es un array de paths
-        await EmailService.sendReport(emailDestino, result);
+        await EmailService.sendReport(emailDestino, result, ccEmails);
 
         const paths = Array.isArray(result) ? result : [result];
         for (const p of paths) {
