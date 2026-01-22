@@ -9,6 +9,7 @@ import { apiKeyAuth } from './shared/middleware/auth.middleware.js';
 import cotizadorRoutes from './agents/cotizador/routes/cotizacion.routes.js';
 import contadoresRoutes from './agents/contadores/routes/contadores.routes.js';
 import PMsitoRoutes from './agents/PMsito/routes/reportes.routes.js';
+import ariaRoutes from './agents/aria/routes/aria.routes.js';
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.get('/health', (req, res) => {
 app.use('/agente/PMsito', PMsitoRoutes);
 app.use(apiKeyAuth);
 // Rutas de agentes
+app.use('/agente/aria', ariaRoutes);
 app.use('/agente/cotizador', cotizadorRoutes);
 app.use('/agente/contadores', contadoresRoutes);
 
