@@ -302,4 +302,133 @@ export class ContadoresService {
     return false;
   }
 
+  static async obtenerContadoresPorFecha(fechaInicio, fechaFin) {
+    return prisma.contadores.findMany({
+      where: {
+        FechaCaptura: {
+          gte: new Date(fechaInicio),
+          lt: new Date(fechaFin)
+        }
+      }
+    });
+  }
+
+  static async alertarEscaneosFaltantesPorTecnico(tecnico) {
+    const now = new Date();
+    // Fecha limite = Hoy + 7 dias. (Buscamos todo lo que venza antes de eso)
+    const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+
+    const escaneosFaltantes = await prisma.contadoresInfoClientes.findMany({
+      where: {
+        Tecnico: { contains: tecnico }, // Busqueda laxa por nombre
+        FechaLimiteReporte: {
+          lte: targetDate
+        }
+      }
+    });
+
+    const items = escaneosFaltantes.map((escaneo) => {
+      // Formato de fecha corto (ej: "29 DIC")
+      let fechaFormatted = 'Pendiente';
+      let isOverdue = false;
+      if (escaneo.FechaLimiteReporte) {
+        const fechaLimite = new Date(escaneo.FechaLimiteReporte);
+        fechaFormatted = fechaLimite
+          .toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
+          .toUpperCase();
+
+        if (fechaLimite < now) {
+          isOverdue = true;
+        }
+      }
+
+      return `
+        {
+          "type": "ColumnSet",
+          "spacing": "Medium", 
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${escaneo.Cliente ?? 'Cliente Desconocido'}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                 "type": "TextBlock",
+                 "text": "${escaneo.Modelo ?? ''} (${escaneo.Serie ?? '-'})",
+                 "isSubtle": true,
+                 "size": "Small",
+                 "wrap": true,
+                 "spacing": "None"
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "verticalContentAlignment": "Center",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${fechaFormatted}",
+                  "color": "${isOverdue ? 'attention' : 'warning'}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "horizontalAlignment": "Right"
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "${isOverdue ? 'Vencido' : 'Próximo'}",
+                  "isSubtle": true,
+                  "size": "Small",
+                  "horizontalAlignment": "Right",
+                  "spacing": "None"
+                }
+              ]
+            }
+          ]
+        }`;
+    }).join(',');
+
+    // Si no hay items, mostramos un mensaje sutil.
+    const bodyItems = items ? items : `
+    {
+       "type": "TextBlock",
+       "text": "✅ Todo al día. No faltan escaneos para ${tecnico ?? 'este técnico'}.",
+       "isSubtle": true,
+       "horizontalAlignment": "Center",
+       "spacing": "ExtraLarge"
+    }`;
+
+
+    const adaptiveCard = `
+    {
+      "type": "AdaptiveCard",
+      "$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
+      "version": "1.5",
+      "body": [
+        {
+          "type": "TextBlock",
+          "text": "Escaneos Pendientes (${tecnico})",
+          "size": "Large",
+          "weight": "Bolder",
+          "color": "accent"
+        },
+        {
+            "type": "Container",
+            "spacing": "Large",
+            "items": [
+                ${bodyItems}
+            ]
+        }
+      ]
+    }`;
+
+    return adaptiveCard;
+  }
 }

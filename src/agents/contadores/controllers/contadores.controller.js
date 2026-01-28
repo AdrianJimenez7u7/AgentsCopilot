@@ -185,7 +185,6 @@ export class ContadoresController {
                 }
               }
 
-              // Insertar en la base de datos
               try {
                 const impresionesBN = parseInt(extractedData.Impresiones) || 0;
                 const impresionesColor = parseInt(extractedData.ImpresionesColor) || 0;
@@ -204,6 +203,43 @@ export class ContadoresController {
                     TipoImpresora: extractedData.TipoImpresora || null,
                   }
                 });
+
+                // --- AUTO-INCREMENT FECHA LIMITE REPORTE ---
+                if (extractedData.Serie) {
+                  const impresoraInfo = await prisma.contadoresInfoClientes.findFirst({
+                    where: { Serie: extractedData.Serie, Cliente: cliente }
+                  });
+
+                  if (impresoraInfo && impresoraInfo.FechaLimiteReporte) {
+                    const currentDeadline = new Date(impresoraInfo.FechaLimiteReporte);
+                    const now = new Date();
+
+                    // Solo actualizar si la fecha limite es pasada o es el mes actual 
+                    // (evitar doble incremento si se escanea varias veces el mismo mes)
+                    // Lógica: Target = Mes Actual + 1. 
+                    // Si currentDeadline ya es > Fin de Mes Actual, asumimos que ya se actualizó.
+
+                    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+                    if (currentDeadline < startOfNextMonth) {
+                      const originalDay = currentDeadline.getDate();
+                      // Calcular siguiente mes
+                      const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, originalDay);
+
+                      // Ajuste por si el dia no existe en el siguiente mes (ej. 31 Ene -> 28 Feb)
+                      if (nextDate.getDate() !== originalDay) {
+                        nextDate.setDate(0); // Ultimo dia del mes anterior (que es el correcto)
+                      }
+
+                      await prisma.contadoresInfoClientes.update({
+                        where: { id: impresoraInfo.id },
+                        data: { FechaLimiteReporte: nextDate }
+                      });
+                      console.log(`Fecha Limite Actualizada para ${extractedData.Serie}: ${nextDate.toISOString()}`);
+                    }
+                  }
+                }
+                // -------------------------------------------
 
                 completedPages++;
                 console.log(`Página ${pageNumber} completada`);
@@ -454,6 +490,25 @@ export class ContadoresController {
   }
 
   /**
+   * Envía alertas de escaneos faltantes filtrados por técnico.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async alertarEscaneosFaltantesPorTecnico(req, res) {
+    try {
+      const { tecnico } = req.params;
+      if (!tecnico) {
+        return errorResponse(res, 'Debe proporcionar el nombre del técnico', 400);
+      }
+      const alertas = await ContadoresService.alertarEscaneosFaltantesPorTecnico(tecnico);
+      return successResponse(res, alertas, 'Alertas por técnico generadas exitosamente');
+    } catch (error) {
+      logger.error('Error generando alertas por técnico', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
    * Obtiene los escaneos faltantes para el cliente.
    * @param {import('express').Request} req
    * @param {import('express').Response} res
@@ -464,6 +519,22 @@ export class ContadoresController {
       return successResponse(res, escaneosFaltantes, 'Escaneos faltantes obtenidos exitosamente');
     } catch (error) {
       logger.error('Error obteniendo escaneos faltantes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Elimina un cliente por id.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async deleteCliente(req, res) {
+    try {
+      const id = parseInt(req.params.id);
+      const clienteEliminado = await ClientesService.deleteCliente(id);
+      return successResponse(res, clienteEliminado, 'Cliente eliminado exitosamente');
+    } catch (error) {
+      logger.error('Error eliminando cliente', error);
       return errorResponse(res, error.message, 500);
     }
   }
@@ -490,6 +561,22 @@ export class ContadoresController {
       return successResponse(res, result, 'Reportes faltantes validados exitosamente');
     } catch (error) {
       logger.error('Error validando reportes faltantes', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Obtiene los contadores por fecha.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   */
+  static async obtenerContadoresPorFecha(req, res) {
+    try {
+      const { fechaInicio, fechaFin } = req.body;
+      const contadores = await ContadoresService.obtenerContadoresPorFecha(fechaInicio, fechaFin);
+      return successResponse(res, contadores, 'Contadores obtenidos exitosamente');
+    } catch (error) {
+      logger.error('Error obteniendo contadores por fecha', error);
       return errorResponse(res, error.message, 500);
     }
   }

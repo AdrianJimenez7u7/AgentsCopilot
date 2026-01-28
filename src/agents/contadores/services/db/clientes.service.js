@@ -79,4 +79,7 @@ export class ClientesService {
     const conCaptura = new Set(capturas.map(c => c.Cliente));
     return clientes.filter(c => !conCaptura.has(c.Cliente));
   }
+  static async deleteCliente(id) {
+    return prisma.contadoresInfoClientes.delete({ where: { id } });
+  }
 }

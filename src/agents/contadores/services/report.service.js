@@ -468,8 +468,7 @@ export class ReportService {
                       IP: r.Ip,
                       ImpresionesActuales: r.TotalImpresiones,
                       BN: r.ImpresionesBN,
-                      Color: r.ImpresionesColor,
-                      FechaLimiteReporte: new Date()
+                      Color: r.ImpresionesColor
                     }
                   });
                 } else {
@@ -481,8 +480,7 @@ export class ReportService {
                       IP: r.Ip,
                       ImpresionesActuales: r.TotalImpresiones,
                       BN: r.ImpresionesBN,
-                      Color: r.ImpresionesColor,
-                      FechaLimiteReporte: new Date()
+                      Color: r.ImpresionesColor
                     }
                   });
                 }
@@ -598,8 +596,7 @@ export class ReportService {
                   IP: r.Ip,
                   ImpresionesActuales: r.TotalImpresiones,
                   BN: r.ImpresionesBN,
-                  Color: r.ImpresionesColor,
-                  FechaLimiteReporte: new Date()
+                  Color: r.ImpresionesColor
                 }
               });
             } else {
@@ -611,8 +608,7 @@ export class ReportService {
                   IP: r.Ip,
                   ImpresionesActuales: r.TotalImpresiones,
                   BN: r.ImpresionesBN,
-                  Color: r.ImpresionesColor,
-                  FechaLimiteReporte: new Date()
+                  Color: r.ImpresionesColor
                 }
               });
             }

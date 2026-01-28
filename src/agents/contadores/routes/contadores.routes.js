@@ -29,6 +29,8 @@ router.post('/clientes', ContadoresController.createImpresoraCliente);
 
 router.put('/clientes/:id', ContadoresController.updateImpresoraCliente);
 
+router.delete('/clientes/:id', ContadoresController.deleteCliente);
+
 router.get('/reportes-faltantes', ContadoresController.obtenerReportesFaltantes);
 
 router.get('/alerta-reportes', ContadoresController.alertarReportesFaltantes);
@@ -37,6 +39,10 @@ router.get('/alerta-escaneos', ContadoresController.alertarEscaneosFaltantes);
 
 router.get('/escaneos-faltantes', ContadoresController.escaneosFaltantes);
 
+router.get('/alerta-escaneos-tecnico/:tecnico', ContadoresController.alertarEscaneosFaltantesPorTecnico);
+
 router.get('/validate-all-exist-reports-state-null', ContadoresController.validateAllExistReportsStateNull);
+
+router.post('/contadores/fecha', ContadoresController.obtenerContadoresPorFecha);
 
 export default router;
