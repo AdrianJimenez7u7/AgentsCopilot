@@ -8,7 +8,6 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
-  url      = env("DATABASE_URL")
 }
 
 model Contadores {
@@ -57,4 +56,50 @@ model ContadoresInfoClientes {
   CostoExtra           Decimal?  @db.Decimal(10, 2)
 
   @@map("ContadoresInfoClientes")
+}
+
+model Predicciones_Requests {
+  Id          String   @id @db.UniqueIdentifier
+  UserEmail   String   @db.NVarChar(256)
+  UserName    String   @db.NVarChar(256)
+  ModelSlug   String   @db.NVarChar(100)
+  ModelName   String   @db.NVarChar(200)
+  MonthTarget String?  @db.Char(7)
+  Status      String   @db.VarChar(20)
+  CreatedAt   DateTime @db.DateTime2
+  CompletedAt DateTime? @db.DateTime2
+  MetaJson    String?  @db.NVarChar(Max)
+
+  @@map("Predicciones_Requests")
+}
+
+model Predicciones_Archivos {
+  Id             String   @id @db.UniqueIdentifier
+  Tipo           String   @db.NVarChar(30)
+  ModeloSlug     String?  @db.NVarChar(64)
+  MesObjetivo    String?  @db.Char(7)
+  UploadedByUserId String? @db.NVarChar(128)
+  FileName       String   @db.NVarChar(260)
+  ContentType    String?  @db.NVarChar(100)
+  FileSizeBytes  BigInt?  @db.BigInt
+  FileContent    Bytes    @db.VarBinary(Max)
+  HashSha256     String?  @db.NVarChar(64)
+  MetaJson       String?  @db.NVarChar(Max)
+  CreatedAt      DateTime @db.DateTime2
+
+  @@map("Predicciones_Archivos")
+}
+
+model Predicciones_Modelos {
+  Id            String   @id @db.UniqueIdentifier
+  Slug          String   @unique @db.NVarChar(64)
+  Nombre        String   @db.NVarChar(200)
+  Estado        Int
+  VersionActual String?  @db.NVarChar(50)
+  Descripcion   String?  @db.NVarChar(Max)
+  ConfigJson    String?  @db.NVarChar(Max)
+  CreatedAt     DateTime
+  UpdatedAt     DateTime
+
+  @@map("Predicciones_Modelos")
 }

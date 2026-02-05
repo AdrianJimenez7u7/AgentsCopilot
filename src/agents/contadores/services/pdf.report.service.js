@@ -3,7 +3,7 @@ import fs from 'fs';
 import PdfPrinter from 'pdfmake';
 import { ReportService } from './report.service.js';
 import { logger } from '../../../shared/utils/logger.js';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../../shared/prisma/client.js';
 
 const fonts = {
   Helvetica: {

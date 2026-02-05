@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import ExcelJS from 'exceljs';
 import { logger } from '../../../shared/utils/logger.js';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../../shared/prisma/client.js';
 import axios from 'axios';
 import { PdfReportService } from './pdf.report.service.js';
 
