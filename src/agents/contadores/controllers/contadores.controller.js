@@ -5,7 +5,7 @@ import { EmailService } from '../services/email.service.js';
 import { successResponse, errorResponse } from '../../../shared/utils/response.js';
 import { logger } from '../../../shared/utils/logger.js';
 import multer from 'multer';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../../shared/prisma/client.js';
 import { ContadoresService } from '../services/db/contadores.service.js';
 import { ClientesService } from '../services/db/clientes.service.js';
 
@@ -14,8 +14,6 @@ const upload = multer({
   dest: 'src/agents/contadores/data/', // Carpeta temporal para uploads
   limits: { fileSize: 16 * 1024 * 1024 } // 16MB límite
 });
-
-const prisma = new PrismaClient();
 
 export class ContadoresController {
   /**
