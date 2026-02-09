@@ -66,6 +66,7 @@ export class ContadoresController {
    * @type {import('express').RequestHandler}
    */
   static uploadPdf = upload.any();
+  static uploadCsv = upload.single('file');
 
   /**
    * Limpia la carpeta de salida (output) de PDFs procesados.
@@ -577,6 +578,39 @@ export class ContadoresController {
       return successResponse(res, contadores, 'Contadores obtenidos exitosamente');
     } catch (error) {
       logger.error('Error obteniendo contadores por fecha', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  static async bulkClientesByCSV(req, res) {
+    try {
+      if (!req.file) {
+        return errorResponse(res, 'No se proporcionó ningún archivo CSV', 400);
+      }
+
+      const fs = await import('fs');
+      const csvContent = fs.readFileSync(req.file.path, 'utf-8');
+
+      const result = await ClientesService.bulkClientesByCSV(csvContent);
+
+      // Limpiar archivo temporal
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
+      return successResponse(res, result, 'Clientes agregados exitosamente');
+    } catch (error) {
+      logger.error('Error agregando clientes por CSV', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
+  static async getTecnicos(req, res) {
+    try {
+      const tecnicos = await ClientesService.getTecnicos();
+      return successResponse(res, tecnicos, 'Tecnicos obtenidos exitosamente');
+    } catch (error) {
+      logger.error('Error obteniendo tecnicos', error);
       return errorResponse(res, error.message, 500);
     }
   }

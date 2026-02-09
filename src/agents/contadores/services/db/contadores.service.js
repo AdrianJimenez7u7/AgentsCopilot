@@ -169,7 +169,11 @@ export class ContadoresService {
   static async alertarEscaneosFaltantes() {
     const escaneosFaltantes = await this.obtenerEscaneosFaltantes();
 
-    const items = escaneosFaltantes.map((escaneo) => {
+    const MAX_ITEMS = 20;
+    const totalFaltantes = escaneosFaltantes.length;
+    const itemsToShow = escaneosFaltantes.slice(0, MAX_ITEMS);
+
+    const items = itemsToShow.map((escaneo) => {
       // Formato de fecha corto y limpio (ej: "29 DIC")
       let fechaFormatted = 'Pendiente';
       if (escaneo.FechaLimiteReporte) {
@@ -181,7 +185,7 @@ export class ContadoresService {
       return `
         {
           "type": "ColumnSet",
-          "spacing": "Large", 
+          "spacing": "Large",
           "columns": [
             {
               "type": "Column",
@@ -231,8 +235,22 @@ export class ContadoresService {
         }`;
     }).join(',');
 
+    let footerMessage = '';
+    if (totalFaltantes > MAX_ITEMS) {
+      const remaining = totalFaltantes - MAX_ITEMS;
+      footerMessage = `,
+        {
+           "type": "TextBlock",
+           "text": "Y quedan otros **${remaining}** pendientes más.",
+           "wrap": true,
+           "spacing": "Large",
+           "separator": true,
+           "size": "Medium"
+        }`;
+    }
+
     // Si no hay items, mostramos un mensaje sutil.
-    const bodyItems = items ? items : `
+    const bodyItems = items ? (items + footerMessage) : `
     {
        "type": "TextBlock",
        "text": "✅ Todo al día. No faltan escaneos.",
@@ -274,7 +292,7 @@ export class ContadoresService {
         {
           "type": "Action.OpenUrl",
           "title": "Gestionar Escaneos",
-          "url": "https://tudominio.com/escaneos",
+          "url": "https://innofront-b4htgzhdb2gxe0ga.southcentralus-01.azurewebsites.net/contadores/escaneos/",
           "style": "positive"
         }
       ]
@@ -327,7 +345,11 @@ export class ContadoresService {
       }
     });
 
-    const items = escaneosFaltantes.map((escaneo) => {
+    const MAX_ITEMS = 10;
+    const totalFaltantes = escaneosFaltantes.length;
+    const itemsToShow = escaneosFaltantes.slice(0, MAX_ITEMS);
+
+    const items = itemsToShow.map((escaneo) => {
       // Formato de fecha corto (ej: "29 DIC")
       let fechaFormatted = 'Pendiente';
       let isOverdue = false;
@@ -395,8 +417,22 @@ export class ContadoresService {
         }`;
     }).join(',');
 
+    let footerMessage = '';
+    if (totalFaltantes > MAX_ITEMS) {
+      const remaining = totalFaltantes - MAX_ITEMS;
+      footerMessage = `,
+        {
+           "type": "TextBlock",
+           "text": "Y quedan otros **${remaining}** pendientes más.",
+           "wrap": true,
+           "spacing": "Large",
+           "separator": true,
+           "size": "Medium"
+        }`;
+    }
+
     // Si no hay items, mostramos un mensaje sutil.
-    const bodyItems = items ? items : `
+    const bodyItems = items ? (items + footerMessage) : `
     {
        "type": "TextBlock",
        "text": "✅ Todo al día. No faltan escaneos para ${tecnico ?? 'este técnico'}.",

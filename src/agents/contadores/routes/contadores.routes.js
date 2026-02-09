@@ -25,6 +25,7 @@ router.get('/clientes', ContadoresController.getClientes);
 
 router.get('/contadores', ContadoresController.getContadores);
 
+router.post('/clientes/bulk', ContadoresController.uploadCsv, ContadoresController.bulkClientesByCSV);
 router.post('/clientes', ContadoresController.createImpresoraCliente);
 
 router.put('/clientes/:id', ContadoresController.updateImpresoraCliente);
@@ -44,5 +45,9 @@ router.get('/alerta-escaneos-tecnico/:tecnico', ContadoresController.alertarEsca
 router.get('/validate-all-exist-reports-state-null', ContadoresController.validateAllExistReportsStateNull);
 
 router.post('/contadores/fecha', ContadoresController.obtenerContadoresPorFecha);
+
+router.post('/clientes/bulk', ContadoresController.uploadCsv, ContadoresController.bulkClientesByCSV);
+
+router.get('/tecnicos', ContadoresController.getTecnicos);
 
 export default router;

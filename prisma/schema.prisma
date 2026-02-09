@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
@@ -12,49 +9,96 @@ datasource db {
 }
 
 model Contadores {
-  id                  Int      @id @default(autoincrement())
-  Modelo              String?  @db.NVarChar(MAX)
-  TipoImpresion       String?  @db.NVarChar(MAX)
-  Ip                  String?  @db.NVarChar(MAX)
-  Serie               String?  @db.NVarChar(MAX)
-  ImpresionesBN       Int?
-  ImpresionesColor    Int?
-  TotalImpresiones    Int?
-  Cliente             String?  @db.NVarChar(MAX)
-  FechaCaptura        DateTime? @db.DateTime
-  CostoTotal          Decimal?  @db.Decimal(18, 4)
-  Responsable         String?  @db.NVarChar(MAX)
-  Estatus             String?  @db.NVarChar(MAX)
-  TipoImpresora       String?  @db.NVarChar(MAX)
-  Adicional2          String?  @db.NVarChar(MAX)
-  Adicional3          String?  @db.NVarChar(MAX)
-  Adicional4          String?  @db.NVarChar(MAX)
-  Adicional5          String?  @db.NVarChar(MAX)
-  Adicional6          String?  @db.NVarChar(MAX)
-  Adicional7          String?  @db.NVarChar(MAX)
-  Adicional8          String?  @db.NVarChar(MAX)
-  Adicional9          String?  @db.NVarChar(MAX)
-  Adicional10         String?  @db.NVarChar(MAX)
+  id               Int       @id(map: "PK__Contador__3213E83FE6DF4BDF") @default(autoincrement())
+  Modelo           String?   @db.NVarChar(Max)
+  TipoImpresion    String?   @db.NVarChar(Max)
+  Ip               String?   @db.NVarChar(Max)
+  Serie            String?   @db.NVarChar(Max)
+  ImpresionesBN    Int?
+  ImpresionesColor Int?
+  TotalImpresiones Int?
+  Cliente          String?   @db.NVarChar(Max)
+  FechaCaptura     DateTime? @db.DateTime
+  CostoTotal       Decimal?  @db.Decimal(18, 4)
+  Responsable      String?   @db.NVarChar(Max)
+  Estatus          String?   @db.NVarChar(Max)
+  TipoImpresora    String?   @db.NVarChar(Max)
+  Adicional2       String?   @db.NVarChar(Max)
+  Adicional3       String?   @db.NVarChar(Max)
+  Adicional4       String?   @db.NVarChar(Max)
+  Adicional5       String?   @db.NVarChar(Max)
+  Adicional6       String?   @db.NVarChar(Max)
+  Adicional7       String?   @db.NVarChar(Max)
+  Adicional8       String?   @db.NVarChar(Max)
+  Adicional9       String?   @db.NVarChar(Max)
+  Adicional10      String?   @db.NVarChar(Max)
 
   @@map("Contadores")
 }
 
 model ContadoresInfoClientes {
-
-  id                   Int       @id @default(autoincrement())
-  Cliente              String?   @db.NVarChar(MAX)
-  Modelo               String?   @db.NVarChar(MAX)
-  Serie                String?   @db.NVarChar(MAX)
-  IP                   String?   @db.NVarChar(MAX)
-  ImpresionesActuales  Int?
-  BN                   Int?
-  Color                Int?
-  Tecnico              String?   @db.NVarChar(MAX)
-  FechaLimiteReporte   DateTime? @db.DateTime
-  PrecioBN             Decimal?  @db.Decimal(10, 2)
-  PrecioColor          Decimal?  @db.Decimal(10, 2)
-  RentaFija            Decimal?  @db.Decimal(10, 2)
-  CostoExtra           Decimal?  @db.Decimal(10, 2)
+  id                  Int       @id(map: "PK__Contador__3213E83F33652050") @default(autoincrement())
+  Cliente             String?   @db.NVarChar(Max)
+  Modelo              String?   @db.NVarChar(Max)
+  Serie               String?   @db.NVarChar(Max)
+  IP                  String?   @db.NVarChar(Max)
+  ImpresionesActuales Int?
+  BN                  Int?
+  Color               Int?
+  Tecnico             String?   @db.NVarChar(Max)
+  FechaLimiteReporte  DateTime? @default(now(), map: "DF__Contadore__Fecha__74AE54BC") @db.DateTime
+  PrecioBN            Decimal?  @db.Decimal(10, 2)
+  PrecioColor         Decimal?  @db.Decimal(10, 2)
+  RentaFija           Decimal?  @db.Decimal(10, 2)
+  CostoExtra          Decimal?  @db.Decimal(10, 2)
+  Ubicacion           String?   @db.VarChar(50)
 
   @@map("ContadoresInfoClientes")
+}
+
+model Predicciones_Archivos {
+  Id               String   @id(map: "PK_Predicciones_Archivos") @default(dbgenerated("newid()"), map: "DF__Predicciones__Id__31B762FC") @db.UniqueIdentifier
+  Tipo             String   @db.NVarChar(30)
+  ModeloSlug       String?  @db.NVarChar(64)
+  MesObjetivo      String?  @db.Char(7)
+  UploadedByUserId String?  @db.NVarChar(128)
+  FileName         String   @db.NVarChar(260)
+  ContentType      String?  @db.NVarChar(100)
+  FileSizeBytes    BigInt?
+  FileContent      Bytes
+  HashSha256       String?  @db.NVarChar(64)
+  MetaJson         String?  @db.NVarChar(Max)
+  CreatedAt        DateTime @default(dbgenerated("sysdatetime()"), map: "DF__Prediccio__Creat__32AB8735")
+
+  @@index([ModeloSlug, MesObjetivo, Tipo, CreatedAt(sort: Desc)], map: "IX_Predicciones_Archivos_ModeloMesTipo")
+}
+
+model Predicciones_Modelos {
+  Id            String   @id(map: "PK_Predicciones_Modelos") @default(dbgenerated("newid()"), map: "DF__Predicciones__Id__1CBC4616") @db.UniqueIdentifier
+  Slug          String   @unique(map: "UQ_Predicciones_Modelos_Slug") @db.NVarChar(64)
+  Nombre        String   @db.NVarChar(128)
+  Estado        String   @db.NVarChar(20)
+  VersionActual String?  @db.NVarChar(40)
+  Descripcion   String?  @db.NVarChar(500)
+  ConfigJson    String?  @db.NVarChar(Max)
+  CreatedAt     DateTime @default(dbgenerated("sysdatetime()"), map: "DF__Prediccio__Creat__1DB06A4F")
+  UpdatedAt     DateTime @default(dbgenerated("sysdatetime()"), map: "DF__Prediccio__Updat__1EA48E88")
+
+  @@index([Slug], map: "IX_Predicciones_Modelos_Slug")
+}
+
+model Predicciones_Requests {
+  Id          String    @id(map: "PK_Predicciones_Requests") @db.UniqueIdentifier
+  UserEmail   String    @db.NVarChar(256)
+  UserName    String    @db.NVarChar(256)
+  ModelSlug   String    @db.NVarChar(100)
+  ModelName   String    @db.NVarChar(200)
+  MonthTarget String?   @db.Char(7)
+  Status      String    @db.VarChar(20)
+  CreatedAt   DateTime
+  CompletedAt DateTime?
+  MetaJson    String?   @db.NVarChar(Max)
+
+  @@index([ModelSlug, MonthTarget], map: "IX_PredRequests_ModelMonth")
+  @@index([Status, CreatedAt(sort: Desc)], map: "IX_PredRequests_StatusCreatedAt")
 }
