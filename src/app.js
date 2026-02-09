@@ -27,7 +27,9 @@ const app = express();
 app.set("trust proxy", 1);
 
 // Middlewares globales
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Permitir cargar imágenes desde otro origen (Frontend)
+}));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

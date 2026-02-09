@@ -637,7 +637,8 @@ export class AriaController {
 
             // Construir URL pública del proxy (usando ID del registro)
             const baseUrl = req.protocol + '://' + req.get('host');
-            const publicUrl = `${baseUrl}/api/aria/file/${recordId}`;
+            // IMPORTANTE: La ruta en app.js es /agente/aria, no /api/aria
+            const publicUrl = `${baseUrl}/agente/aria/file/${recordId}`;
 
             res.json({ url: publicUrl, id: recordId });
 
@@ -680,7 +681,28 @@ export class AriaController {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            if (!fileResponse.ok) return res.status(404).send('File not found in Dataverse');
+            console.log(`📥 Downloading file from Dataverse. ID: ${id}`);
+            console.log(`Dataverse Status: ${fileResponse.status}`);
+            const contentType = fileResponse.headers.get('content-type');
+            console.log(`Dataverse Content-Type: ${contentType}`);
+
+            if (!fileResponse.ok) {
+                const errText = await fileResponse.text();
+                console.error(`❌ Dataverse Error: ${errText}`);
+                return res.status(404).send('File not found in Dataverse');
+            }
+
+            // Fallback simple de MIME type si Dataverse no lo devolvió en metadatos
+            if ((!mimeType || mimeType === 'application/octet-stream') && fileName) {
+                const ext = fileName.split('.').pop().toLowerCase();
+                if (ext === 'png') mimeType = 'image/png';
+                else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+                else if (ext === 'gif') mimeType = 'image/gif';
+                else if (ext === 'webp') mimeType = 'image/webp';
+                else if (ext === 'pdf') mimeType = 'application/pdf';
+            }
+
+
 
             res.setHeader('Content-Type', mimeType);
             res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
@@ -688,6 +710,10 @@ export class AriaController {
             // Pipe response buffer a express
             const arrayBuffer = await fileResponse.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
+
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+
             res.send(buffer);
 
         } catch (error) {
