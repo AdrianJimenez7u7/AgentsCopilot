@@ -553,14 +553,17 @@ export class AriaController {
         }
     }
 
-    // --- 6. GESTIÓN DE ARCHIVOS (TABLA PERSONALIZADA: cr2bd_notificacionarchivo) ---
+    // --- 6. GESTIÓN DE ARCHIVOS (MIGRADO A SHAREPOINT) ---
+    // IDs obtenidos mediante script de prueba (Sub-sitio TD)
+    static DRIVE_ID = "b!bSuHMmR-nUmBip_FT67_ODpp-ZUHAWZFq91jHGiCJADUKY-CuWOtQ5coNu0a6zDL";
+    static SHAREPOINT_FOLDER = "/Agentes/Aria";
 
-    // Helper para obtener token (Reutilizable)
-    static async _getDataverseToken() {
+    // Helper para obtener token de Graph API
+    static async _getGraphToken() {
         const tenantId = "267e7400-d5af-4805-bce9-1e4247c0c3a7";
         const clientId = "6840a6b2-7154-4c5d-8081-003edd0da715";
         const clientSecret = process.env.DYNAMIC_SECRET;
-        const scope = "https://ccad.api.crm.dynamics.com/.default";
+        const scope = "https://graph.microsoft.com/.default";
 
         const tokenParams = new URLSearchParams();
         tokenParams.append('client_id', clientId);
@@ -572,153 +575,101 @@ export class AriaController {
             method: 'POST', body: tokenParams
         });
 
-        if (!tokenResponse.ok) throw new Error("Error obteniendo token: " + await tokenResponse.text());
+        if (!tokenResponse.ok) throw new Error("Error obteniendo token Graph: " + await tokenResponse.text());
         const { access_token } = await tokenResponse.json();
         return access_token;
     }
 
     /**
-     * Sube un archivo a Dataverse (Tabla: cr2bd_notificacionarchivo)
-     * 1. Crea registro (POST)
-     * 2. Sube archivo a columna cr2bd_Archivo (PUT)
+     * Sube archivo a SharePoint y devuelve URL del Proxy
      */
     static async uploadFile(req, res) {
         try {
             if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-            const token = await AriaController._getDataverseToken();
-            const fileName = req.file.originalname;
-            const mimeType = req.file.mimetype;
+            const token = await AriaController._getGraphToken();
+            const originalName = req.file.originalname;
+            // Sanitizar nombre y agregar timestamp para evitar colisiones
+            const safeName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const fileName = `${Date.now()}_${safeName}`;
 
-            // 1. Crear registro
-            const recordData = {
-                "cr2bd_name": fileName,
-                "cr2bd_mimetype": mimeType
-            };
+            console.log(`📤 Subiendo archivo a SharePoint: ${fileName}`);
 
-            // Nombre plural (Entity Set Name). Asumimos 's' al final.
-            const entitySetName = "cr2bd_notificacionarchivos";
-
-            const createResponse = await fetch(`https://ccad.api.crm.dynamics.com/api/data/v9.2/${entitySetName}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=representation'
-                },
-                body: JSON.stringify(recordData)
-            });
-
-            if (!createResponse.ok) {
-                throw new Error("Error creando registro en Dataverse: " + await createResponse.text());
-            }
-
-            const json = await createResponse.json();
-            const recordId = json.cr2bd_notificacionarchivoid;
-
-            // 2. Subir contenido a columna de archivo
-            // La URL es: .../entity(id)/AttributeName
-            const fileColumn = "cr2bd_archivo";
-            const uploadUrl = `https://ccad.api.crm.dynamics.com/api/data/v9.2/${entitySetName}(${recordId})/${fileColumn}`;
+            // URL: PUT /drives/{drive-id}/root:/{path}/{filename}:/content
+            const uploadUrl = `https://graph.microsoft.com/v1.0/drives/${AriaController.DRIVE_ID}/root:${AriaController.SHAREPOINT_FOLDER}/${fileName}:/content`;
 
             const uploadResponse = await fetch(uploadUrl, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/octet-stream',
-                    'x-ms-file-name': fileName
+                    'Content-Type': req.file.mimetype
                 },
                 body: req.file.buffer
             });
 
             if (!uploadResponse.ok) {
-                throw new Error("Error subiendo blob a columna de archivo: " + await uploadResponse.text());
+                throw new Error("Error subiendo a SharePoint: " + await uploadResponse.text());
             }
 
-            // Construir URL pública del proxy (usando ID del registro)
-            const baseUrl = req.protocol + '://' + req.get('host');
-            // IMPORTANTE: La ruta en app.js es /agente/aria, no /api/aria
-            const publicUrl = `${baseUrl}/agente/aria/file/${recordId}`;
+            const json = await uploadResponse.json();
+            const itemId = json.id; // ID del archivo en SharePoint
 
-            res.json({ url: publicUrl, id: recordId });
+            console.log(`✅ Archivo subido exitosamente. ID: ${itemId}`);
+
+            // Construir URL pública del proxy (usando ID de SharePoint)
+            const baseUrl = req.protocol + '://' + req.get('host');
+            const publicUrl = `${baseUrl}/agente/aria/file/${itemId}`;
+
+            res.json({ url: publicUrl, id: itemId });
 
         } catch (error) {
-            console.error('Upload error:', error);
-            res.status(500).json({ error: 'Error uploading file: ' + error.message });
+            console.error('SharePoint Upload error:', error);
+            res.status(500).json({ error: 'Error uploading file to SharePoint' });
         }
     }
 
     /**
-     * Endpoint Proxy: Descarga la columna de archivo de Dataverse
+     * Endpoint Proxy: Descarga contenido desde SharePoint mediante Graph API
+     * Permite que las imágenes sean accesibles sin que el cliente tenga token de Graph.
      */
     static async getFile(req, res) {
         try {
             const { id } = req.params;
             if (!id) return res.status(400).send('ID required');
 
-            const token = await AriaController._getDataverseToken();
-            const entitySetName = "cr2bd_notificacionarchivos";
-            const fileColumn = "cr2bd_archivo";
+            const token = await AriaController._getGraphToken();
 
-            // 1. Obtener MimeType (opcional)
-            let mimeType = 'application/octet-stream';
-            let fileName = 'file';
-            try {
-                const metaResponse = await fetch(`https://ccad.api.crm.dynamics.com/api/data/v9.2/${entitySetName}(${id})?$select=cr2bd_mimetype,cr2bd_name`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (metaResponse.ok) {
-                    const meta = await metaResponse.json();
-                    if (meta.cr2bd_mimetype) mimeType = meta.cr2bd_mimetype;
-                    if (meta.cr2bd_name) fileName = meta.cr2bd_name;
-                }
-            } catch (e) {
-                console.warn("No metadata info", e);
-            }
+            // URL: GET /drives/{drive-id}/items/{item-id}/content
+            const downloadUrl = `https://graph.microsoft.com/v1.0/drives/${AriaController.DRIVE_ID}/items/${id}/content`;
 
-            // 2. Descargar Stream ($value)
-            const fileResponse = await fetch(`https://ccad.api.crm.dynamics.com/api/data/v9.2/${entitySetName}(${id})/${fileColumn}/$value`, {
+            const fileResponse = await fetch(downloadUrl, {
+                method: 'GET',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            console.log(`📥 Downloading file from Dataverse. ID: ${id}`);
-            console.log(`Dataverse Status: ${fileResponse.status}`);
-            const contentType = fileResponse.headers.get('content-type');
-            console.log(`Dataverse Content-Type: ${contentType}`);
-
             if (!fileResponse.ok) {
-                const errText = await fileResponse.text();
-                console.error(`❌ Dataverse Error: ${errText}`);
-                return res.status(404).send('File not found in Dataverse');
+                console.error(`❌ SharePoint Download Error: ${fileResponse.status}`);
+                return res.status(404).send('File not found in SharePoint');
             }
 
-            // Fallback simple de MIME type si Dataverse no lo devolvió en metadatos
-            if ((!mimeType || mimeType === 'application/octet-stream') && fileName) {
-                const ext = fileName.split('.').pop().toLowerCase();
-                if (ext === 'png') mimeType = 'image/png';
-                else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-                else if (ext === 'gif') mimeType = 'image/gif';
-                else if (ext === 'webp') mimeType = 'image/webp';
-                else if (ext === 'pdf') mimeType = 'application/pdf';
-            }
+            // Intentar inferir Content-Type o usar el de la respuesta si Graph lo devuelve
+            const contentType = fileResponse.headers.get('content-type') || 'application/octet-stream';
 
+            res.setHeader('Content-Type', contentType);
+            // Cache agresivo para mejorar rendimiento de imágenes
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 
-
-            res.setHeader('Content-Type', mimeType);
-            res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-
-            // Pipe response buffer a express
+            // Streaming directo de la respuesta de fetch a express
+            // (Node 18+ nativo fetch devuelve ReadableStream en body, pero express necesita node stream)
             const arrayBuffer = await fileResponse.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
 
             res.setHeader('Content-Length', buffer.length);
-            res.setHeader('Cache-Control', 'public, max-age=86400');
-
             res.send(buffer);
 
         } catch (error) {
-            console.error('Download error:', error);
-            res.status(500).send('Error retrieving file');
+            console.error('SharePoint Download error:', error);
+            res.status(500).send('Error retrieving file from SharePoint');
         }
     }
 
