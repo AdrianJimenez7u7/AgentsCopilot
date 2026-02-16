@@ -211,10 +211,10 @@ export class ContadoresController {
                   });
 
                   // --- AUTO-INCREMENT FECHA LIMITE REPORTE ---
-                  if (extractedData.Serie) {
-                    const impresoraInfo = await prisma.contadoresInfoClientes.findFirst({
-                      where: { Serie: extractedData.Serie, Cliente: cliente }
-                    });
+                  // Reutilizamos impresoraCliente que ya consultamos arriba
+                  if (extractedData.Serie && impresoraCliente) {
+                    const impresoraInfo = impresoraCliente;
+
 
                     if (impresoraInfo) {
                       // 1. Actualizar Contadores Actuales en la tabla InfoClientes

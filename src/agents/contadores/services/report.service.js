@@ -230,13 +230,9 @@ export class ReportService {
       cursorRow++;
 
       // Consultar precios del cliente
-      const prisma = new PrismaClient({
-        datasources: {
-          db: {
-            url: process.env.DATABASE_URL
-          }
-        }
-      });
+      // Consultar precios del cliente
+      // Usamos la instancia global de Prisma
+
       let clientRecords = [];
       let precioBN = 0.18;
       let precioColor = 0.95;
@@ -259,7 +255,7 @@ export class ReportService {
       } catch (error) {
         logger.error('Error consultando precios del cliente', error);
       } finally {
-        await prisma.$disconnect();
+        // No desconectamos la instancia global
       }
 
       const totals = [
@@ -343,13 +339,8 @@ export class ReportService {
   }
 
   static async generateReportFromDB(params = {}) {
-    const prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: process.env.DATABASE_URL
-        }
-      }
-    });
+    // Usamos la instancia global de prisma, no creamos una nueva
+
     try {
       const getHeaderData = (cliente, dateStr) => {
         let inicio = '', fin = '', mes = '';
@@ -555,7 +546,7 @@ export class ReportService {
       logger.error('Error generando reporte desde DB', error);
       throw error;
     } finally {
-      await prisma.$disconnect();
+      // No desconectamos la instancia global
     }
   }
 }
