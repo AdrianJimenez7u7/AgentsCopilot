@@ -10,7 +10,7 @@ import cotizadorRoutes from './agents/cotizador/routes/cotizacion.routes.js';
 import contadoresRoutes from './agents/contadores/routes/contadores.routes.js';
 import PMsitoRoutes from './agents/PMsito/routes/reportes.routes.js';
 import ariaRoutes from './agents/aria/routes/aria.routes.js';
-import administracionRoutes from './agents/administracion/routes/administracion.routes.js';
+import operacionesRoutes from './agents/operaciones/routes/operaciones.routes.js';
 
 //Importar rutas de Predicciones
 import inferenciasRouter from "./agents/predicciones/routers/inferencias.routes.js";
@@ -83,7 +83,7 @@ app.use(apiKeyAuth);
 // Rutas de agentes
 app.use('/agente/cotizador', cotizadorRoutes);
 app.use('/agente/contadores', contadoresRoutes);
-app.use('/agente/administracion', administracionRoutes);
+app.use('/agente/operaciones', operacionesRoutes);
 app.use("/agente/PMsito", PMsitoRoutes);
 app.use(apiKeyAuth);
 // Rutas de Predicciones

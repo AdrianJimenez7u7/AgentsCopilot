@@ -188,60 +188,93 @@ export class ContadoresController {
                 const impresionesBN = parseInt(extractedData.Impresiones) || 0;
                 const impresionesColor = parseInt(extractedData.ImpresionesColor) || 0;
 
-                await prisma.contadores.create({
-                  data: {
-                    Modelo: extractedData.Modelo || null,
-                    TipoImpresion: extractedData.TipoImpresion || null,
-                    Ip: extractedData.ip || null,
-                    Serie: extractedData.Serie || null,
-                    ImpresionesBN: impresionesBN,
-                    ImpresionesColor: impresionesColor,
-                    TotalImpresiones: impresionesBN + impresionesColor,
-                    Cliente: cliente,
-                    FechaCaptura: new Date(),
-                    TipoImpresora: extractedData.TipoImpresora || null,
-                  }
+                const impresoraCliente = await prisma.contadoresInfoClientes.findFirst({
+                  where: { Serie: extractedData.Serie }
                 });
 
-                // --- AUTO-INCREMENT FECHA LIMITE REPORTE ---
-                if (extractedData.Serie) {
-                  const impresoraInfo = await prisma.contadoresInfoClientes.findFirst({
-                    where: { Serie: extractedData.Serie, Cliente: cliente }
+                if (impresoraCliente != null) {
+
+
+                  await prisma.contadores.create({
+                    data: {
+                      Modelo: extractedData.Modelo || null,
+                      TipoImpresion: extractedData.TipoImpresion || null,
+                      Ip: extractedData.ip || null,
+                      Serie: extractedData.Serie || null,
+                      ImpresionesBN: impresionesBN,
+                      ImpresionesColor: impresionesColor,
+                      TotalImpresiones: impresionesBN + impresionesColor,
+                      Cliente: impresoraCliente.Cliente,
+                      FechaCaptura: new Date(),
+                      TipoImpresora: extractedData.TipoImpresora || null,
+                    }
                   });
 
-                  if (impresoraInfo && impresoraInfo.FechaLimiteReporte) {
-                    const currentDeadline = new Date(impresoraInfo.FechaLimiteReporte);
-                    const now = new Date();
+                  // --- AUTO-INCREMENT FECHA LIMITE REPORTE ---
+                  if (extractedData.Serie) {
+                    const impresoraInfo = await prisma.contadoresInfoClientes.findFirst({
+                      where: { Serie: extractedData.Serie, Cliente: cliente }
+                    });
 
-                    // Solo actualizar si la fecha limite es pasada o es el mes actual 
-                    // (evitar doble incremento si se escanea varias veces el mismo mes)
-                    // Lógica: Target = Mes Actual + 1. 
-                    // Si currentDeadline ya es > Fin de Mes Actual, asumimos que ya se actualizó.
+                    if (impresoraInfo) {
+                      // 1. Actualizar Contadores Actuales en la tabla InfoClientes
+                      // SOLO SI ES MAYOR O IGUAL (Evitar downgrades por reportes viejos)
+                      const nuevoTotal = impresionesBN + impresionesColor;
+                      const actualTotal = Number(impresoraInfo.ImpresionesActuales) || 0;
 
-                    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-                    if (currentDeadline < startOfNextMonth) {
-                      const originalDay = currentDeadline.getDate();
-                      // Calcular siguiente mes
-                      const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, originalDay);
-
-                      // Ajuste por si el dia no existe en el siguiente mes (ej. 31 Ene -> 28 Feb)
-                      if (nextDate.getDate() !== originalDay) {
-                        nextDate.setDate(0); // Ultimo dia del mes anterior (que es el correcto)
+                      if (nuevoTotal >= actualTotal) {
+                        await prisma.contadoresInfoClientes.update({
+                          where: { id: impresoraInfo.id },
+                          data: {
+                            ImpresionesActuales: nuevoTotal,
+                            BN: impresionesBN,
+                            Color: impresionesColor
+                            // No actualizamos la fecha aqui, esa se actualiza con la logica de abajo si corresponde
+                          }
+                        });
+                        console.log(`Contadores actualizados para ${extractedData.Serie}: ${actualTotal} -> ${nuevoTotal}`);
+                      } else {
+                        console.warn(`[WARN] Intento de bajar contador para ${extractedData.Serie}. Actual: ${actualTotal}, Nuevo: ${nuevoTotal}. Ignorando update.`);
                       }
 
-                      await prisma.contadoresInfoClientes.update({
-                        where: { id: impresoraInfo.id },
-                        data: { FechaLimiteReporte: nextDate }
-                      });
-                      console.log(`Fecha Limite Actualizada para ${extractedData.Serie}: ${nextDate.toISOString()}`);
+                      // 2. Lógica Fecha Límite
+                      if (impresoraInfo.FechaLimiteReporte) {
+                        const currentDeadline = new Date(impresoraInfo.FechaLimiteReporte);
+                        const now = new Date();
+
+                        // Solo actualizar si la fecha limite es pasada o es el mes actual
+                        // (evitar doble incremento si se escanea varias veces el mismo mes)
+                        // Lógica: Target = Mes Actual + 1.
+                        // Si currentDeadline ya es > Fin de Mes Actual, asumimos que ya se actualizó.
+
+                        const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+                        if (currentDeadline < startOfNextMonth) {
+                          const originalDay = currentDeadline.getDate();
+                          // Calcular siguiente mes
+                          const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, originalDay);
+
+                          // Ajuste por si el dia no existe en el siguiente mes (ej. 31 Ene -> 28 Feb)
+                          if (nextDate.getDate() !== originalDay) {
+                            nextDate.setDate(0); // Ultimo dia del mes anterior (que es el correcto)
+                          }
+
+                          await prisma.contadoresInfoClientes.update({
+                            where: { id: impresoraInfo.id },
+                            data: { FechaLimiteReporte: nextDate }
+                          });
+                          console.log(`Fecha Limite Actualizada para ${extractedData.Serie}: ${nextDate.toISOString()}`);
+                        }
+                      }
                     }
                   }
-                }
-                // -------------------------------------------
+                  // -------------------------------------------
 
-                completedPages++;
-                console.log(`Página ${pageNumber} completada`);
+                  completedPages++;
+                  console.log(`Página ${pageNumber} completada`);
+                } else {
+                  console.log(`Página ${pageNumber} sin completar: No se encontró impresora con serie ${extractedData.Serie}`);
+                }
               } catch (dbError) {
                 console.log(`Página ${pageNumber} sin completar: Error en base de datos`);
                 console.error(dbError);

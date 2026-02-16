@@ -452,39 +452,6 @@ export class ReportService {
             allReports.push(excelPath, pdfPath);
 
             if (!params.dryRun) {
-              for (const r of registros) {
-                const existente = await prisma.contadoresInfoClientes.findFirst({
-                  where: {
-                    Cliente: c.Cliente,
-                    Serie: r.Serie
-                  }
-                });
-
-                if (existente) {
-                  await prisma.contadoresInfoClientes.update({
-                    where: { id: existente.id },
-                    data: {
-                      Modelo: r.Modelo,
-                      IP: r.Ip,
-                      ImpresionesActuales: r.TotalImpresiones,
-                      BN: r.ImpresionesBN,
-                      Color: r.ImpresionesColor
-                    }
-                  });
-                } else {
-                  await prisma.contadoresInfoClientes.create({
-                    data: {
-                      Cliente: c.Cliente,
-                      Modelo: r.Modelo,
-                      Serie: r.Serie,
-                      IP: r.Ip,
-                      ImpresionesActuales: r.TotalImpresiones,
-                      BN: r.ImpresionesBN,
-                      Color: r.ImpresionesColor
-                    }
-                  });
-                }
-              }
 
               await prisma.contadores.updateMany({
                 where: {
@@ -579,41 +546,7 @@ export class ReportService {
         const excelPath = await this.generateReport(extractedData, `Reporte_${params.cliente || 'General'}`, headerData);
         const pdfPath = await PdfReportService.generatePdfReport(extractedData, `Reporte_${params.cliente || 'General'}`, headerData);
 
-        if (!params.dryRun) {
-          for (const r of registros) {
-            const existente = await prisma.contadoresInfoClientes.findFirst({
-              where: {
-                Cliente: r.Cliente,
-                Serie: r.Serie
-              }
-            });
 
-            if (existente) {
-              await prisma.contadoresInfoClientes.update({
-                where: { id: existente.id },
-                data: {
-                  Modelo: r.Modelo,
-                  IP: r.Ip,
-                  ImpresionesActuales: r.TotalImpresiones,
-                  BN: r.ImpresionesBN,
-                  Color: r.ImpresionesColor
-                }
-              });
-            } else {
-              await prisma.contadoresInfoClientes.create({
-                data: {
-                  Cliente: r.Cliente,
-                  Modelo: r.Modelo,
-                  Serie: r.Serie,
-                  IP: r.Ip,
-                  ImpresionesActuales: r.TotalImpresiones,
-                  BN: r.ImpresionesBN,
-                  Color: r.ImpresionesColor
-                }
-              });
-            }
-          }
-        }
 
         return [excelPath, pdfPath];
       }
