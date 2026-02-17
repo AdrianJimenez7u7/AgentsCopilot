@@ -76,4 +76,13 @@ export class ProductosController {
         const isTicketUser = RestriccionesService.isTicketUser(email);
         return res.status(200).json({ isTicketUser });
     }
+
+    static async extractSKUfromDocument(req, res) {
+        const document = req.document;
+        if (!document) {
+            return res.status(400).json({ error: "Documento es requerido" });
+        }
+        const skus = operacionesServicee.extractSKUfromDocument(document);
+        return res.status(200).json({ skus });
+    }
 }
