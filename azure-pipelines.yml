@@ -1,0 +1,110 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: Variables-prod
+
+  - name: azureSubscription
+    value: Patrocinio-6K-30-06-2025 (0124aae5-18f1-427d-b569-768f396aa13b)
+
+  - name: appName
+    value: InnoBack
+
+  - name: resourceGroupName
+    value: Inovacion
+
+  - name: packagePath
+    value: $(System.DefaultWorkingDirectory)
+
+steps:
+
+- task: NodeTool@0
+  displayName: 'Instalar Node.js'
+  inputs:
+    versionSpec: '24.x'
+
+- script: |
+    npm ci --omit=dev
+    npm run build || echo "No build step definido"
+  displayName: 'Instalar dependencias y compilar'
+
+- task: ArchiveFiles@2
+  displayName: 'Empaquetar aplicación'
+  inputs:
+    rootFolderOrFile: '$(packagePath)'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactDirectory)/app.zip'
+    replaceExistingArchive: true
+    excludePatterns: |
+      **/node_modules/**
+      **/.git/**
+      **/.github/**
+      **/*.log
+      **/*.env
+
+- task: AzureCLI@2
+  displayName: 'Verificar App Service'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      az webapp show \
+        --name $(appName) \
+        --resource-group $(resourceGroupName) \
+        --query "state" -o tsv
+
+
+- task: AzureAppServiceSettings@1
+  displayName: 'Configurar variables de entorno'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    appName: '$(appName)'
+    resourceGroupName: '$(resourceGroupName)'
+    appSettings: |
+      [
+        { "name": "NODE_ENV", "value": "$(NODE_ENV)", "slotSetting": false },
+        { "name": "PORT", "value": "$(PORT)", "slotSetting": false },
+        { "name": "AZURE_API_KEY", "value": "$(AZURE_API_KEY)", "slotSetting": false },
+        { "name": "AZURE_OPENAI_ENDPOINT", "value": "$(AZURE_OPENAI_ENDPOINT)", "slotSetting": false },
+        { "name": "AZURE_OPENAI_API_VERSION", "value": "$(AZURE_OPENAI_API_VERSION)", "slotSetting": false },
+        { "name": "AZURE_OPENAI_MODEL", "value": "$(AZURE_OPENAI_MODEL)", "slotSetting": false },
+        { "name": "SMTP_HOST", "value": "$(SMTP_HOST)", "slotSetting": false },
+        { "name": "EMAIL_USER", "value": "$(EMAIL_USER)", "slotSetting": false },
+        { "name": "EMAIL_PASS", "value": "$(EMAIL_PASS)", "slotSetting": false },
+        { "name": "API_KEY", "value": "$(API_KEY)", "slotSetting": false },
+        { "name": "COMPUTER_USE_API_KEY", "value": "$(COMPUTER_USE_API_KEY)", "slotSetting": false },
+        { "name": "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "value": "$(AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT)", "slotSetting": false },
+        { "name": "AZURE_DOCUMENT_INTELLIGENCE_KEY", "value": "$(AZURE_DOCUMENT_INTELLIGENCE_KEY)", "slotSetting": false },
+        { "name": "AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID", "value": "$(AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID)", "slotSetting": false },
+        { "name": "DATABASE_URL", "value": "$(DATABASE_URL)", "slotSetting": false },
+        { "name": "DYNAMIC_SECRET", "value": "$(DYNAMIC_SECRET)", "slotSetting": false },
+        { "name": "TAVILY_API_KEY", "value": "$(TAVILY_API_KEY)", "slotSetting": false },
+        { "name": "OPENAI_API_KEY", "value": "$(OPENAI_API_KEY)", "slotSetting": false },
+      ]
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publicar artefacto'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactDirectory)/app.zip'
+    ArtifactName: 'drop'
+
+- task: AzureWebApp@1
+  displayName: 'Desplegar Backend '
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    appType: 'webAppLinux'
+    appName: '$(appName)'
+    package: '$(Build.ArtifactDirectory)/app.zip'
+
+
+
+
+
+
