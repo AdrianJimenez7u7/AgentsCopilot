@@ -86,7 +86,7 @@ steps:
         { "name": "DATABASE_URL", "value": "$(DATABASE_URL)", "slotSetting": false },
         { "name": "DYNAMIC_SECRET", "value": "$(DYNAMIC_SECRET)", "slotSetting": false },
         { "name": "TAVILY_API_KEY", "value": "$(TAVILY_API_KEY)", "slotSetting": false },
-        { "name": "OPENAI_API_KEY", "value": "$(OPENAI_API_KEY)", "slotSetting": false },
+        { "name": "OPENAI_API_KEY", "value": "$(OPENAI_API_KEY)", "slotSetting": false }
       ]
 
 - task: PublishBuildArtifacts@1
