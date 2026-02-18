@@ -57,7 +57,7 @@ steps:
         --resource-group $(resourceGroupName) \
         --query "state" -o tsv
 
-# 1) Genera appsettings.json usando JSON.stringify (escapa TODO bien)
+
 - bash: |
     set -euo pipefail
     node - <<'NODE'
@@ -103,7 +103,7 @@ steps:
     TAVILY_API_KEY: $(TAVILY_API_KEY)
     OPENAI_API_KEY: $(OPENAI_API_KEY)
 
-# 2) Aplica settings desde el archivo con az (soporta @file)
+
 - task: AzureCLI@2
   displayName: 'Configurar variables de entorno (az webapp config appsettings set)'
   inputs:
