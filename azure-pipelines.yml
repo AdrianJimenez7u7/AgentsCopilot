@@ -10,13 +10,13 @@ variables:
   - group: Variable-prod
 
   - name: azureSubscription
-    value: Patrocinio-6K-30-06-2025 (0124aae5-18f1-427d-b569-768f396aa13b)
+    value: InnoConnect
 
   - name: appName
-    value: InnoBack
+    value: InnoBackend
 
   - name: resourceGroupName
-    value: Inovacion
+    value: Vacaciones-App
 
   - name: packagePath
     value: $(System.DefaultWorkingDirectory)
