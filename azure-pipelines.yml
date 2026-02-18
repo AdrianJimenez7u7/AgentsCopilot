@@ -7,7 +7,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  - group: Variables-prod
+  - group: Variable-prod
 
   - name: azureSubscription
     value: Patrocinio-6K-30-06-2025 (0124aae5-18f1-427d-b569-768f396aa13b)
