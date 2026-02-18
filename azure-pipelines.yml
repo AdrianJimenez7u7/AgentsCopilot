@@ -11,18 +11,14 @@ variables:
 
   - name: azureSubscription
     value: InnoConnect
-
   - name: appName
     value: InnoBackend
-
   - name: resourceGroupName
     value: Vacaciones-App
-
   - name: packagePath
     value: $(System.DefaultWorkingDirectory)
 
 steps:
-
 - task: NodeTool@0
   displayName: 'Instalar Node.js'
   inputs:
@@ -55,39 +51,71 @@ steps:
     scriptType: bash
     scriptLocation: inlineScript
     inlineScript: |
+      set -euo pipefail
       az webapp show \
         --name $(appName) \
         --resource-group $(resourceGroupName) \
         --query "state" -o tsv
 
+# 1) Genera appsettings.json usando JSON.stringify (escapa TODO bien)
+- bash: |
+    set -euo pipefail
+    node - <<'NODE'
+    const fs = require('fs');
 
-- task: AzureAppServiceSettings@1
-  displayName: 'Configurar variables de entorno'
+    const keys = [
+      "NODE_ENV","PORT",
+      "AZURE_API_KEY","AZURE_OPENAI_ENDPOINT","AZURE_OPENAI_API_VERSION","AZURE_OPENAI_MODEL",
+      "SMTP_HOST","EMAIL_USER","EMAIL_PASS",
+      "API_KEY","COMPUTER_USE_API_KEY",
+      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT","AZURE_DOCUMENT_INTELLIGENCE_KEY","AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID",
+      "DATABASE_URL","DYNAMIC_SECRET",
+      "TAVILY_API_KEY","OPENAI_API_KEY"
+    ];
+
+    const settings = keys.map(name => ({
+      name,
+      value: process.env[name] ?? "",
+      slotSetting: false
+    }));
+
+    fs.writeFileSync('appsettings.json', JSON.stringify(settings, null, 2));
+    console.log(`appsettings.json generado (${settings.length} settings).`);
+    NODE
+  displayName: 'Generar appsettings.json (escapado seguro)'
+  env:
+    NODE_ENV: $(NODE_ENV)
+    PORT: $(PORT)
+    AZURE_API_KEY: $(AZURE_API_KEY)
+    AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+    AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+    AZURE_OPENAI_MODEL: $(AZURE_OPENAI_MODEL)
+    SMTP_HOST: $(SMTP_HOST)
+    EMAIL_USER: $(EMAIL_USER)
+    EMAIL_PASS: $(EMAIL_PASS)
+    API_KEY: $(API_KEY)
+    COMPUTER_USE_API_KEY: $(COMPUTER_USE_API_KEY)
+    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: $(AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT)
+    AZURE_DOCUMENT_INTELLIGENCE_KEY: $(AZURE_DOCUMENT_INTELLIGENCE_KEY)
+    AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID: $(AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID)
+    DATABASE_URL: $(DATABASE_URL)
+    DYNAMIC_SECRET: $(DYNAMIC_SECRET)
+    TAVILY_API_KEY: $(TAVILY_API_KEY)
+    OPENAI_API_KEY: $(OPENAI_API_KEY)
+
+# 2) Aplica settings desde el archivo con az (soporta @file)
+- task: AzureCLI@2
+  displayName: 'Configurar variables de entorno (az webapp config appsettings set)'
   inputs:
     azureSubscription: '$(azureSubscription)'
-    appName: '$(appName)'
-    resourceGroupName: '$(resourceGroupName)'
-    appSettings: |
-      [
-        { "name": "NODE_ENV", "value": "$(NODE_ENV)", "slotSetting": false },
-        { "name": "PORT", "value": "$(PORT)", "slotSetting": false },
-        { "name": "AZURE_API_KEY", "value": "$(AZURE_API_KEY)", "slotSetting": false },
-        { "name": "AZURE_OPENAI_ENDPOINT", "value": "$(AZURE_OPENAI_ENDPOINT)", "slotSetting": false },
-        { "name": "AZURE_OPENAI_API_VERSION", "value": "$(AZURE_OPENAI_API_VERSION)", "slotSetting": false },
-        { "name": "AZURE_OPENAI_MODEL", "value": "$(AZURE_OPENAI_MODEL)", "slotSetting": false },
-        { "name": "SMTP_HOST", "value": "$(SMTP_HOST)", "slotSetting": false },
-        { "name": "EMAIL_USER", "value": "$(EMAIL_USER)", "slotSetting": false },
-        { "name": "EMAIL_PASS", "value": "$(EMAIL_PASS)", "slotSetting": false },
-        { "name": "API_KEY", "value": "$(API_KEY)", "slotSetting": false },
-        { "name": "COMPUTER_USE_API_KEY", "value": "$(COMPUTER_USE_API_KEY)", "slotSetting": false },
-        { "name": "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "value": "$(AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT)", "slotSetting": false },
-        { "name": "AZURE_DOCUMENT_INTELLIGENCE_KEY", "value": "$(AZURE_DOCUMENT_INTELLIGENCE_KEY)", "slotSetting": false },
-        { "name": "AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID", "value": "$(AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID)", "slotSetting": false },
-        { "name": "DATABASE_URL", "value": "$(DATABASE_URL)", "slotSetting": false },
-        { "name": "DYNAMIC_SECRET", "value": "$(DYNAMIC_SECRET)", "slotSetting": false },
-        { "name": "TAVILY_API_KEY", "value": "$(TAVILY_API_KEY)", "slotSetting": false },
-        { "name": "OPENAI_API_KEY", "value": "$(OPENAI_API_KEY)", "slotSetting": false }
-      ]
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      az webapp config appsettings set \
+        -g $(resourceGroupName) \
+        -n $(appName) \
+        --settings @appsettings.json
 
 - task: PublishBuildArtifacts@1
   displayName: 'Publicar artefacto'
@@ -96,15 +124,9 @@ steps:
     ArtifactName: 'drop'
 
 - task: AzureWebApp@1
-  displayName: 'Desplegar Backend '
+  displayName: 'Desplegar Backend'
   inputs:
     azureSubscription: '$(azureSubscription)'
     appType: 'webAppLinux'
     appName: '$(appName)'
     package: '$(Build.ArtifactDirectory)/app.zip'
-
-
-
-
-
-
