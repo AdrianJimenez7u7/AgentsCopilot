@@ -57,15 +57,14 @@ export function entraJwtAuth(req, res, next) {
     expectedAudiences: audienceList,
   });
 
-  // 1) Verifica firma y audiencia
-  jwt.verify(token, getKey, { audience: audienceList }, (err, decoded) => {
+  // 1) Verifica firma Y SOLO firma (sin validar audience por ahora)
+  jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
     if (err) {
       console.error("❌ JWT Verification Error:", {
         errorName: err.name,
         errorMessage: err.message,
         errorCode: err.code,
         jwksUri: jwksUri,
-        expectedAudiences: audienceList,
         receivedAudience: jwt.decode(token)?.aud,
         tokenHeader: jwt.decode(token, { complete: true })?.header,
       });
@@ -73,11 +72,22 @@ export function entraJwtAuth(req, res, next) {
         ok: false,
         error: "invalid_token",
         details: err.message,
-        expectedAudiences: audienceList,
-        receivedAudience: jwt.decode(token)?.aud,
       });
     }
-    console.log("✅ JWT Verificado correctamente");
+    console.log("✅ JWT Verificado correctamente (firma válida)");
+    
+    // 2) Validar audiencia manualmente después
+    const receivedAudience = decoded?.aud;
+    if (!audienceList.includes(receivedAudience)) {
+      console.error("❌ Audience no permitida:", receivedAudience, "Esperado:", audienceList);
+      return res.status(401).json({
+        ok: false,
+        error: "invalid_audience",
+        details: `Audience '${receivedAudience}' no permitida`,
+        expectedAudiences: audienceList,
+      });
+    }
+    console.log("✅ Audience válida:", receivedAudience);
 
     // 2) Valida issuer manualmente (porque tu token trae STS)
     if (!allowedIssuers.includes(decoded?.iss)) {
