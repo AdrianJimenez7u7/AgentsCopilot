@@ -20,6 +20,7 @@ const jwksUri = `https://login.microsoftonline.com/${tenantId.trim()}/discovery/
 const audienceList = [
   process.env.AZURE_API_AUDIENCE,       // api://<backendClientId>
   process.env.AZURE_BACKEND_CLIENT_ID,  // <backendClientId> GUID (por si llega así)
+  "00000003-0000-0000-c000-000000000000", // Microsoft Graph (wellknown)
 ].filter(Boolean);
 
 // ✅ incluye el issuer real que estás recibiendo (STS)
