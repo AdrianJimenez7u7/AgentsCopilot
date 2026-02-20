@@ -321,4 +321,8 @@ export class Constantes {
         "535": "LEMORELE",
         "536": "NACEB HORUS"
     }
+    static UnidadesSAT = {
+        "H87": "Pieza",
+        "E48": "Unidad de servicio",
+    };
 }

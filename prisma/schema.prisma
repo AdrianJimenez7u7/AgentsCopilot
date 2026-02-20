@@ -5,6 +5,7 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
+  url      = env("DATABASE_URL")
 }
 
 model Contadores {
@@ -100,4 +101,20 @@ model Predicciones_Requests {
 
   @@index([ModelSlug, MonthTarget], map: "IX_PredRequests_ModelMonth")
   @@index([Status, CreatedAt(sort: Desc)], map: "IX_PredRequests_StatusCreatedAt")
+}
+
+model ProductoPendienteValidation {
+  id                        Int      @id @default(autoincrement())
+  sku                       String   @db.NVarChar(100)
+  descripcion_comercial     String?  @db.NVarChar(Max)
+  clave_producto_servicio_sat String? @db.NVarChar(50)
+  clave_unidad_sat          String?  @db.NVarChar(50)
+  marca                     String?  @db.NVarChar(100)
+  medidas_cm                String?  @db.NVarChar(100)
+  peso_kg                   Float?
+  user_email                String   @db.NVarChar(256)
+  status                    String   @default("Pending") @db.NVarChar(50) // 'Pending', 'Validated'
+  createdAt                 DateTime @default(now())
+
+  @@index([user_email, status], map: "IX_ProductoPendiente_UserStatus")
 }

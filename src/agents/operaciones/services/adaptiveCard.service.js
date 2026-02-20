@@ -155,14 +155,19 @@ export class AdaptiveCardService {
                     ]
                 },
 
-                // SKU Oculto
+                // IDs ocultos
+                {
+                    type: "Input.Text",
+                    id: "id",
+                    value: String(productData.id || ""),
+                    isVisible: false
+                },
                 {
                     type: "Input.Text",
                     id: "numero_parte",
                     value: productData.numero_parte || "",
                     isVisible: false
                 },
-                // Cliente Oculto (si existe)
                 {
                     type: "Input.Text",
                     id: "cliente",
@@ -188,5 +193,121 @@ export class AdaptiveCardService {
         };
 
         return container;
+    }
+
+    /** Card shown when the AI model fails (rate limit, timeout, etc.) */
+    static createErrorCard(sku, errorMessage) {
+        return {
+            type: "Container",
+            style: "attention",
+            items: [
+                {
+                    type: "TextBlock",
+                    text: "⚠️ No se pudo procesar el producto",
+                    weight: "Bolder",
+                    size: "Medium",
+                    color: "Attention"
+                },
+                {
+                    type: "TextBlock",
+                    text: `SKU: **${sku}**`,
+                    spacing: "Small"
+                },
+                {
+                    type: "TextBlock",
+                    text: errorMessage || "Ocurrió un error al consultar la información del producto. Por favor intenta de nuevo en unos momentos.",
+                    wrap: true,
+                    isSubtle: true,
+                    spacing: "Small"
+                },
+                {
+                    type: "ActionSet",
+                    spacing: "Medium",
+                    actions: [
+                        {
+                            type: "Action.Submit",
+                            title: "🔄 Reintentar",
+                            data: { action: "retry_product_card", sku }
+                        }
+                    ]
+                }
+            ]
+        };
+    }
+
+    /** Card shown when the SKU already exists in DB — shows current data */
+    static createExistingProductCard(product) {
+        const fields = [
+            { label: "Descripción", value: product.descripcion_comercial || "—" },
+            { label: "Marca", value: product.marca || "—" },
+            { label: "Clave SAT", value: product.clave_producto_servicio_sat || "—" },
+            { label: "Unidad SAT", value: product.clave_unidad_sat || "—" },
+            { label: "Medidas (cm)", value: product.medidas_cm || "—" },
+            { label: "Peso (kg)", value: String(product.peso_kg ?? "—") },
+            { label: "Estatus", value: product.status || "—" },
+        ];
+
+        return {
+            type: "Container",
+            style: "emphasis",
+            items: [
+                {
+                    type: "TextBlock",
+                    text: "ℹ️ El producto ya existe",
+                    weight: "Bolder",
+                    size: "Medium",
+                    color: "Accent"
+                },
+                {
+                    type: "TextBlock",
+                    text: `SKU: **${product.sku}** ya se encuentra registrado en el sistema.`,
+                    wrap: true,
+                    spacing: "Small"
+                },
+                {
+                    type: "FactSet",
+                    spacing: "Medium",
+                    facts: fields.map(f => ({ title: f.label, value: f.value }))
+                }
+            ]
+        };
+    }
+
+    /** Summary card shown after XLSX upload */
+    static createUploadSummaryCard({ processed = [], skipped = [], errors = [] }) {
+        const VALIDATION_URL = "https://innofront-b4htgzhdb2gxe0ga.southcentralus-01.azurewebsites.net/operaciones/validacion/";
+        const skuList = (arr) => arr.length > 0 ? arr.join(", ") : "Ninguno";
+
+        return {
+            type: "Container",
+            items: [
+                { type: "TextBlock", text: "📦 Resumen de carga de productos", weight: "Bolder", size: "Medium" },
+                {
+                    type: "TextBlock",
+                    text: `✅ Listos para validar: **${processed.length}**`,
+                    color: "Good", spacing: "Medium"
+                },
+                { type: "TextBlock", text: skuList(processed), wrap: true, isSubtle: true, spacing: "Small" },
+                {
+                    type: "TextBlock",
+                    text: `ℹ️ Ya existían en el sistema: **${skipped.length}**`,
+                    color: "Accent", spacing: "Medium"
+                },
+                { type: "TextBlock", text: skuList(skipped), wrap: true, isSubtle: true, spacing: "Small" },
+                {
+                    type: "TextBlock",
+                    text: `❌ No se pudieron obtener: **${errors.length}**`,
+                    color: "Attention", spacing: "Medium"
+                },
+                { type: "TextBlock", text: skuList(errors), wrap: true, isSubtle: true, spacing: "Small" },
+                {
+                    type: "ActionSet",
+                    spacing: "Large",
+                    actions: [
+                        { type: "Action.OpenUrl", title: "🔍 Ir a Validación", url: VALIDATION_URL }
+                    ]
+                }
+            ]
+        };
     }
 }
