@@ -1,0 +1,132 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: Variable-prod
+
+  - name: azureSubscription
+    value: InnoConnect
+  - name: appName
+    value: InnoBackend
+  - name: resourceGroupName
+    value: Vacaciones-App
+  - name: packagePath
+    value: $(System.DefaultWorkingDirectory)
+
+steps:
+- task: NodeTool@0
+  displayName: 'Instalar Node.js'
+  inputs:
+    versionSpec: '22.x'
+
+- script: |
+    npm ci --omit=dev
+    npm run build || echo "No build step definido"
+  displayName: 'Instalar dependencias y compilar'
+
+- task: ArchiveFiles@2
+  displayName: 'Empaquetar aplicación'
+  inputs:
+    rootFolderOrFile: '$(packagePath)'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactDirectory)/app.zip'
+    replaceExistingArchive: true
+    excludePatterns: |
+      **/node_modules/**
+      **/.git/**
+      **/.github/**
+      **/*.log
+      **/*.env
+
+- task: AzureCLI@2
+  displayName: 'Verificar App Service'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      az webapp show \
+        --name $(appName) \
+        --resource-group $(resourceGroupName) \
+        --query "state" -o tsv
+
+
+- bash: |
+    set -euo pipefail
+    node - <<'NODE'
+    const fs = require('fs');
+
+    const keys = [
+      "NODE_ENV","PORT",
+      "AZURE_API_KEY","AZURE_OPENAI_ENDPOINT","AZURE_OPENAI_API_VERSION","AZURE_OPENAI_MODEL",
+      "SMTP_HOST","EMAIL_USER","EMAIL_PASS",
+      "API_KEY","COMPUTER_USE_API_KEY",
+      "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT","AZURE_DOCUMENT_INTELLIGENCE_KEY","AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID",
+      "DATABASE_URL","DYNAMIC_SECRET",
+      "TAVILY_API_KEY","OPENAI_API_KEY"
+    ];
+
+    const settings = keys.map(name => ({
+      name,
+      value: process.env[name] ?? "",
+      slotSetting: false
+    }));
+
+    fs.writeFileSync('appsettings.json', JSON.stringify(settings, null, 2));
+    console.log(`appsettings.json generado (${settings.length} settings).`);
+    NODE
+  displayName: 'Generar appsettings.json (escapado seguro)'
+  env:
+    NODE_ENV: $(NODE_ENV)
+    PORT: $(PORT)
+    AZURE_API_KEY: $(AZURE_API_KEY)
+    AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+    AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+    AZURE_OPENAI_MODEL: $(AZURE_OPENAI_MODEL)
+    SMTP_HOST: $(SMTP_HOST)
+    EMAIL_USER: $(EMAIL_USER)
+    EMAIL_PASS: $(EMAIL_PASS)
+    API_KEY: $(API_KEY)
+    COMPUTER_USE_API_KEY: $(COMPUTER_USE_API_KEY)
+    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: $(AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT)
+    AZURE_DOCUMENT_INTELLIGENCE_KEY: $(AZURE_DOCUMENT_INTELLIGENCE_KEY)
+    AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID: $(AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID)
+    DATABASE_URL: $(DATABASE_URL)
+    DYNAMIC_SECRET: $(DYNAMIC_SECRET)
+    TAVILY_API_KEY: $(TAVILY_API_KEY)
+    OPENAI_API_KEY: $(OPENAI_API_KEY)
+
+
+- task: AzureCLI@2
+  displayName: 'Configurar variables de entorno (az webapp config appsettings set)'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      az webapp config appsettings set \
+        -g $(resourceGroupName) \
+        -n $(appName) \
+        --settings @appsettings.json
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publicar artefacto'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactDirectory)/app.zip'
+    ArtifactName: 'drop'
+
+- task: AzureWebApp@1
+  displayName: 'Desplegar Backend'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    appType: 'webAppLinux'
+    appName: '$(appName)'
+    package: '$(Build.ArtifactDirectory)/app.zip'

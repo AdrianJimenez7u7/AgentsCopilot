@@ -4,6 +4,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { errorHandler } from "./shared/middleware/error.middleware.js";
 import { apiKeyAuth } from "./shared/middleware/auth.middleware.js";
+import { entraJwtAuth } from "./shared/middleware/entraJwtAuth.middleware.js";
 
 // Importar rutas de agentes
 import cotizadorRoutes from './agents/cotizador/routes/cotizacion.routes.js';
@@ -11,6 +12,8 @@ import contadoresRoutes from './agents/contadores/routes/contadores.routes.js';
 import PMsitoRoutes from './agents/PMsito/routes/reportes.routes.js';
 import ariaRoutes from './agents/aria/routes/aria.routes.js';
 import operacionesRoutes from './agents/operaciones/routes/operaciones.routes.js';
+import copilotRoutes from "./agents/copilotstudio/routes/copilot.routes.js";
+
 
 //Importar rutas de Predicciones
 import inferenciasRouter from "./agents/predicciones/routers/inferencias.routes.js";
@@ -74,6 +77,9 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Rutas Auth Entra (Bearer) para Copilot Studio
+app.use("/agente/copilot", entraJwtAuth, copilotRoutes);
+
 // Aplicar autenticación a todas las rutas de API (opcional)
 // app.use('/agente', apiKeyAuth);
 app.use('/agente/PMsito', PMsitoRoutes);
@@ -81,11 +87,15 @@ app.use('/agente/aria', ariaRoutes);
 
 app.use(apiKeyAuth);
 // Rutas de agentes
+
+app.use("/agente/aria", ariaRoutes);
 app.use('/agente/cotizador', cotizadorRoutes);
 app.use('/agente/contadores', contadoresRoutes);
 app.use('/agente/operaciones', operacionesRoutes);
 app.use("/agente/PMsito", PMsitoRoutes);
+app.use("/agente/copilot", copilotRoutes);
 app.use(apiKeyAuth);
+
 // Rutas de Predicciones
 app.use("/api/predicciones/inferencias", inferenciasRouter);
 app.use("/api/predicciones/reales", realesRouter);
