@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "../../../shared/prisma/client.js";
+import { notifyInferenceReady } from "./notificaciones.service.js";
 
 export class RequestsService {
   static async getAll() {
@@ -98,9 +99,6 @@ export class RequestsService {
         throw e;
       }
 
-      // Si quieres que solo admin pueda completar, aquí es un buen lugar para validarlo con req.user
-      // (lo haríamos en controller con middleware, idealmente)
-
       let updated;
       try {
         updated = await prisma.predicciones_Requests.update({
@@ -123,6 +121,22 @@ export class RequestsService {
         e.statusCode = 404;
         throw e;
       }
+
+      // ✅ Construir URL a resultados (ajusta la ruta a tu frontend real)
+      const appUrl = (process.env.APP_URL || "").replace(/\/+$/, "");
+      const resultUrl =
+        appUrl
+          ? `${appUrl}/predicciones/requests/${updated.Id}` // <-- AJUSTA ESTA RUTA
+          : "";
+
+      // ✅ Disparar notificación (NO debe romper el complete si falla)
+      notifyInferenceReady({
+        userEmail: updated.UserEmail,
+        modelName: updated.ModelName || updated.ModelSlug,
+        requestId: updated.Id,
+        completedAt: (updated.CompletedAt || new Date()).toISOString?.() || String(updated.CompletedAt),
+        resultUrl: resultUrl || undefined,
+      }).catch(() => { /* ya loggeado en helper */ });
 
       return {
         ok: true,
