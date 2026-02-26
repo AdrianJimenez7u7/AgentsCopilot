@@ -15,6 +15,28 @@ const upload = multer({
   limits: { fileSize: 16 * 1024 * 1024 } // 16MB límite
 });
 
+// 1. Función para generar todas las combinaciones de 0 y O
+function getVariations(serial) {
+  let results = [serial.toUpperCase()];
+
+  // Iteramos por cada carácter para encontrar los conflictivos
+  for (let i = 0; i < serial.length; i++) {
+    let char = serial[i].toUpperCase();
+    if (char === '0' || char === 'O') {
+      let newVariations = [];
+      for (let variant of results) {
+        // Creamos dos versiones por cada variante existente
+        let v0 = variant.substring(0, i) + '0' + variant.substring(i + 1);
+        let vO = variant.substring(0, i) + 'O' + variant.substring(i + 1);
+        newVariations.push(v0, vO);
+      }
+      // Eliminamos duplicados usando un Set
+      results = [...new Set(newVariations)];
+    }
+  }
+  return results;
+}
+
 export class ContadoresController {
   /**
    * Divide un PDF subido en páginas individuales.
@@ -127,8 +149,8 @@ export class ContadoresController {
 
   /**
    * Procesa un PDF subido: divide, analiza cada página y guarda resultados.
-   * @param {import('express').Request} req
-   * @param {import('express').Response} res
+   * @param files
+   * @param res
    */
   static async processPdf(req, res) {
     try {
@@ -183,14 +205,38 @@ export class ContadoresController {
                   extractedData[fieldName] = fields[fieldName].value;
                 }
               }
-
+              extractedData.encontrada = false;
               try {
                 const impresionesBN = parseInt(extractedData.Impresiones) || 0;
                 const impresionesColor = parseInt(extractedData.ImpresionesColor) || 0;
 
-                const impresoraCliente = await prisma.contadoresInfoClientes.findFirst({
+                let impresoraCliente = await prisma.contadoresInfoClientes.findFirst({
                   where: { Serie: extractedData.Serie }
                 });
+
+
+                // 2. Lógica de validación con Prisma
+                let serieInitial = String(extractedData.Serie).toUpperCase();
+                let todasLasVariantes = getVariations(serieInitial);
+
+                // Buscamos si alguna de las variantes existe en la BD
+                let clienteEncontrado = await prisma.contadoresInfoClientes.findFirst({
+                  where: {
+                    Serie: {
+                      in: todasLasVariantes
+                    }
+                  }
+                });
+
+                if (clienteEncontrado) {
+                  console.log("Serie correcta encontrada:", clienteEncontrado.Serie);
+                  extractedData.encontrada = true;
+                  impresoraCliente = clienteEncontrado;
+                } else {
+                  console.log("No se encontró ninguna coincidencia.");
+                  extractedData.encontrada = false;
+                }
+                //metodo busqueda fin
 
                 if (impresoraCliente != null) {
 
@@ -200,7 +246,7 @@ export class ContadoresController {
                       Modelo: extractedData.Modelo || null,
                       TipoImpresion: extractedData.TipoImpresion || null,
                       Ip: extractedData.ip || null,
-                      Serie: extractedData.Serie || null,
+                      Serie: impresoraCliente.Serie || null,
                       ImpresionesBN: impresionesBN,
                       ImpresionesColor: impresionesColor,
                       TotalImpresiones: impresionesBN + impresionesColor,
@@ -212,7 +258,7 @@ export class ContadoresController {
 
                   // --- AUTO-INCREMENT FECHA LIMITE REPORTE ---
                   // Reutilizamos impresoraCliente que ya consultamos arriba
-                  if (extractedData.Serie && impresoraCliente) {
+                  if (impresoraCliente) {
                     const impresoraInfo = impresoraCliente;
 
 
@@ -278,6 +324,7 @@ export class ContadoresController {
               } catch (dbError) {
                 console.log(`Página ${pageNumber} sin completar: Error en base de datos`);
                 console.error(dbError);
+                extractedData.encontrada = false;
               }
             } else {
               extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
