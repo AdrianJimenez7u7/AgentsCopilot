@@ -1,0 +1,36 @@
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnConversationStart
+  id: main
+  actions:
+    - kind: SendActivity
+      id: node_GreetUser
+      activity: "¡Hola {System.User.DisplayName}! 👋 ¿Sabías que los pulpos tienen tres corazones? 🐙"
+
+    - kind: HttpRequestAction
+      id: node_GetPermissions
+      method: Post
+      url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones/permissions
+      headers:
+        x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+      body:
+        kind: JsonRequestContent
+        content: "={ email: System.User.Email }"
+      response: Global.UserPermissions
+      responseSchema:
+        kind: Record
+        properties:
+          permissions:
+            type:
+              kind: Table
+              properties:
+                Value: String
+
+    - kind: SetVariable
+      id: node_SetAccessFlag
+      variable: Global.HasSearchAccess
+      value: =!IsEmpty(Global.UserPermissions.permissions)
+
+    - kind: SendActivity
+      id: node_InviteInput
+      activity: "En que puedo apoyarte hoy? Puedes escribirme lo que necesitas, ya sea buscar un producto, un documento o cualquier duda. Estoy aqui para ayudarte."

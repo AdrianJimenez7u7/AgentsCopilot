@@ -61,26 +61,38 @@ export class operacionesService {
             };
         }
 
-        // Process new SKUs in parallel (max 3 concurrent)
-        const settled = await runWithConcurrency(
-            skusNuevos.map((sku, i) => async () => {
-                const rawResults = await SearchService.search(sku);
-                const contextString = JSON.stringify(rawResults);
-                const producto = await OpenAIService.extractProductData(sku, contextString);
-                return {
-                    sku: producto.numero_parte || sku,
-                    descripcion_comercial: producto.descripcion_comercial,
-                    clave_producto_servicio_sat: producto.clave_producto_servicio_sat,
-                    clave_unidad_sat: producto.clave_unidad_sat,
-                    marca: producto.marca,
-                    medidas_cm: producto.medidas_cm,
-                    peso_kg: parseFloat(producto.peso_kg) || 0,
-                    user_email: userEmail || 'unknown@example.com',
-                    status: 'Pending',
-                };
-            }),
-            3
+        // Phase 1: run all Tavily searches in parallel (fast, no AI cost)
+        console.log(`[XLSX] Fase 1: buscando ${skusNuevos.length} SKUs en paralelo con Tavily...`);
+        const searchResults = await Promise.allSettled(
+            skusNuevos.map(sku => SearchService.search(sku))
         );
+
+        // Build items array for batch classification
+        const items = skusNuevos.map((sku, i) => ({
+            sku,
+            context: searchResults[i].status === 'fulfilled'
+                ? JSON.stringify(searchResults[i].value)
+                : '',
+        }));
+
+        // Phase 2: classify ALL SKUs in a single AI call (system prompt sent only once)
+        console.log(`[XLSX] Fase 2: clasificando ${items.length} SKUs en lote con modelo de razonamiento...`);
+        const clasificados = await OpenAIService.clasificarProductosLote(items);
+
+        const settled = clasificados.map((producto, i) => ({
+            status: producto ? 'fulfilled' : 'rejected',
+            value: producto ? {
+                sku: producto.numero_parte || skusNuevos[i],
+                descripcion_comercial: producto.descripcion_comercial,
+                clave_producto_servicio_sat: producto.clave_producto_servicio_sat,
+                clave_unidad_sat: producto.clave_unidad_sat,
+                marca: producto.marca,
+                medidas_cm: producto.medidas_cm,
+                peso_kg: parseFloat(producto.peso_kg) || 0,
+                user_email: userEmail || 'unknown@example.com',
+                status: 'Pending',
+            } : null,
+        }));
 
         const productos = [];
         const skusProcesados = [];
@@ -99,6 +111,9 @@ export class operacionesService {
         if (skusConError.length > 0) {
             console.warn(`SKUs con error: ${skusConError.join(', ')}`);
         }
+
+        // Token logs are printed by clasificarProductosLote directly
+
 
         // Save to DB
         if (productos.length > 0) {

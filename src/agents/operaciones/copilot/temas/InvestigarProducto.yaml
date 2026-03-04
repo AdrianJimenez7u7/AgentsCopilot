@@ -1,0 +1,243 @@
+kind: AdaptiveDialog
+modelDescription: investigar producto
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: {}
+  actions:
+    - kind: HttpRequestAction
+      id: ylp4cy
+      method: Post
+      url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones/permissions/search
+      headers:
+        x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+      body:
+        kind: JsonRequestContent
+        content: |
+          ={
+              email: System.User.Email
+          }
+      response: Topic.Permission
+      responseSchema:
+        kind: Record
+        properties:
+          isSearchUser: Boolean
+
+    - kind: ConditionGroup
+      id: conditionGroup_tEVXeX
+      conditions:
+        - id: conditionItem_EVKBuW
+          condition: =Topic.Permission.isSearchUser = false
+          actions:
+            - kind: SendActivity
+              id: sendActivity_gNz2ab
+              activity: "Lo siento, no tienes acceso a esta funcion. Si crees que es un error, contacta a tu administrador."
+            - kind: EndConversation
+              id: n2NuL2
+
+      elseActions:
+        - kind: Question
+          id: question_Yf4wIP
+          interruptionPolicy:
+            allowInterruption: true
+          variable: init:Topic.TipoCarga
+          prompt: "Cuantos productos necesitas investigar? Escoge una opcion:"
+          entity:
+            kind: EmbeddedEntity
+            definition:
+              kind: ClosedListEntity
+              items:
+                - id: Individual
+                  displayName: "Un producto (por SKU)"
+                - id: Masiva
+                  displayName: "Varios productos (archivo Excel)"
+
+        - kind: ConditionGroup
+          id: conditionGroup_JOqJ4O
+          conditions:
+            - id: conditionItem_n2FDBh
+              condition: =Topic.TipoCarga = 'copilots_header_ce02f.topic.InvestigarProducto.main.question_Yf4wIP'.Individual
+              actions:
+                - kind: SendActivity
+                  id: sendActivity_IndividualConfirm
+                  activity: "Perfecto, vamos a buscar un producto por SKU."
+                - kind: GotoAction
+                  id: goto_AskSku
+                  actionId: question_r0iNKb
+
+            - id: conditionItem_9lzjiT
+              condition: =Topic.TipoCarga = 'copilots_header_ce02f.topic.InvestigarProducto.main.question_Yf4wIP'.Masiva
+              actions:
+                - kind: Question
+                  id: question_eNl0At
+                  interruptionPolicy:
+                    allowInterruption: true
+                  variable: init:Topic.File
+                  prompt: "Adjunta tu archivo XLSX, XLS o CSV con los SKUs a investigar."
+                  entity:
+                    kind: FilePrebuiltEntity
+                    includeFileMetadata: true
+
+                - kind: SendActivity
+                  id: sendActivity_ProcessingFile
+                  activity: "Recibido. Estoy procesando tu archivo, esto puede tardar unos minutos dependiendo del numero de productos... ⏳"
+
+                - kind: InvokeFlowAction
+                  id: invokeFlowAction_iv1quX
+                  input:
+                    binding:
+                      file: =Topic.File
+                      text: =System.User.Email
+                  output:
+                    outputOverrides:
+                      - property: Topic.archivo
+                        sensitivityLevel: None
+                    binding:
+                      card: Topic.Card
+                  flowId: d684a226-47fc-f77b-3004-3ff200162bf6
+
+                - kind: SendActivity
+                  id: sendActivity_Y8TCfA
+                  activity:
+                    attachments:
+                      - kind: AdaptiveCardTemplate
+                        cardContent: =Topic.Card
+
+                - kind: SendActivity
+                  id: sendActivity_MasivaDone
+                  activity: "Listo. Los productos del archivo han sido procesados. Puedes revisarlos en la plataforma o pedirme otro archivo."
+
+                - kind: GotoAction
+                  id: GqqaRN
+                  actionId: sendActivity_Done
+
+    - kind: SendActivity
+      id: sendActivity_ThinkingSku
+      activity: "Buscando informacion del producto {Topic.Sku}... Dame un momento. ⏳"
+
+    - kind: Question
+      id: question_r0iNKb
+      interruptionPolicy:
+        allowInterruption: true
+      variable: init:Topic.Sku
+      prompt: "Cual es el SKU del producto que necesitas investigar?"
+      entity: StringPrebuiltEntity
+
+    - kind: HttpRequestAction
+      id: ERdlbv
+      method: Post
+      url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones/search-card
+      headers:
+        x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+      body:
+        kind: JsonRequestContent
+        content: |-
+          ={
+              sku: Topic.Sku,
+              email: System.User.Email
+          }
+      requestTimeoutInMilliseconds: 120000
+      response: Topic.Var1
+      responseSchema: Any
+
+    - kind: SendActivity
+      id: sendActivity_H1Snqd
+      activity:
+        attachments:
+          - kind: AdaptiveCardTemplate
+            cardContent: |-
+              ={
+                type: "AdaptiveCard",
+                version: "1.3",
+                body: Topic.Var1.items,
+                actions: Topic.Var1.actions,
+                '$schema': "http://adaptivecards.io/schemas/adaptive-card.json"
+              }
+
+    - kind: Question
+      id: question_WaitCardAction
+      interruptionPolicy:
+        allowInterruption: false
+      variable: init:Topic.CardResponse
+      prompt: ""
+      entity: StringPrebuiltEntity
+
+    - kind: ParseValue
+      id: node_ParseCardResponse
+      variable: init:Topic.CardData
+      value: =Topic.CardResponse
+      outputType:
+        kind: Record
+        properties:
+          intent: String
+          id: String
+          numero_parte: String
+          descripcion_comercial: String
+          clave_producto_servicio_sat: String
+          clave_unidad_sat: String
+          marca: String
+          medidas_cm: String
+          peso_kg: String
+
+    - kind: ConditionGroup
+      id: conditionGroup_CardAction
+      conditions:
+        - id: conditionItem_Validar
+          condition: =Topic.CardData.intent = "validar_producto"
+          actions:
+            - kind: SendActivity
+              id: sendActivity_Validating
+              activity: "Validando el producto {Topic.CardData.numero_parte}... ⏳"
+
+            - kind: HttpRequestAction
+              id: node_ValidarProducto
+              method: Put
+              url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones/validate
+              headers:
+                x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+              body:
+                kind: JsonRequestContent
+                content: |-
+                  ={ 
+                    id: Topic.CardData.id,
+                    numero_parte: Topic.CardData.numero_parte,
+                    descripcion_comercial: Topic.CardData.descripcion_comercial,
+                    clave_producto_servicio_sat: Topic.CardData.clave_producto_servicio_sat,
+                    clave_unidad_sat: Topic.CardData.clave_unidad_sat,
+                    marca: Topic.CardData.marca,
+                    medidas_cm: Topic.CardData.medidas_cm,
+                    peso_kg: Topic.CardData.peso_kg
+                  }
+              response: Topic.ValidacionResult
+              responseSchema:
+                kind: Record
+                properties:
+                  success: Boolean
+                  message: String
+
+            - kind: ConditionGroup
+              id: conditionGroup_ValidacionResult
+              conditions:
+                - id: conditionItem_Exito
+                  condition: =Topic.ValidacionResult.success = true
+                  actions:
+                    - kind: SendActivity
+                      id: sendActivity_ValidacionOk
+                      activity: "El producto {Topic.CardData.numero_parte} ha sido validado exitosamente y registrado en la Base de Datos. ✅"
+              elseActions:
+                - kind: SendActivity
+                  id: sendActivity_ValidacionError
+                  activity: "Hubo un problema al validar el producto. Intenta de nuevo o contacta a soporte."
+
+      elseActions:
+        - kind: SendActivity
+          id: sendActivity_AccionNoReconocida
+          activity: "No reconoci esa accion. Si necesitas ayuda, dime en que puedo apoyarte."
+
+    - kind: SendActivity
+      id: sendActivity_Done
+      activity: "Si necesitas investigar otro producto o tienes alguna duda, con gusto te ayudo."
+
+
+inputType: {}
+outputType: {}

@@ -4,33 +4,9 @@ export class AdaptiveCardService {
 
     static createProductCard(productData) {
 
-        // Construir opciones del ChoiceSet para Clave SAT
-        const choicesSat = Object.entries(Constantes.CodigosClasificacion).map(([key, value]) => ({
-            title: `${key} - ${value}`,
-            value: key
-        }));
-
-        // Construir opciones del ChoiceSet para Marca
-        // Formato solicitado: "287-MICROSOFT" (asumimos que el usuario quiere esto como valor también, o al menos como título)
-        // El usuario dijo: "ponlo en el mismo campo de marca ejemplo: '287-MICROSOFT'"
-        // Usaremos value = "CODIGO" para mantener consistencia con backend, pero Title = "CODIGO - NOMBRE"
-        // O si el usuario quiere que el valor final sea "CODIGO-NOMBRE", ajustamos value.
-        // Dado que es un sistema de validación, probablemente el backend espere el ID de marca o el Nombre. 
-        // Si antes era texto libre, probablemente guardaban el nombre.
-        // Voy a poner value = NOMBRE para que sea compatible con lo que había antes (texto), 
-        // pero title = "CODIGO - NOMBRE" para la UI.
-
-        // CORRECCIÓN: El usuario pidió "mostrar unidad_medida con el valor de la clave_unidad_sat".
-        // Aquí dice "mostrar los dos cuando se de el resultado... ejemplo '287-MICROSOFT'".
-        // Si el output JSON debe tener "marca": "287-MICROSOFT", entonces el value debe ser ese.
-
-        const choicesMarca = Object.entries(Constantes.CodigoMarcas).map(([key, value]) => {
-            const label = `${key} - ${value}`;
-            return {
-                title: label,
-                value: label // El valor enviado será "287 - MICROSOFT"
-            };
-        });
+        // Hemos retirado los ChoiceSets masivos de Marca y SAT porque las 
+        // Tarjetas Adaptativas no soportan incrustar miles de registros estáticos
+        // dentro del payload sin romper el render de Teams/Copilot.
 
         const defaultSat = productData.clave_producto_servicio_sat || "";
         const defaultUnit = productData.clave_unidad_sat || "";
@@ -91,12 +67,10 @@ export class AdaptiveCardService {
                 // Clave SAT
                 { type: "TextBlock", text: "Clave Producto/Servicio SAT", weight: "Bolder", size: "Small", spacing: "Medium" },
                 {
-                    type: "Input.ChoiceSet",
+                    type: "Input.Text",
                     id: "clave_producto_servicio_sat",
-                    style: "compact",
-                    choices: choicesSat,
                     value: defaultSat,
-                    placeholder: "Selecciona una clave SAT"
+                    placeholder: "Ejemplo: 43211500"
                 },
 
                 // Clave Unidad
@@ -116,12 +90,10 @@ export class AdaptiveCardService {
                 // Marca (Ahora ChoiceSet)
                 { type: "TextBlock", text: "Marca", weight: "Bolder", size: "Small", spacing: "Medium" },
                 {
-                    type: "Input.ChoiceSet",
-                    id: "marca", // El ID se mantiene igual
-                    style: "compact",
-                    choices: choicesMarca,
+                    type: "Input.Text",
+                    id: "marca",
                     value: defaultMarca,
-                    placeholder: "Selecciona una marca"
+                    placeholder: "Ejemplo: 287 - MICROSOFT"
                 },
 
                 // Columnas: Medidas y Peso
@@ -175,16 +147,16 @@ export class AdaptiveCardService {
                     isVisible: false
                 },
 
-                // Botón Validar
+                // Botón Validar — abre hubinn directo en la fila del producto
                 {
                     type: "ActionSet",
                     spacing: "Large",
                     actions: [
                         {
                             type: "Action.Submit",
-                            title: "Validar y Guardar",
+                            title: "✅ Validar producto",
                             data: {
-                                action: "validate_product"
+                                intent: "validar_producto"
                             }
                         }
                     ]

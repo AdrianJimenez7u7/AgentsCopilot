@@ -6,6 +6,7 @@ import { operacionesService } from "../services/operaciones.service.js";
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { Constantes } from "../utils/constantes.js";
+import { powerAppsService } from "../services/powerApps.service.js";
 
 const prisma = new PrismaClient();
 
@@ -30,9 +31,65 @@ export class ProductosController {
         const rawResults = await SearchService.search(sku);
         const contextString = JSON.stringify(rawResults);
 
-        const productoLimpio = await OpenAIService.extractProductData(sku, contextString);
+        const productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString);
         return res.status(200).json(productoLimpio);
     }
+    /**
+     * TEST ENDPOINT: Recibe un SKU, busca el producto con Tavily y lo clasifica
+     * con el modelo de razonamiento gpt-5-mini. Devuelve clasificación + tokens reales.
+     */
+    static async clasificarProductoTest(req, res) {
+        const sku = req.body.sku;
+        if (!sku) {
+            return res.status(400).json({ error: "SKU es requerido" });
+        }
+
+        try {
+            console.log(`[ClasificarTest] Iniciando búsqueda para SKU: ${sku}`);
+            const rawResults = await SearchService.search(sku);
+            const contextString = JSON.stringify(rawResults);
+
+            console.log(`[ClasificarTest] Búsqueda completa. Clasificando con modelo de razonamiento...`);
+            const resultado = await OpenAIService.clasificarProductoRazonamiento(sku, contextString);
+
+            return res.status(200).json({
+                status: 200,
+                sku,
+                resultado
+            });
+        } catch (error) {
+            console.error(`[ClasificarTest] Error para SKU ${sku}:`, error?.message ?? error);
+            return res.status(500).json({
+                status: 500,
+                message: "Error al clasificar el producto.",
+                error: error?.message ?? String(error)
+            });
+        }
+    }
+
+    /**
+     * DELETE /search/pending/:id
+     * Elimina un producto pendiente (status=Pending) de la base de datos.
+     */
+    static async deletePendingProduct(req, res) {
+        const id = parseInt(req.params.id, 10);
+        if (isNaN(id)) {
+            return res.status(400).json({ error: 'ID inválido' });
+        }
+        try {
+            const existing = await prisma.productoPendienteValidation.findUnique({ where: { id } });
+            if (!existing) {
+                return res.status(404).json({ error: 'Producto no encontrado' });
+            }
+            await prisma.productoPendienteValidation.delete({ where: { id } });
+            console.log(`[Delete] Producto id:${id} (SKU: ${existing.sku}) eliminado`);
+            return res.status(200).json({ message: 'Producto eliminado correctamente', sku: existing.sku });
+        } catch (error) {
+            console.error(`[Delete] Error al eliminar id:${id}:`, error?.message ?? error);
+            return res.status(500).json({ error: 'Error al eliminar el producto.' });
+        }
+    }
+
     static async getPermissions(req, res) {
         const email = req.body.email;
         if (!email) {
@@ -68,7 +125,7 @@ export class ProductosController {
                 const rawResults = await SearchService.search(sku);
                 const contextString = JSON.stringify(rawResults);
                 // retries=0: fail fast for card requests — error card is shown immediately
-                productoLimpio = await OpenAIService.extractProductData(sku, contextString, 0);
+                productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 0);
             } catch (aiError) {
                 console.error("AI error in getProductCard:", aiError.message);
                 // Friendly error message depending on error type
@@ -81,6 +138,24 @@ export class ProductosController {
             }
 
             if (cliente) productoLimpio.cliente = cliente;
+
+            // Guardar automáticamente el producto encontrado como "Pendiente" en DB
+            // para que tenga un ID y se asocie a la sesión del Chat antes de Validarse.
+            const newProduct = await prisma.productoPendienteValidation.create({
+                data: {
+                    sku: productoLimpio.numero_parte || sku,
+                    descripcion_comercial: productoLimpio.descripcion_comercial || "",
+                    clave_producto_servicio_sat: productoLimpio.clave_producto_servicio_sat || "",
+                    clave_unidad_sat: productoLimpio.clave_unidad_sat || "H87",
+                    marca: productoLimpio.marca || "",
+                    medidas_cm: productoLimpio.medidas_cm || "0 x 0 x 0",
+                    peso_kg: parseFloat(productoLimpio.peso_kg) || 0,
+                    user_email: req.body.email || "bot@copilot.com",
+                    status: 'Pending'
+                }
+            });
+
+            productoLimpio.id = newProduct.id; // Inject ID to the card
 
             const card = AdaptiveCardService.createProductCard(productoLimpio);
             return res.status(200).json(card);
@@ -132,6 +207,17 @@ export class ProductosController {
                     status: 'Validated',
                 }
             });
+
+            // Sync with SharePoint (Temporarily disabled by user request)
+            /* 
+            try {
+                await powerAppsService.insertProductInSharepointList(updated);
+            } catch (spError) {
+                console.error("🔴 Error syncing to SharePoint:", spError);
+                // Optionally rollback DB update here if strict consistency is required, 
+                // but for now we just log the error so the user isn't completely blocked.
+            }
+            */
 
             return res.status(200).json({ status: 200, message: "Producto validado correctamente.", data: updated });
         } catch (error) {
@@ -194,16 +280,33 @@ export class ProductosController {
             return res.status(400).json({ error: "Email es requerido" });
         }
         try {
+            const isSuperAdmin = RestriccionesService.isSuperAdmin(email);
+
+            const whereClause = isSuperAdmin
+                ? { status: 'Pending' }
+                : { user_email: email, status: 'Pending' };
+
             const pending = await prisma.productoPendienteValidation.findMany({
-                where: {
-                    user_email: email,
-                    status: 'Pending'
-                },
+                where: whereClause,
                 orderBy: {
                     createdAt: 'desc'
                 }
             });
             return res.status(200).json(pending);
+        } catch (error) {
+            console.error("Error fetching pending validations:", error);
+            return res.status(500).json({ error: "Error obteniendo validaciones pendientes" });
+        }
+    }
+
+    static async getAllProducts(req, res) {
+        try {
+            const products = await prisma.productoPendienteValidation.findMany({
+                orderBy: {
+                    createdAt: 'desc'
+                }
+            });
+            return res.status(200).json(products);
         } catch (error) {
             console.error("Error fetching pending validations:", error);
             return res.status(500).json({ error: "Error obteniendo validaciones pendientes" });
@@ -216,14 +319,15 @@ export class ProductosController {
      */
     static async updateValidationStatus(req, res) {
         const { id } = req.params;
-        const { status, ...data } = req.body;
+        // Exclude identity/read-only columns — SQL Server cannot update id
+        const { status, id: _id, sku: _sku, createdAt: _createdAt, user_email: _email, ...rest } = req.body;
 
         try {
             const updated = await prisma.productoPendienteValidation.update({
                 where: { id: parseInt(id) },
                 data: {
                     status: status,
-                    ...data
+                    ...rest
                 }
             });
             return res.status(200).json(updated);
@@ -233,18 +337,88 @@ export class ProductosController {
         }
     }
 
+
     /**
      * @returns {Object} { marcas, codigosClasificacion }
      */
     static async getMarcasAndCodigosClasificacion(req, res) {
         try {
             const marcas = Constantes.CodigoMarcas;
-            const codigosClasificacion = Constantes.CodigosClasificacion;
             const unidadesSAT = Constantes.UnidadesSAT;
-            return res.status(200).json({ status: 200, message: "Marcas, codigos clasificacion y unidades SAT obtenidos exitosamente", data: { marcas, codigosClasificacion, unidadesSAT } });
+
+            // Fix corrupted chars from Windows-1252 read as UTF-8
+            // Each entry is: [garbled sequence, correct char]
+            const charFixes = [
+                [/\u00c3\u00b3/g, 'ó'], [/\u00c3\u00b3n/g, 'ón'],
+                [/\u00c3\u00a9/g, 'é'], [/\u00c3\u00a1/g, 'á'],
+                [/\u00c3\u00ad/g, 'í'], [/\u00c3\u00ba/g, 'ú'],
+                [/\u00c3\u00b1/g, 'ñ'], [/\u00c3\u0091/g, 'Ñ'],
+                [/\u00c3\u0093/g, 'Ó'], [/\u00c3\u0089/g, 'É'],
+                [/\u00c3\u0081/g, 'Á'], [/\u00c3\u008d/g, 'Í'],
+                [/\u00c3\u009a/g, 'Ú'], [/\u00fc/g, 'ü'],
+                [/\ufffd/g, ''],  // fallback: remove remaining replacement chars
+            ];
+
+            const fixDesc = (str) => {
+                let s = str;
+                for (const [pattern, replacement] of charFixes) s = s.replace(pattern, replacement);
+                return s.trim();
+            };
+
+            // Parse the full SAT catalog from the markdown table
+            const catalogoCompleto = {};
+            const lines = Constantes.CatalogoProdServSatMarkitdown.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('|') || trimmed.startsWith('| c_Clave') || trimmed.startsWith('| ---')) continue;
+                const cols = trimmed.split('|').map(c => c.trim());
+                if (cols.length < 3) continue;
+                const rawKey = cols[1];
+                const desc = fixDesc(cols[2]);
+                if (!rawKey || !desc) continue;
+                const key = rawKey.replace(/\.0$/, '');
+                if (/^\d{8}$/.test(key)) {
+                    catalogoCompleto[key] = desc;
+                }
+            }
+
+            // Merge: CodigosClasificacion (curated names take priority)
+            const codigosClasificacion = { ...catalogoCompleto, ...Constantes.CodigosClasificacion };
+
+            console.log(`[Catalogo] Claves SAT totales: ${Object.keys(codigosClasificacion).length}`);
+            return res.status(200).json({
+                status: 200,
+                message: "Marcas, codigos clasificacion y unidades SAT obtenidos exitosamente",
+                data: { marcas, codigosClasificacion, unidadesSAT }
+            });
         } catch (error) {
             console.error("Error fetching marcas and codigos clasificacion:", error);
             return res.status(500).json({ status: 500, message: "Error obteniendo marcas y codigos clasificacion", error: error });
         }
     }
+
+    static async getMyData(req, res) {
+        const email = req.body.email;
+        if (!email) {
+            return res.status(400).json({ error: "Email es requerido" });
+        }
+        try {
+            const data = await powerAppsService.getMyCity(email);
+            return res.status(200).json(data);
+        } catch (error) {
+            console.error("Error fetching my data:", error);
+            return res.status(500).json({ error: "Error obteniendo mi data" });
+        }
+    }
+
+    static async getProductsFromSharepointList(req, res) {
+        try {
+            const products = await powerAppsService.getProductsFromSharepointList();
+            return res.status(200).json(products);
+        } catch (error) {
+            console.error("Error fetching products from sharepoint list:", error);
+            return res.status(500).json({ error: "Error obteniendo productos de sharepoint list" });
+        }
+    }
 }
+

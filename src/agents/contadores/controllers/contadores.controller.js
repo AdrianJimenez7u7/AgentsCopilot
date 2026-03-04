@@ -349,8 +349,13 @@ export class ContadoresController {
         }
       }
 
-      // 3. Limpiar carpeta de salida
-      await ContadoresController.cleanOutputInternal();
+      // 3. Limpiar carpeta de salida (SOLO archivos de este proceso para evitar colisiones)
+      const fsSync = await import('fs');
+      for (const splitFile of splitFiles) {
+        if (fsSync.existsSync(splitFile.ruta)) {
+          fsSync.unlinkSync(splitFile.ruta);
+        }
+      }
 
       console.log(`${completedPages}/${splitFiles.length} páginas completadas`);
 

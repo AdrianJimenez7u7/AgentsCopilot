@@ -1,0 +1,144 @@
+openapi: 3.0.1
+info:
+  title: Agente Operaciones API
+  description: "API de Integración para el Agente Copilot de Operaciones. Permite obtener tarjetas adaptativas de productos, validarlos, y verificar permisos."
+  version: 1.0.0
+servers:
+  - url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones
+    description: Dev Tunnel Server
+paths:
+  /permissions:
+    post:
+      summary: Obtener Permisos
+      operationId: getPermissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  description: "Email del usuario logueado"
+              required:
+                - email
+      responses:
+        '200':
+          description: Permisos del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+
+  /permissions/search:
+    post:
+      summary: Verificar permiso de búsqueda
+      operationId: isSearchUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required:
+                - email
+      responses:
+        '200':
+          description: Resultado de la verificación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isSearchUser:
+                    type: boolean
+
+  /search-card:
+    post:
+      summary: Obtener Tarjeta Adaptativa de Producto
+      operationId: getProductCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sku:
+                  type: string
+                  description: "El SKU o Número de Parte a buscar"
+                email:
+                  type: string
+                  description: "Email del usuario que solicita la búsqueda"
+              required:
+                - sku
+      responses:
+        '200':
+          description: Schema dinámico de Tarjeta Adaptativa (Adaptive Card)
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /validate:
+    put:
+      summary: Validar Producto Modificado
+      operationId: validateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: "ID del producto pendiente en DB local"
+                numero_parte:
+                  type: string
+                descripcion_comercial:
+                  type: string
+                clave_producto_servicio_sat:
+                  type: string
+                clave_unidad_sat:
+                  type: string
+                marca:
+                  type: string
+                medidas_cm:
+                  type: string
+                peso_kg:
+                  type: object  # En JS todo entra como string, se castea, pero a nivel API de Teams lo pasamos en crudo a veces.
+              required:
+                - id
+      responses:
+        '200':
+          description: Resultado exitoso de la validación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+security:
+  - ApiKeyAuth: []

@@ -34,4 +34,9 @@ export class RestriccionesService {
     static isTicketUser(email) {
         return this.TICKET_USERS.includes(email);
     }
+
+    static isSuperAdmin(email) {
+        // Reusing SEARCH_USERS for super admin permissions as agreed
+        return this.SEARCH_USERS.includes(email);
+    }
 }

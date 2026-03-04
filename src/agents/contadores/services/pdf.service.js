@@ -37,7 +37,8 @@ export class PdfService {
 
         // Guardar el PDF de una página
         const baseName = path.parse(originalName).name;
-        const outputFileName = `${baseName}_pagina_${i + 1}.pdf`;
+        const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        const outputFileName = `${baseName}_${uniqueId}_pagina_${i + 1}.pdf`;
         const outputPath = path.join(outputDir, outputFileName);
 
         const newPdfBytes = await newPdf.save();

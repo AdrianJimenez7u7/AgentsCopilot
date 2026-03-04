@@ -1,0 +1,193 @@
+kind: AdaptiveDialog
+modelDescription: Registrar un incidente de almacen (devoluciones, facturas, garantias, etc.)
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent:
+    triggerQueries:
+      - tengo un incidente en almacen
+      - quiero reportar un incidente
+      - tengo un problema con un pedido
+      - incidente de almacen
+      - problema en almacen
+      - devolucion de producto
+      - caja daniada
+      - factura incorrecta
+      - garantia con factura
+      - numero de parte no coincide
+
+  actions:
+    - kind: SendActivity
+      id: sendActivity_Welcome
+      activity: Entendido, te ayudare a registrar tu incidente de almacen. Solo necesito unos datos para continuar.
+
+    - kind: HttpRequestAction
+      id: MYZhFT
+      method: Post
+      url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones/my-data
+      headers:
+        x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+
+      body:
+        kind: JsonRequestContent
+        content: |-
+          ={
+              email: System.User.Email
+          }
+
+      response: Topic.UserData
+      responseSchema:
+        kind: Record
+        properties:
+          systemuserid: String
+          fullname: String
+          internalemailaddress: String
+          title: String
+          address1_city: String
+          address1_stateorprovince: String
+          address1_country: String
+          address1_composite: String
+          businessUnit: String
+
+    - kind: SetVariable
+      id: setVariable_mhHZiW
+      variable: Topic.almacen
+      value: sin almacen
+
+    - kind: ConditionGroup
+      id: conditionGroup_68cOa8
+      conditions:
+        - id: conditionItem_y6SEJV
+          condition: =Topic.UserData.address1_city = "Guadalajara" || Topic.UserData.address1_city = "GUADALAJARA" || Topic.UserData.address1_city = "GDL"
+          actions:
+            - kind: SetVariable
+              id: setVariable_cZ1rAs
+              variable: Topic.almacen
+              value: GDL
+
+      elseActions:
+        - kind: SetVariable
+          id: setVariable_r2YUz2
+          variable: Topic.almacen
+          value: BAJIO
+
+    - kind: SendActivity
+      id: sendActivity_SJduDk
+      activity: "{Topic.almacen}"
+
+    - kind: Question
+      id: question_Almacen
+      interruptionPolicy:
+        allowInterruption: true
+
+      variable: init:Topic.Almacen
+      prompt: A que almacen perteneces?
+      entity:
+        kind: EmbeddedEntity
+        definition:
+          kind: ClosedListEntity
+          items:
+            - id: GDL
+              displayName: GDL
+
+            - id: Bajio
+              displayName: Bajío
+
+    - kind: SendActivity
+      id: sendActivity_AlmacenOk
+      activity: Perfecto, registrando el incidente para el almacen {Topic.Almacen}.
+
+    - kind: Question
+      id: question_Incidente
+      interruptionPolicy:
+        allowInterruption: true
+
+      variable: init:Topic.Incidente
+      prompt: Cual es tu incidente?
+      entity:
+        kind: EmbeddedEntity
+        definition:
+          kind: ClosedListEntity
+          items:
+            - id: CostoFacturaMasAlto
+              displayName: 1. Costo en factura mas alto
+
+            - id: SinFactura
+              displayName: 2. Sin factura
+
+            - id: DestinoIncorrecto
+              displayName: 3. El destino no era usuario final u oficinas CCAD
+
+            - id: CajaDaniada
+              displayName: 4. Caja dañada, abierta, sin sellos
+
+            - id: NumeroParteIncorrecto
+              displayName: 5. No coincide el numero de parte
+
+            - id: GarantiaConFactura
+              displayName: 6. Garantia con factura
+
+    - kind: Question
+      id: question_NumeroParte
+      interruptionPolicy:
+        allowInterruption: true
+
+      variable: init:Topic.NumeroParte
+      prompt: Cual es el numero de parte o SKU del producto afectado?
+      entity: StringPrebuiltEntity
+
+    - kind: Question
+      id: question_Descripcion
+      interruptionPolicy:
+        allowInterruption: true
+
+      variable: init:Topic.Descripcion
+      prompt: Describe brevemente el problema para que el equipo de operaciones tenga mas contexto.
+      entity: StringPrebuiltEntity
+
+    - kind: SendActivity
+      id: sendActivity_Registrando
+      activity: Un momento, estoy registrando tu incidente... ⏳
+
+    - kind: HttpRequestAction
+      id: node_RegistrarIncidente
+      method: Post
+      url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones/incidentes
+      headers:
+        x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+
+      body:
+        kind: JsonRequestContent
+        content: "={ email: System.User.Email, almacen: Topic.Almacen, incidente: Topic.Incidente, numero_parte: Topic.NumeroParte, descripcion: Topic.Descripcion }"
+
+      requestTimeoutInMilliseconds: 15000
+      response: Topic.IncidenteResult
+      responseSchema:
+        kind: Record
+        properties:
+          folio: String
+          message: String
+          success: Boolean
+
+    - kind: ConditionGroup
+      id: conditionGroup_Resultado
+      conditions:
+        - id: conditionItem_Exito
+          condition: =Topic.IncidenteResult.success = true
+          actions:
+            - kind: SendActivity
+              id: sendActivity_Exito
+              activity: |-
+                Tu incidente ha sido registrado exitosamente. ✅
+
+                Folio: **{Topic.IncidenteResult.folio}**
+
+                El equipo de operaciones lo revisara a la brevedad. Si tienes alguna otra duda, con gusto te ayudo.
+
+      elseActions:
+        - kind: SendActivity
+          id: sendActivity_Error
+          activity: Hubo un problema al registrar tu incidente. Por favor intenta de nuevo o contacta directamente al equipo de operaciones.
+
+inputType: {}
+outputType: {}
