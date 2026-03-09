@@ -498,7 +498,7 @@ export class AriaController {
 
             // C. CONSULTAR SYSTEMUSER
             // Filtramos usuarios activos con email @compucad.com.mx
-            const dataverseUrl = `https://ccad.api.crm.dynamics.com/api/data/v9.2/systemusers?$select=systemuserid,fullname,internalemailaddress,title,_businessunitid_value&$filter=isdisabled eq false and internalemailaddress ne null and endswith(internalemailaddress,'@compucad.com.mx')&$orderby=fullname asc&$top=500`;
+            const dataverseUrl = `https://ccad.api.crm.dynamics.com/api/data/v9.2/systemusers?$select=systemuserid,fullname,internalemailaddress,title,_businessunitid_value&$filter=isdisabled eq false and internalemailaddress ne null and (endswith(internalemailaddress,'@compucad.com.mx') or endswith(internalemailaddress,'@compucloud.com.mx'))&$orderby=fullname asc&$top=1000`;
 
             const dataResponse = await fetch(dataverseUrl, {
                 method: 'GET',
@@ -518,13 +518,23 @@ export class AriaController {
 
             // D. MAPEAR A FORMATO LIMPIO
             const mappedUsers = users
-                .filter(u => u.internalemailaddress && u.internalemailaddress.endsWith('@compucad.com.mx'))
+                .filter(u => u.internalemailaddress && (u.internalemailaddress.endsWith('@compucad.com.mx') || u.internalemailaddress.endsWith('@compucloud.com.mx')))
+                .filter(u => !u.internalemailaddress.includes('admin'))
+                .filter(u => !u.internalemailaddress.includes('azure'))
+                .filter(u => !u.internalemailaddress.includes('teamsroom'))
+                .filter(u => !u.internalemailaddress.includes('servicio'))
+                .filter(u => !u.internalemailaddress.includes('soporte'))
+                .filter(u => !u.fullname.includes('#'))
                 .map(user => ({
                     id: user.systemuserid,
                     displayName: user.fullname || 'Sin nombre',
                     email: user.internalemailaddress,
                     title: user.title || null,
-                    businessUnit: user['_businessunitid_value@OData.Community.Display.V1.FormattedValue'] || 'Sin unidad'
+                    businessUnit: user.internalemailaddress.endsWith('@compucloud.com.mx')
+                        ? 'COMPUCLOUD'
+                        : user['_businessunitid_value@OData.Community.Display.V1.FormattedValue'] == 'compucad'
+                            ? 'COMPUCAD'
+                            : (user['_businessunitid_value@OData.Community.Display.V1.FormattedValue'] || 'Sin unidad')
                 }));
 
             // E. AGRUPAR POR UNIDAD DE NEGOCIO
