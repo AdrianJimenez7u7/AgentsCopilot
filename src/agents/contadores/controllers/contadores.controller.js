@@ -698,4 +698,142 @@ export class ContadoresController {
     }
   }
 
+  /**
+   * Procesa y registra masivamente un arreglo de escaneos de contadores provenientes de un archivo Excel.
+   * Valida la existencia de la máquina en NDD y BD, previene duplicidad de reportes en el mismo día,
+   * y ajusta automáticamente la fecha límite del próximo reporte al mes siguiente.
+   * 
+   * @param {import('express').Request} req - Petición de cliente que incluye el body con la lista `escaneos`.
+   * @param {import('express').Response} res - Respuesta de Express para retornar los consolidados (procesados, omitidos, etc).
+   * @returns {Promise<void>} Responde directamente la petición HTTP con status y payload.
+   */
+  static async importarEscaneosExcel(req, res) {
+    try {
+      const { escaneos } = req.body;
+
+      if (!Array.isArray(escaneos) || escaneos.length === 0) {
+        return errorResponse(res, 'No se proporcionó una lista válida de escaneos', 400);
+      }
+
+      let procesados = 0;
+      let omitidos = 0;
+      let errores = 0;
+      const detalles = [];
+
+      for (const escaneo of escaneos) {
+        try {
+          const { serie, impresiones } = escaneo;
+
+          if (!serie) {
+            omitidos++;
+            detalles.push({ serie: 'Desconocida', error: 'Serie faltante' });
+            continue;
+          }
+
+          const impresionesNuevas = parseInt(impresiones) || 0;
+          let serieInitial = String(serie).toUpperCase().trim();
+          let todasLasVariantes = getVariations(serieInitial);
+
+          let impresoraCliente = await prisma.contadoresInfoClientes.findFirst({
+            where: {
+              Serie: {
+                in: todasLasVariantes
+              }
+            }
+          });
+
+          if (!impresoraCliente) {
+            omitidos++;
+            detalles.push({ serie: serieInitial, error: 'No registrada en BD' });
+            continue;
+          }
+
+          // Verificar duplicidad para la fecha actual (mismas impresiones, hoy)
+          const hoy = new Date();
+          const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+          const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 1);
+
+          const reporteHoy = await prisma.contadores.findFirst({
+            where: {
+              Serie: impresoraCliente.Serie,
+              FechaCaptura: {
+                gte: inicioDia,
+                lt: finDia
+              },
+              TotalImpresiones: impresionesNuevas
+            }
+          });
+
+          if (reporteHoy) {
+            omitidos++;
+            detalles.push({ serie: impresoraCliente.Serie, error: 'Reporte idéntico ya registrado hoy' });
+            continue;
+          }
+
+          // Crear registro de contadores históricos (asumimos Excel como Total=BN)
+          await prisma.contadores.create({
+            data: {
+              Modelo: impresoraCliente.Modelo || null,
+              Serie: impresoraCliente.Serie,
+              ImpresionesBN: impresionesNuevas,
+              ImpresionesColor: 0,
+              TotalImpresiones: impresionesNuevas,
+              Cliente: impresoraCliente.Cliente,
+              FechaCaptura: hoy,
+              Estatus: null
+            }
+          });
+          console.log({ impresoraCliente });
+          // Actualizar ContadoresInfoClientes (Totales actuales)
+          const actualTotal = Number(impresoraCliente.ImpresionesActuales) || 0;
+
+          if (impresionesNuevas >= actualTotal) {
+            await prisma.contadoresInfoClientes.update({
+              where: { id: impresoraCliente.id },
+              data: {
+                ImpresionesActuales: impresionesNuevas,
+                BN: impresionesNuevas,
+                Color: 0
+              }
+            });
+          } else {
+            logger.warn(`Intento de bajar contador por excel para ${impresoraCliente.Serie}. Actual: ${actualTotal}, Solicitado: ${impresionesNuevas}. Solo guardado en histórico.`);
+          }
+
+          // Lógica de salto de Fecha Límite
+          if (impresoraCliente.FechaLimiteReporte) {
+            const currentDeadline = new Date(impresoraCliente.FechaLimiteReporte);
+            const startOfNextMonth = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+
+            if (currentDeadline < startOfNextMonth) {
+              const originalDay = currentDeadline.getDate();
+              const nextDate = new Date(hoy.getFullYear(), hoy.getMonth() + 1, originalDay);
+
+              // Ajuste por dia bisiesto o meses de 30 días
+              if (nextDate.getDate() !== originalDay) {
+                nextDate.setDate(0);
+              }
+
+              await prisma.contadoresInfoClientes.update({
+                where: { id: impresoraCliente.id },
+                data: { FechaLimiteReporte: nextDate }
+              });
+            }
+          }
+
+          procesados++;
+        } catch (innerError) {
+          errores++;
+          detalles.push({ serie: escaneo.serie, error: innerError.message });
+          logger.error(`Error procesando escaneo para serie ${escaneo.serie}`, innerError);
+        }
+      }
+      console.log({ procesados, omitidos, errores, detalles });
+      return successResponse(res, { procesados, omitidos, errores, detalles }, 'Importación por Excel finalizada');
+
+    } catch (error) {
+      logger.error('Error en endpoint importarEscaneosExcel', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
 }

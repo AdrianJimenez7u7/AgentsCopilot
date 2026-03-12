@@ -40,6 +40,8 @@ router.get('/alerta-escaneos', ContadoresController.alertarEscaneosFaltantes);
 
 router.get('/escaneos-faltantes', ContadoresController.escaneosFaltantes);
 
+router.post('/escaneos/importar', ContadoresController.importarEscaneosExcel);
+
 router.get('/alerta-escaneos-tecnico/:tecnico', ContadoresController.alertarEscaneosFaltantesPorTecnico);
 
 router.get('/validate-all-exist-reports-state-null', ContadoresController.validateAllExistReportsStateNull);
