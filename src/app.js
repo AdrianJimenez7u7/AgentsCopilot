@@ -23,6 +23,7 @@ import resultadosRouter from "./agents/predicciones/routers/resultados.routes.js
 import modelosRouter from "./agents/predicciones/routers/modelos.routes.js";
 import archivosRouter from "./agents/predicciones/routers/archivos.routes.js";
 import prediccionesDevRouter from "./agents/predicciones/routers/predicciones.dev.routes.js";
+import amlRouter from "./agents/predicciones/routers/aml.routes.js";
 
 const app = express();
 
@@ -104,6 +105,7 @@ app.use("/api/predicciones/resultados", resultadosRouter);
 app.use("/api/predicciones/modelos", modelosRouter);
 app.use("/api/predicciones/archivos", archivosRouter);
 app.use("/api/predicciones/dev", prediccionesDevRouter);
+app.use("/api/predicciones/aml", amlRouter);
 
 
 // Middleware de manejo de errores (debe ir al final)
