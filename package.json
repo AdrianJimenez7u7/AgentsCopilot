@@ -41,8 +41,11 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "jest": "^30.3.0",
+    "jest-mock-extended": "^4.0.0",
     "nodemon": "^3.0.1",
     "prisma": "^6.19.0",
+    "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

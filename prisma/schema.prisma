@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  binaryTargets = ["native"]
 }
 
 datasource db {
@@ -114,8 +114,63 @@ model ProductoPendienteValidation {
   medidas_cm                  String?  @db.NVarChar(100)
   peso_kg                     Float?
   user_email                  String   @db.NVarChar(256)
-  status                      String   @default("Pending") @db.NVarChar(50) // 'Pending', 'Validated'
+  status                      String   @default("Pending") @db.NVarChar(50)
   createdAt                   DateTime @default(now())
 
   @@index([user_email, status], map: "IX_ProductoPendiente_UserStatus")
+}
+
+model Catalogo_Configuraciones {
+  id            Int                 @id(map: "PK__configur__3213E83F755E0D93") @default(autoincrement())
+  costo_hora    Decimal             @db.Decimal(8, 2)
+  vigente_desde DateTime            @default(now(), map: "DF__configura__vigen__4F47C5E3") @db.Date
+  creado_en     DateTime            @default(now(), map: "DF__configura__cread__503BEA1C")
+  metricas      Catalogo_Metricas[]
+
+  @@map("configuraciones")
+}
+
+model Catalogo_Aplicaciones {
+  id           Int                 @id(map: "PK__aplicaci__3213E83F617A4352") @default(autoincrement())
+  nombre       String              @db.NVarChar(120)
+  descripcion  String?             @db.NVarChar(Max)
+  tipo         String              @default("agente", map: "DF__aplicacion__tipo__531856C7") @db.NVarChar(50)
+  area         String?             @db.NVarChar(80)
+  icono        String?             @default("??", map: "DF__aplicacio__icono__540C7B00") @db.NVarChar(10)
+  estado       String              @default("piloto", map: "DF__aplicacio__estad__55009F39") @db.NVarChar(20)
+  fecha_inicio DateTime            @db.Date
+  creado_en    DateTime            @default(now(), map: "DF__aplicacio__cread__55F4C372")
+  costos       Catalogo_Costos[]
+  metricas     Catalogo_Metricas[]
+
+  @@map("aplicaciones")
+}
+
+model Catalogo_Metricas {
+  id                  Int                      @id(map: "PK__metricas__3213E83F244C2BD6") @default(autoincrement())
+  aplicacion_id       Int
+  configuracion_id    Int
+  periodo             DateTime                 @db.Date
+  tiempo_antes_min    Decimal                  @db.Decimal(8, 2)
+  tiempo_ahora_min    Decimal                  @db.Decimal(8, 2)
+  ejecuciones_por_dia Int                      @default(1, map: "DF__metricas__ejecuc__5BAD9CC8")
+  usuarios_activos    Int                      @default(0, map: "DF__metricas__usuari__5CA1C101")
+  hito                String?                  @db.NVarChar(Max)
+  aplicacion          Catalogo_Aplicaciones    @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__metricas__aplica__59C55456")
+  configuracion       Catalogo_Configuraciones @relation(fields: [configuracion_id], references: [id], onUpdate: NoAction, map: "FK__metricas__config__5AB9788F")
+
+  @@unique([aplicacion_id, periodo], map: "UQ__metricas__93D9ED41540EBEB4")
+  @@map("metricas")
+}
+
+model Catalogo_Costos {
+  id            Int                   @id(map: "PK__costos__3213E83FAC430E27") @default(autoincrement())
+  aplicacion_id Int
+  concepto      String                @db.NVarChar(120)
+  monto         Decimal               @db.Decimal(10, 2)
+  fecha         DateTime              @default(now(), map: "DF__costos__fecha__607251E5") @db.Date
+  creado_en     DateTime              @default(now(), map: "DF__costos__creado_e__6166761E")
+  aplicacion    Catalogo_Aplicaciones @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__costos__aplicaci__5F7E2DAC")
+
+  @@map("costos")
 }

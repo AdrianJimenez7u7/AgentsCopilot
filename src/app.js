@@ -13,6 +13,7 @@ import PMsitoRoutes from './agents/PMsito/routes/reportes.routes.js';
 import ariaRoutes from './agents/aria/routes/aria.routes.js';
 import operacionesRoutes from './agents/operaciones/routes/operaciones.routes.js';
 import copilotRoutes from "./agents/copilotstudio/routes/copilot.routes.js";
+import catalogoRoutes from './agents/catalogo/routes/index.js';
 
 
 //Importar rutas de Predicciones
@@ -106,6 +107,7 @@ app.use("/api/predicciones/modelos", modelosRouter);
 app.use("/api/predicciones/archivos", archivosRouter);
 app.use("/api/predicciones/dev", prediccionesDevRouter);
 app.use("/api/predicciones/aml", amlRouter);
+app.use("/agente/catalogo", catalogoRoutes);
 
 
 // Middleware de manejo de errores (debe ir al final)
