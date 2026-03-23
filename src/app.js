@@ -79,6 +79,15 @@ app.get("/", (req, res) => {
           "POST /agente/contadores/process-pdf",
         ],
       },
+      {
+        nombre: "Catalogo",
+        descripcion: "Consulta de catálogo de apps",
+        endpoints: [
+          "GET /agente/catalogo/apps",
+          "GET /agente/catalogo/apps/:id",
+          
+        ],
+      },
     ],
   });
 });
@@ -107,14 +116,15 @@ app.get('/agente/computer-use/bridge/status', (req, res) => {
 // Rutas Auth Entra (Bearer) para Copilot Studio
 app.use("/agente/copilot", entraJwtAuth, copilotRoutes);
 
-// Aplicar autenticación a todas las rutas de API (opcional)
-// app.use('/agente', apiKeyAuth);
+// Rutas públicas sin API Key
 app.use('/agente/PMsito', PMsitoRoutes);
 app.use('/agente/aria', ariaRoutes);
+app.use("/agente/catalogo", catalogoRoutes);
 
+// Aplicar autenticación a todas las rutas protegidas
 app.use(apiKeyAuth);
-// Rutas de agentes
 
+// Rutas de agentes (protegidas)
 app.use("/agente/aria", ariaRoutes);
 app.use('/agente/cotizador', cotizadorRoutes);
 app.use('/agente/contadores', contadoresRoutes);
@@ -122,9 +132,8 @@ app.use('/agente/operaciones', operacionesRoutes);
 app.use("/agente/PMsito", PMsitoRoutes);
 app.use("/agente/copilot", copilotRoutes);
 app.use("/agente/computer-use", computerUseRoutes);
-app.use(apiKeyAuth);
 
-// Rutas de Predicciones
+// Rutas de Predicciones (protegidas)
 app.use("/api/predicciones/inferencias", inferenciasRouter);
 app.use("/api/predicciones/reales", realesRouter);
 app.use("/api/predicciones/requests", requestsRouter);
@@ -133,7 +142,6 @@ app.use("/api/predicciones/modelos", modelosRouter);
 app.use("/api/predicciones/archivos", archivosRouter);
 app.use("/api/predicciones/dev", prediccionesDevRouter);
 app.use("/api/predicciones/aml", amlRouter);
-app.use("/agente/catalogo", catalogoRoutes);
 
 
 // Middleware de manejo de errores (debe ir al final)
