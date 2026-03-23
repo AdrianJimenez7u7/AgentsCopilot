@@ -133,14 +133,7 @@ export class PdfReportService {
       // Totales finales
       docDefinition.content.push({ text: 'Totales', style: 'sectionHeader', margin: [0, 20, 0, 5] });
 
-      // Consultar precios del cliente
-      const prisma = new PrismaClient({
-        datasources: {
-          db: {
-            url: process.env.DATABASE_URL
-          }
-        }
-      });
+      // Consultar precios del cliente usando el cliente Prisma compartido
       let clientRecords = [];
       let precioBN = 0.18;
       let precioColor = 0.95;
@@ -162,8 +155,6 @@ export class PdfReportService {
         }
       } catch (error) {
         logger.error('Error consultando precios del cliente', error);
-      } finally {
-        await prisma.$disconnect();
       }
 
       const totals = [

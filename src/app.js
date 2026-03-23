@@ -13,6 +13,9 @@ import PMsitoRoutes from './agents/PMsito/routes/reportes.routes.js';
 import ariaRoutes from './agents/aria/routes/aria.routes.js';
 import operacionesRoutes from './agents/operaciones/routes/operaciones.routes.js';
 import copilotRoutes from "./agents/copilotstudio/routes/copilot.routes.js";
+import computerUseRoutes from './agents/computerUse/routes/computerUse.routes.js';
+import { isBridgeConnected, getConnectedBridges } from './agents/computerUse/computerUseBridge.service.js';
+
 
 
 //Importar rutas de Predicciones
@@ -41,6 +44,11 @@ app.use(express.urlencoded({ extended: true }));
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 100, // límite de 100 peticiones por ventana
+  skip: (req) => {
+    const path = req.path || '';
+    // Computer Use bridge status is polled periodically by UI/extension.
+    return path === '/agente/computer-use/bridge/status';
+  }
 });
 app.use(limiter);
 
@@ -77,6 +85,23 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Public bridge status for extension keepalive/disconnect detection.
+app.get('/agente/computer-use/bridge/status', (req, res) => {
+  const rawSession = Array.isArray(req.query.sessionId) ? req.query.sessionId[0] : req.query.sessionId;
+  const requestedSessionId = String(rawSession ?? '').trim();
+  const sessions = getConnectedBridges();
+
+  if (requestedSessionId) {
+    return res.json({
+      connected: isBridgeConnected(requestedSessionId),
+      requestedSessionId,
+      sessions,
+    });
+  }
+
+  return res.json({ connected: sessions.length > 0, sessions });
+});
+
 // Rutas Auth Entra (Bearer) para Copilot Studio
 app.use("/agente/copilot", entraJwtAuth, copilotRoutes);
 
@@ -94,6 +119,7 @@ app.use('/agente/contadores', contadoresRoutes);
 app.use('/agente/operaciones', operacionesRoutes);
 app.use("/agente/PMsito", PMsitoRoutes);
 app.use("/agente/copilot", copilotRoutes);
+app.use("/agente/computer-use", computerUseRoutes);
 app.use(apiKeyAuth);
 
 // Rutas de Predicciones

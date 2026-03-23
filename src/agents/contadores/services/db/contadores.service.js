@@ -302,22 +302,17 @@ export class ContadoresService {
   }
 
   static async validateAllExistReportsStateNull() {
-    const now = new Date();
-    const inicio = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const fin = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const result = prisma.contadores.findMany({
+    const pendingCount = await prisma.contadores.count({
       where: {
-        FechaLimiteReporte: {
-          $gte: inicio,
-          $lt: fin
-        },
-        Status: null
+        OR: [
+          { Estatus: null },
+          { Estatus: '' },
+          { Estatus: ' ' }
+        ]
       }
     });
-    if (result.length > 0) {
-      return true;
-    }
-    return false;
+
+    return pendingCount > 0;
   }
 
   static async obtenerContadoresPorFecha(fechaInicio, fechaFin) {

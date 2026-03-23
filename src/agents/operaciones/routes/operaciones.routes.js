@@ -23,5 +23,7 @@ router.post('/my-data', ProductosController.getMyData);
 
 router.get('/products-from-sharepoint-list', ProductosController.getProductsFromSharepointList);
 
+router.post('/user-by-purchase-order', ProductosController.getUserByPurchaseOrder);
+
 
 export default router;

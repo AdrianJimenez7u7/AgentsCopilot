@@ -58,28 +58,36 @@ export class ClientesService {
 
   static async obtenerEscaneosFaltantes() {
     const now = new Date();
-    const inicio = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), -11, 0, 0, 0, 0));
-    const fin = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const limiteProximo = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59, 999);
 
     const clientes = await prisma.contadoresInfoClientes.findMany({
-      where: { FechaLimiteReporte: { gte: inicio, lte: fin } }
+      where: {
+        FechaLimiteReporte: {
+          not: null,
+          lte: limiteProximo
+        }
+      }
     });
 
     if (!clientes.length) return [];
 
+    const normalizaSerie = (serie) => String(serie ?? '').trim().toUpperCase();
+    const series = [...new Set(clientes.map(c => normalizaSerie(c.Serie)).filter(Boolean))];
+    if (!series.length) return clientes;
+
     const capturas = await prisma.contadores.findMany({
       where: {
-        Cliente: { in: clientes.map(c => c.Cliente) },
+        Serie: { in: series },
         FechaCaptura: {
-          gte: inicio,
-          lte: fin
+          gte: inicioMes
         }
       },
-      select: { Cliente: true }
+      select: { Serie: true }
     });
 
-    const conCaptura = new Set(capturas.map(c => c.Cliente));
-    return clientes.filter(c => !conCaptura.has(c.Cliente));
+    const conCaptura = new Set(capturas.map(c => normalizaSerie(c.Serie)).filter(Boolean));
+    return clientes.filter(c => !conCaptura.has(normalizaSerie(c.Serie)));
   }
   static async deleteCliente(id) {
     return prisma.contadoresInfoClientes.delete({ where: { id } });

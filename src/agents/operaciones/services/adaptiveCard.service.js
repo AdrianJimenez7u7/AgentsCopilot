@@ -8,28 +8,22 @@ export class AdaptiveCardService {
         // Tarjetas Adaptativas no soportan incrustar miles de registros estáticos
         // dentro del payload sin romper el render de Teams/Copilot.
 
-        const defaultSat = productData.clave_producto_servicio_sat || "";
-        const defaultUnit = productData.clave_unidad_sat || "";
+        // Limpieza de Clave SAT (quitar ".0" si existe por error de la IA)
+        let defaultSat = (productData.clave_producto_servicio_sat || "").toString().replace(/\.0$/, "");
+        const defaultUnit = productData.clave_unidad_sat || "H87";
 
         // Lógica para encontrar la marca por defecto
         let defaultMarca = "";
         const marcaIA = (productData.marca || "").toUpperCase();
 
         if (marcaIA) {
-            // Buscamos si la marca de la IA coincide con algún nombre en la lista
             const foundEntry = Object.entries(Constantes.CodigoMarcas).find(([key, value]) => value === marcaIA);
             if (foundEntry) {
-                // Si encontramos coincidencia exacta de nombre, seteamos el valor formateado
                 defaultMarca = `${foundEntry[0]} - ${foundEntry[1]}`;
             } else {
-                // Si no hay coincidencia exacta, intentamos búsqueda parcial
-                // Revertimos la búsqueda: vemos si alguna marca del catálogo está CONTENIDA en la respuesta de la IA
-                // Ejemplo: IA dice "HPE ARUBA", Catálogo tiene "ARUBA" (334). "HPE ARUBA".includes("ARUBA") -> Match.
-                // Priorizamos la coincidencia más larga para evitar falsos positivos cortos si los hubiera.
-
                 const potentialMatches = Object.entries(Constantes.CodigoMarcas)
                     .filter(([key, value]) => marcaIA.includes(value))
-                    .sort((a, b) => b[1].length - a[1].length); // Ordenar por longitud descendente
+                    .sort((a, b) => b[1].length - a[1].length);
 
                 if (potentialMatches.length > 0) {
                     const bestMatch = potentialMatches[0];
@@ -39,100 +33,60 @@ export class AdaptiveCardService {
             }
         }
 
-        const container = {
-            type: "Container",
+        const VALIDATION_URL = `https://innofront-b4htgzhdb2gxe0ga.southcentralus-01.azurewebsites.net/operaciones/validacion/?sku=${encodeURIComponent(productData.numero_parte || "")}`;
+
+        // Construir opciones de SAT asegurando que el valor default existe en la lista
+        const satChoices = Object.entries(Constantes.CodigosClasificacion).map(([code, name]) => ({
+            title: `${code} - ${name}`,
+            value: code
+        }));
+
+        if (defaultSat && !Constantes.CodigosClasificacion[defaultSat]) {
+            satChoices.unshift({ title: `${defaultSat} (Sugerido por IA)`, value: defaultSat });
+        }
+
+        // Estructura simplificada solicitada por el usuario
+        return {
             items: [
                 {
                     type: "TextBlock",
-                    text: `Validación de Producto: ${productData.numero_parte}`,
-                    weight: "Bolder",
-                    size: "Medium"
+                    text: `Validacion de Producto: ${productData.numero_parte || "N/A"}`
                 },
-                {
-                    type: "TextBlock",
-                    text: "Por favor revisa y corrige la información sugerida por la IA.",
-                    isSubtle: true,
-                    wrap: true
-                },
-
-                // Descripción Comercial
-                { type: "TextBlock", text: "Descripción Comercial", weight: "Bolder", size: "Small", spacing: "Medium" },
                 {
                     type: "Input.Text",
                     id: "descripcion_comercial",
-                    value: productData.descripcion_comercial?.toUpperCase() || "",
-                    isMultiline: true
+                    value: productData.descripcion_comercial?.toUpperCase() || ""
                 },
-
-                // Clave SAT
-                { type: "TextBlock", text: "Clave Producto/Servicio SAT", weight: "Bolder", size: "Small", spacing: "Medium" },
                 {
-                    type: "Input.Text",
+                    type: "Input.ChoiceSet",
                     id: "clave_producto_servicio_sat",
+                    choices: satChoices,
                     value: defaultSat,
-                    placeholder: "Ejemplo: 43211500"
+                    placeholder: "Selecciona Clave SAT"
                 },
-
-                // Clave Unidad
-                { type: "TextBlock", text: "Clave Unidad SAT", weight: "Bolder", size: "Small", spacing: "Medium" },
                 {
                     type: "Input.ChoiceSet",
                     id: "clave_unidad_sat",
-                    style: "compact",
                     choices: [
-                        { title: "H87 - Pieza (Físico)", value: "H87" },
-                        { title: "E48 - Unidad de servicio (Intangible)", value: "E48" }
+                        { title: "H87 - Pieza", value: "H87" },
+                        { title: "E48 - Unidad de servicio", value: "E48" }
                     ],
-                    value: defaultUnit,
-                    placeholder: "Selecciona H87 o E48"
+                    value: defaultUnit
                 },
-
-                // Marca (Ahora ChoiceSet)
-                { type: "TextBlock", text: "Marca", weight: "Bolder", size: "Small", spacing: "Medium" },
                 {
                     type: "Input.Text",
                     id: "marca",
-                    value: defaultMarca,
-                    placeholder: "Ejemplo: 287 - MICROSOFT"
+                    value: defaultMarca
                 },
-
-                // Columnas: Medidas y Peso
-                {
-                    type: "ColumnSet",
-                    columns: [
-                        {
-                            type: "Column",
-                            width: "stretch",
-                            items: [
-                                { type: "TextBlock", text: "Medidas (cm)", weight: "Bolder", size: "Small" },
-                                {
-                                    type: "Input.Text",
-                                    id: "medidas_cm",
-                                    value: productData.medidas_cm || "0 x 0 x 0"
-                                }
-                            ]
-                        },
-                        {
-                            type: "Column",
-                            width: "stretch",
-                            items: [
-                                { type: "TextBlock", text: "Peso (kg)", weight: "Bolder", size: "Small" },
-                                {
-                                    type: "Input.Text",
-                                    id: "peso_kg",
-                                    value: String(productData.peso_kg || "0")
-                                }
-                            ]
-                        }
-                    ]
-                },
-
-                // IDs ocultos
                 {
                     type: "Input.Text",
-                    id: "id",
-                    value: String(productData.id || ""),
-                    isVisible: false
+                    id: "medidas_cm",
+                    value: productData.medidas_cm || "0 x 0 x 0"
+                },
+                {
+                    type: "Input.Text",
+                    id: "peso_kg",
+                    value: String(productData.peso_kg || "0")
                 },
                 {
                     type: "Input.Text",
@@ -141,34 +95,24 @@ export class AdaptiveCardService {
                     isVisible: false
                 },
                 {
-                    type: "Input.Text",
-                    id: "cliente",
-                    value: productData.cliente || "",
-                    isVisible: false
-                },
-
-                // Botón Validar — abre hubinn directo en la fila del producto
-                {
                     type: "ActionSet",
                     spacing: "Large",
                     actions: [
                         {
-                            type: "Action.Submit",
-                            title: "✅ Validar producto",
-                            data: {
-                                intent: "validar_producto"
-                            }
+                            type: "Action.OpenUrl",
+                            title: "🔍 Ir a Validación",
+                            url: VALIDATION_URL
                         }
                     ]
                 }
             ]
         };
-
-        return container;
     }
 
     /** Card shown when the AI model fails (rate limit, timeout, etc.) */
     static createErrorCard(sku, errorMessage) {
+        const VALIDATION_URL = `https://innofront-b4htgzhdb2gxe0ga.southcentralus-01.azurewebsites.net/operaciones/validacion/?sku=${encodeURIComponent(sku || "")}`;
+
         return {
             type: "Container",
             style: "attention",
@@ -197,9 +141,9 @@ export class AdaptiveCardService {
                     spacing: "Medium",
                     actions: [
                         {
-                            type: "Action.Submit",
-                            title: "🔄 Reintentar",
-                            data: { action: "retry_product_card", sku }
+                            type: "Action.OpenUrl",
+                            title: "🔍 Ir a Validación",
+                            url: VALIDATION_URL
                         }
                     ]
                 }

@@ -114,8 +114,155 @@ model ProductoPendienteValidation {
   medidas_cm                  String?  @db.NVarChar(100)
   peso_kg                     Float?
   user_email                  String   @db.NVarChar(256)
-  status                      String   @default("Pending") @db.NVarChar(50) // 'Pending', 'Validated'
+  status                      String   @default("Pending") @db.NVarChar(50)
   createdAt                   DateTime @default(now())
 
   @@index([user_email, status], map: "IX_ProductoPendiente_UserStatus")
 }
+
+model aplicaciones {
+  id           Int        @id(map: "PK__aplicaci__3213E83F617A4352") @default(autoincrement())
+  nombre       String     @db.NVarChar(120)
+  descripcion  String?    @db.NVarChar(Max)
+  tipo         String     @default("agente", map: "DF__aplicacion__tipo__531856C7") @db.NVarChar(50)
+  area         String?    @db.NVarChar(80)
+  icono        String?    @default("??", map: "DF__aplicacio__icono__540C7B00") @db.NVarChar(10)
+  estado       String     @default("piloto", map: "DF__aplicacio__estad__55009F39") @db.NVarChar(20)
+  fecha_inicio DateTime   @db.Date
+  creado_en    DateTime   @default(now(), map: "DF__aplicacio__cread__55F4C372")
+  costos       costos[]
+  metricas     metricas[]
+}
+
+model configuraciones {
+  id            Int        @id(map: "PK__configur__3213E83F755E0D93") @default(autoincrement())
+  costo_hora    Decimal    @db.Decimal(8, 2)
+  vigente_desde DateTime   @default(now(), map: "DF__configura__vigen__4F47C5E3") @db.Date
+  creado_en     DateTime   @default(now(), map: "DF__configura__cread__503BEA1C")
+  metricas      metricas[]
+}
+
+model costos {
+  id            Int          @id(map: "PK__costos__3213E83FAC430E27") @default(autoincrement())
+  aplicacion_id Int
+  concepto      String       @db.NVarChar(120)
+  monto         Decimal      @db.Decimal(10, 2)
+  fecha         DateTime     @default(now(), map: "DF__costos__fecha__607251E5") @db.Date
+  creado_en     DateTime     @default(now(), map: "DF__costos__creado_e__6166761E")
+  aplicaciones  aplicaciones @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__costos__aplicaci__5F7E2DAC")
+}
+
+model metricas {
+  id                  Int             @id(map: "PK__metricas__3213E83F244C2BD6") @default(autoincrement())
+  aplicacion_id       Int
+  configuracion_id    Int
+  periodo             DateTime        @db.Date
+  tiempo_antes_min    Decimal         @db.Decimal(8, 2)
+  tiempo_ahora_min    Decimal         @db.Decimal(8, 2)
+  ejecuciones_por_dia Int             @default(1, map: "DF__metricas__ejecuc__5BAD9CC8")
+  usuarios_activos    Int             @default(0, map: "DF__metricas__usuari__5CA1C101")
+  hito                String?         @db.NVarChar(Max)
+  aplicaciones        aplicaciones    @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__metricas__aplica__59C55456")
+  configuraciones     configuraciones @relation(fields: [configuracion_id], references: [id], onUpdate: NoAction, map: "FK__metricas__config__5AB9788F")
+
+  @@unique([aplicacion_id, periodo], map: "UQ__metricas__93D9ED41540EBEB4")
+}
+
+
+// Catalogo central de modelos de IA usados por los agentes, con proveedor y costos separados de input/output.
+model Models {
+  id                        Int       @id @default(autoincrement())
+  name                      String    @db.NVarChar(100)
+  version                   String?   @db.NVarChar(100)
+  suscripcionID             String?   @db.NVarChar(100)
+  status                    String?   @db.NVarChar(100)
+  proveedor                 String    @db.NVarChar(100)
+  inputTokenCostPerMillion  Decimal?  @db.Decimal(18, 6)
+  outputTokenCostPerMillion Decimal?  @db.Decimal(18, 6)
+  createdAt                 DateTime  @default(now()) @db.DateTime
+  updatedAt                 DateTime  @updatedAt @db.DateTime
+  agentes                   Agentes[]
+  usos                      UsesModels[]
+  acciones                  AgentActions[]
+
+  @@index([name, version, proveedor], map: "IX_AI_Models_NameVersionProvider")
+  @@map("AI_Models")
+}
+
+// Catalogo de agentes de IA de la plataforma para reutilizar trazabilidad en modulos futuros.
+model Agentes {
+  id            String         @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  nombre_logico String         @db.NVarChar(120)
+  nombre_publico String?       @db.NVarChar(120)
+  idModelo      Int?
+  plataforma    String?        @db.NVarChar(100)
+  estatus       String?        @db.NVarChar(40)
+  createdAt     DateTime       @default(now()) @db.DateTime
+  updatedAt     DateTime       @updatedAt @db.DateTime
+  modelo        Models?        @relation(fields: [idModelo], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usos          UsesModels[]
+  acciones      AgentActions[]
+
+  @@index([nombre_logico], map: "IX_AI_Agentes_NombreLogico")
+  @@index([idModelo], map: "IX_AI_Agentes_IdModelo")
+  @@map("AI_Agentes")
+}
+
+// Registro agregado de consumo de modelos por corrida (tokens, tiempos y costo estimado) para analitica transversal.
+model UsesModels {
+  id                             BigInt    @id @default(autoincrement())
+  idModel                        Int
+  colaboradorID                  String?   @db.NVarChar(200)
+  project                        String?   @db.NVarChar(100)
+  module                         String?   @db.NVarChar(100)
+  timeEjecucionSec               Float?
+  averageTimeHumaneJecutationSec Float?
+  tokensInput                    Int?
+  tokensOutput                   Int?
+  tokensTotal                    Int?
+  costAverage                    Decimal?  @db.Decimal(18, 6)
+  agentId                        String?   @db.UniqueIdentifier
+  sessionId                      String?   @db.NVarChar(120)
+  runId                          String?   @db.NVarChar(120)
+  createdAt                      DateTime  @default(now()) @db.DateTime
+  model                          Models    @relation(fields: [idModel], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agent                          Agentes?  @relation(fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([idModel, createdAt], map: "IX_AI_UsesModels_ModelCreatedAt")
+  @@index([project, module], map: "IX_AI_UsesModels_ProjectModule")
+  @@index([sessionId], map: "IX_AI_UsesModels_SessionId")
+  @@index([runId], map: "IX_AI_UsesModels_RunId")
+  @@map("AI_UsesModels")
+}
+
+// Bitacora detallada por accion de cada corrida de agente (pasos, comandos, errores, estado final y consumo de tokens por accion LLM).
+model AgentActions {
+  id           BigInt    @id @default(autoincrement())
+  runId        String    @db.NVarChar(120)
+  sessionId    String?   @db.NVarChar(120)
+  agentId      String?   @db.UniqueIdentifier
+  modelId      Int?
+  project      String?   @db.NVarChar(100)
+  module       String?   @db.NVarChar(100)
+  actionType   String    @db.NVarChar(60)
+  stepId       String?   @db.NVarChar(120)
+  description  String?   @db.NVarChar(Max)
+  status       String?   @db.NVarChar(40)
+  tokensInput  Int?
+  tokensOutput Int?
+  tokensTotal  Int?
+  costAverage  Decimal?  @db.Decimal(18, 6)
+  durationMs   Int?
+  payloadJson  String?   @db.NVarChar(Max)
+  errorMessage String?   @db.NVarChar(Max)
+  createdAt    DateTime  @default(now()) @db.DateTime
+  agent        Agentes?  @relation(fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  model        Models?   @relation(fields: [modelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([runId, createdAt], map: "IX_AI_AgentActions_RunCreatedAt")
+  @@index([sessionId], map: "IX_AI_AgentActions_SessionId")
+  @@index([project, module], map: "IX_AI_AgentActions_ProjectModule")
+  @@index([actionType], map: "IX_AI_AgentActions_ActionType")
+  @@map("AI_AgentActions")
+}
+

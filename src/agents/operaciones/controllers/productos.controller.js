@@ -7,6 +7,7 @@ import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { Constantes } from "../utils/constantes.js";
 import { powerAppsService } from "../services/powerApps.service.js";
+import { SapService } from "../services/sap.service.js";
 
 const prisma = new PrismaClient();
 
@@ -418,6 +419,24 @@ export class ProductosController {
         } catch (error) {
             console.error("Error fetching products from sharepoint list:", error);
             return res.status(500).json({ error: "Error obteniendo productos de sharepoint list" });
+        }
+    }
+
+    /**
+     * @param {purchaseOrder: number} req - El request
+     * @returns {Object} { user: User }
+     */
+    static async getUserByPurchaseOrder(req, res) {
+        const purchaseOrder = req.body.purchaseOrder;
+        if (!purchaseOrder) {
+            return res.status(400).json({ error: "Purchase order es requerido" });
+        }
+        try {
+            const user = await SapService.getUserByPurchaseOrder(purchaseOrder);
+            return res.status(200).json(user);
+        } catch (error) {
+            console.error("Error fetching user by purchase order:", error);
+            return res.status(500).json({ error: "Error obteniendo usuario por purchase order" });
         }
     }
 }
