@@ -16,6 +16,7 @@ import copilotRoutes from "./agents/copilotstudio/routes/copilot.routes.js";
 import computerUseRoutes from './agents/computerUse/routes/computerUse.routes.js';
 import { isBridgeConnected, getConnectedBridges } from './agents/computerUse/computerUseBridge.service.js';
 
+import catalogoRoutes from './agents/catalogo/routes/index.js';
 
 
 //Importar rutas de Predicciones
@@ -26,6 +27,7 @@ import resultadosRouter from "./agents/predicciones/routers/resultados.routes.js
 import modelosRouter from "./agents/predicciones/routers/modelos.routes.js";
 import archivosRouter from "./agents/predicciones/routers/archivos.routes.js";
 import prediccionesDevRouter from "./agents/predicciones/routers/predicciones.dev.routes.js";
+import amlRouter from "./agents/predicciones/routers/aml.routes.js";
 
 const app = express();
 
@@ -130,6 +132,8 @@ app.use("/api/predicciones/resultados", resultadosRouter);
 app.use("/api/predicciones/modelos", modelosRouter);
 app.use("/api/predicciones/archivos", archivosRouter);
 app.use("/api/predicciones/dev", prediccionesDevRouter);
+app.use("/api/predicciones/aml", amlRouter);
+app.use("/agente/catalogo", catalogoRoutes);
 
 
 // Middleware de manejo de errores (debe ir al final)

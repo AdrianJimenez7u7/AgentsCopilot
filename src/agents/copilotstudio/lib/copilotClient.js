@@ -3,21 +3,34 @@ import {
   CopilotStudioClient,
 } from "@microsoft/agents-copilotstudio-client";
 
+function resolveAgentPath(agentName) {
+  const defaultAgent = process.env.COPILOT_DEFAULT_AGENT || "aria";
+  const legacyPrefix = process.env.COPILOT_AGENT_PREFIX || "cr3a3_";
+  const agent = String(agentName || defaultAgent).trim();
+
+  // Compatibilidad:
+  // - "aria" => "cr3a3_aria"
+  // - "cr3a3_aria" => "cr3a3_aria"
+  // - "otroPrefijo_agente" => se usa tal cual
+  if (!agent) return `${legacyPrefix}${defaultAgent}`;
+  if (agent.includes("_")) return agent;
+  return `${legacyPrefix}${agent}`;
+}
+
 /**
- * Construye la URL completa del agente basándose en el nombre
- * @param {string} agentName - Nombre del agente (ejemplo: "aria", "ventas", "soporte")
+ * Construye la URL completa del agente basándose en el identificador de ruta.
+ * Acepta tanto nombres cortos heredados ("aria") como rutas completas
+ * de agente ("cr3a3_aria" o cualquier otro prefijo requerido).
+ * @param {string} agentName - Nombre corto o identificador completo del agente
  * @returns {string} URL completa del agente
  */
 export function buildAgentUrl(agentName) {
   const baseUrl = process.env.COPILOT_BASE_URL;
   const apiVersion = process.env.COPILOT_API_VERSION || "2022-03-01-preview";
-  const defaultAgent = process.env.COPILOT_DEFAULT_AGENT || "aria";
-  
-  // Si no se proporciona nombre de agente, usar el por defecto
-  const agent = agentName || defaultAgent;
+  const agentPath = resolveAgentPath(agentName);
   
   // Construir la URL completa
-  return `${baseUrl}/cr3a3_${agent}/conversations?api-version=${apiVersion}`;
+  return `${baseUrl}/${agentPath}/conversations?api-version=${apiVersion}`;
 }
 
 export function buildSettings(agentName) {
