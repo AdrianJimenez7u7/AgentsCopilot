@@ -79,6 +79,61 @@ function isRetryableLlmError(error) {
     return status === 429 || status >= 500 || code === 'ECONNABORTED' || code === 'ETIMEDOUT' || code === 'ECONNRESET';
 }
 
+function buildProviderErrorContext(runtimeConfig = {}, status, upstreamMessage = '') {
+    const provider = String(runtimeConfig?.provider || 'unknown');
+    const model = String(runtimeConfig?.model || 'unknown');
+
+    if (provider === 'azure-openai') {
+        let endpointHost = '';
+        try {
+            endpointHost = new URL(String(runtimeConfig?.azure?.endpoint || '')).host;
+        } catch {
+            endpointHost = String(runtimeConfig?.azure?.endpoint || '').trim();
+        }
+
+        const deployment = String(runtimeConfig?.azure?.deployment || '').trim();
+        const apiVersion = String(runtimeConfig?.azure?.apiVersion || '').trim();
+
+        if (status === 401) {
+            return [
+                `401 del proveedor IA (Azure OpenAI).`,
+                `provider=${provider}, model=${model}, endpointHost=${endpointHost || 'n/a'}, deployment=${deployment || 'n/a'}, apiVersion=${apiVersion || 'n/a'}.`,
+                'Revisa que el API key corresponda exactamente al recurso del endpoint configurado y que el deployment exista en ese recurso.',
+                upstreamMessage ? `Detalle proveedor: ${upstreamMessage}` : '',
+            ].filter(Boolean).join(' ');
+        }
+
+        return [
+            `Error del proveedor IA (Azure OpenAI), status=${status || 'n/a'}.`,
+            `provider=${provider}, model=${model}, endpointHost=${endpointHost || 'n/a'}, deployment=${deployment || 'n/a'}, apiVersion=${apiVersion || 'n/a'}.`,
+            upstreamMessage ? `Detalle proveedor: ${upstreamMessage}` : '',
+        ].filter(Boolean).join(' ');
+    }
+
+    if (provider === 'openrouter') {
+        if (status === 401) {
+            return [
+                `401 del proveedor IA (OpenRouter).`,
+                `provider=${provider}, model=${model}.`,
+                'Revisa OPENROUTER_API_KEY en el backend desplegado y confirma que no este vacia o expirada.',
+                upstreamMessage ? `Detalle proveedor: ${upstreamMessage}` : '',
+            ].filter(Boolean).join(' ');
+        }
+
+        return [
+            `Error del proveedor IA (OpenRouter), status=${status || 'n/a'}.`,
+            `provider=${provider}, model=${model}.`,
+            upstreamMessage ? `Detalle proveedor: ${upstreamMessage}` : '',
+        ].filter(Boolean).join(' ');
+    }
+
+    return [
+        `Error del proveedor IA, status=${status || 'n/a'}.`,
+        `provider=${provider}, model=${model}.`,
+        upstreamMessage ? `Detalle proveedor: ${upstreamMessage}` : '',
+    ].filter(Boolean).join(' ');
+}
+
 export async function callLLM(messages, telemetry = {}, contextDescription = 'planner/comando/evaluacion') {
     let lastError;
     const startedAt = Date.now();
@@ -187,8 +242,16 @@ export async function callLLM(messages, telemetry = {}, contextDescription = 'pl
     }
 
     const status = lastError?.response?.status;
+    const upstreamMessage = String(
+        lastError?.response?.data?.error?.message
+        || lastError?.response?.data?.message
+        || ''
+    ).trim();
     if (status === 429) {
         throw new Error('El proveedor de IA devolvio 429 (rate limit). Se reintento automaticamente sin exito.');
+    }
+    if (status === 401 || status === 403) {
+        throw new Error(buildProviderErrorContext(runtimeConfig, status, upstreamMessage));
     }
     throw lastError;
 }
