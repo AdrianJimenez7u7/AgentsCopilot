@@ -1,4 +1,4 @@
-import { runComputerUseAgent } from '../computerUse.service.js';
+import { runComputerUseAgent, cancelComputerUseRun } from '../computerUse.service.js';
 import { isBridgeConnected, getConnectedBridges } from '../computerUseBridge.service.js';
 import { improveAutomationGoal } from '../services/computerUse.llm.service.js';
 import { prisma } from '../../../shared/prisma/client.js';
@@ -20,6 +20,23 @@ export async function runComputerUse(req, res) {
         steps: Array.isArray(steps) ? steps : null,
         requirePlanConfirmation: Boolean(requirePlanConfirmation),
     });
+}
+
+export function cancelComputerUse(req, res) {
+    const runId = String(req.body?.runId || '').trim() || null;
+    const sessionId = String(req.body?.sessionId || '').trim() || null;
+    const reason = String(req.body?.reason || '').trim() || 'Cancelado por usuario';
+
+    if (!runId && !sessionId) {
+        return res.status(400).json({ ok: false, error: 'Se requiere runId o sessionId para cancelar.' });
+    }
+
+    const result = cancelComputerUseRun({ runId, sessionId, reason });
+    if (!result.cancelled) {
+        return res.status(404).json({ ok: false, error: result.message || 'No hay corrida activa para cancelar.' });
+    }
+
+    return res.json({ ok: true, ...result });
 }
 
 export function getBridgeStatus(req, res) {

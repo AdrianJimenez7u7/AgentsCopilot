@@ -35,6 +35,7 @@ import {
     evaluateStepWithExtraction,
     getRunUsage,
 } from './services/computerUse.llm.service.js';
+import { getComputerUseRuntimeConfig, isNavigationAllowedByPolicy } from './services/computerUse.config.service.js';
 
 const bridges = new Map(); // sessionId → ws
 const normalizeSessionId = (value) => String(value ?? '').trim();
@@ -61,6 +62,27 @@ Si no hay una URL explicita en el paso, no inventes navegacion; prefiere wait o 
 Devuelve SOLO JSON valido:
 {"action":"click|type|navigate|scroll|hover|select|wait|go_back","target":"css selector","text":"texto","url":"https://...","value":"..."}`;
 
+function applyNavigationPolicyToCommand(command = {}, policy = {}) {
+    if (!command || command.action !== 'navigate') return command;
+
+    const validation = isNavigationAllowedByPolicy(command.url, policy);
+    if (validation.allowed) return command;
+
+    if (String(policy?.blockBehavior || 'block') === 'skip') {
+        return {
+            action: 'wait',
+            value: '800',
+            note: `Navegacion omitida por politica: ${validation.reason}`,
+        };
+    }
+
+    return {
+        action: 'wait',
+        value: '1200',
+        note: `Navegacion bloqueada por politica: ${validation.reason}`,
+    };
+}
+
 // ─── Bridge registry ──────────────────────────────────────────────────────────
 export function registerBridge(sessionId, ws) {
     const normalizedSessionId = normalizeSessionId(sessionId);
@@ -86,6 +108,8 @@ export function registerBridge(sessionId, ws) {
 
         // Bridge needs us to generate a browser command via LLM
         if (msg.type === 'need_command') {
+            const runtimeConfig = getComputerUseRuntimeConfig({ includeSecrets: false });
+            const policy = runtimeConfig?.navigationPolicy || { mode: 'free', allowedDomains: [], blockedDomains: [], blockBehavior: 'block' };
             try {
                 const raw2 = await callLLM([
                     { role: 'system', content: CMD_PROMPT },
@@ -94,10 +118,12 @@ export function registerBridge(sessionId, ws) {
                     runId: msg.runId || null,
                     sessionId: normalizedSessionId,
                 }, 'comando via bridge');
-                const command = normalizeBrowserCommand(safeParseLLMJson(raw2), msg.description);
+                const baseCommand = normalizeBrowserCommand(safeParseLLMJson(raw2), msg.description);
+                const command = applyNavigationPolicyToCommand(baseCommand, policy);
                 ws.send(JSON.stringify({ type: 'command_response', stepId: msg.stepId, command }));
             } catch (err) {
-                ws.send(JSON.stringify({ type: 'command_response', stepId: msg.stepId, command: buildSearchFallback(msg.description) }));
+                const fallback = applyNavigationPolicyToCommand(buildSearchFallback(msg.description), policy);
+                ws.send(JSON.stringify({ type: 'command_response', stepId: msg.stepId, command: fallback }));
             }
         }
 
@@ -142,7 +168,7 @@ export function getConnectedBridges() {
 }
 
 // ─── Run a task via the bridge, piping events back to SSE ────────────────────
-export function runViaBridge(sessionId, goal, steps, res, telemetryBase = {}) {
+export function runViaBridge(sessionId, goal, steps, res, telemetryBase = {}, options = {}) {
     return new Promise((resolve, reject) => {
         const normalizedSessionId = normalizeSessionId(sessionId);
         const ws = bridges.get(normalizedSessionId);
@@ -150,6 +176,9 @@ export function runViaBridge(sessionId, goal, steps, res, telemetryBase = {}) {
         let settled = false;
         const INACTIVITY_TIMEOUT_MS = 180000;
         let timeout = null;
+        let cancelWatch = null;
+        const isCancelled = typeof options?.isCancelled === 'function' ? options.isCancelled : () => false;
+        const cancelReason = typeof options?.cancelReason === 'function' ? options.cancelReason : () => 'Cancelado por usuario';
 
         const resetTimeout = () => {
             if (timeout) clearTimeout(timeout);
@@ -163,6 +192,7 @@ export function runViaBridge(sessionId, goal, steps, res, telemetryBase = {}) {
             if (settled) return;
             settled = true;
             if (timeout) clearTimeout(timeout);
+            if (cancelWatch) clearInterval(cancelWatch);
             ws.off('message', handler);
             ws.off('close', onClose);
             ws.off('error', onError);
@@ -176,6 +206,23 @@ export function runViaBridge(sessionId, goal, steps, res, telemetryBase = {}) {
         };
 
         resetTimeout();
+
+        cancelWatch = setInterval(() => {
+            if (settled) return;
+            if (!isCancelled()) return;
+
+            try {
+                ws.send(JSON.stringify({
+                    type: 'cancel_run',
+                    sessionId: normalizedSessionId,
+                    reason: cancelReason(),
+                }));
+            } catch {
+                // ignore bridge send errors during cancellation
+            }
+
+            finalize(new Error('__RUN_CANCELLED__'));
+        }, 250);
 
         const handler = (raw) => {
             let msg;
@@ -360,6 +407,16 @@ export function runViaBridge(sessionId, goal, steps, res, telemetryBase = {}) {
         ws.on('message', handler);
         ws.on('close', onClose);
         ws.on('error', onError);
-        ws.send(JSON.stringify({ type: 'run', sessionId: normalizedSessionId, goal, steps }));
+        const runtimeConfig = getComputerUseRuntimeConfig({ includeSecrets: false });
+        ws.send(JSON.stringify({
+            type: 'run',
+            sessionId: normalizedSessionId,
+            runId: telemetryBase?.runId || null,
+            goal,
+            steps,
+            restrictions: {
+                navigationPolicy: runtimeConfig?.navigationPolicy || { mode: 'free', allowedDomains: [], blockedDomains: [], blockBehavior: 'block' },
+            },
+        }));
     });
 }

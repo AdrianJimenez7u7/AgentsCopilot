@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws';
 import { registerBridge } from '../computerUseBridge.service.js';
 import {
     runComputerUse,
+    cancelComputerUse,
     getBridgeStatus,
     improveGoal,
     getComputerUseModels,
@@ -16,6 +17,7 @@ const router = Router();
 
 // ── REST: run agent (SSE) ────────────────────────────────────────────────────
 router.post('/run', runComputerUse);
+router.post('/cancel', cancelComputerUse);
 
 // ── REST: bridge status ───────────────────────────────────────────────────────
 router.get('/bridge/status', getBridgeStatus);

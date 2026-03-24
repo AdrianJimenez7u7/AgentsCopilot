@@ -19,6 +19,98 @@ const AVAILABLE_MODELS = [
     },
 ];
 
+const NAVIGATION_POLICY_MODES = new Set(['free', 'allowlist', 'denylist']);
+const NAVIGATION_BLOCK_BEHAVIORS = new Set(['block', 'skip']);
+
+function normalizeDomainList(raw = []) {
+    const source = Array.isArray(raw)
+        ? raw
+        : String(raw || '').split(',');
+
+    return Array.from(new Set(
+        source
+            .map((item) => String(item || '').trim().toLowerCase())
+            .map((item) => item.replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
+            .filter(Boolean)
+    ));
+}
+
+function normalizeNavigationPolicy(input = {}, fallback = null) {
+    const base = fallback || {
+        mode: 'free',
+        allowedDomains: [],
+        blockedDomains: [],
+        blockBehavior: 'block',
+    };
+
+    const modeRaw = String(input?.mode ?? base.mode ?? 'free').trim().toLowerCase();
+    const blockBehaviorRaw = String(input?.blockBehavior ?? base.blockBehavior ?? 'block').trim().toLowerCase();
+
+    return {
+        mode: NAVIGATION_POLICY_MODES.has(modeRaw) ? modeRaw : 'free',
+        allowedDomains: normalizeDomainList(input?.allowedDomains ?? base.allowedDomains ?? []),
+        blockedDomains: normalizeDomainList(input?.blockedDomains ?? base.blockedDomains ?? []),
+        blockBehavior: NAVIGATION_BLOCK_BEHAVIORS.has(blockBehaviorRaw) ? blockBehaviorRaw : 'block',
+    };
+}
+
+function extractHostnameFromUrl(url = '') {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+
+    try {
+        const parsed = /^https?:\/\//i.test(raw) ? new URL(raw) : new URL(`https://${raw}`);
+        return String(parsed.hostname || '').trim().toLowerCase();
+    } catch {
+        return '';
+    }
+}
+
+function hostMatchesRule(hostname = '', rule = '') {
+    const host = String(hostname || '').toLowerCase();
+    const normalizedRule = String(rule || '').toLowerCase();
+    if (!host || !normalizedRule) return false;
+
+    if (normalizedRule.startsWith('*.')) {
+        const base = normalizedRule.slice(2);
+        return host === base || host.endsWith(`.${base}`);
+    }
+
+    return host === normalizedRule || host.endsWith(`.${normalizedRule}`);
+}
+
+export function isNavigationAllowedByPolicy(url = '', policy = {}) {
+    const normalizedPolicy = normalizeNavigationPolicy(policy);
+    const hostname = extractHostnameFromUrl(url);
+    if (!hostname) {
+        return { allowed: false, reason: 'URL invalida o sin dominio legible.' };
+    }
+
+    if (normalizedPolicy.mode === 'free') {
+        return { allowed: true, reason: '' };
+    }
+
+    if (normalizedPolicy.mode === 'allowlist') {
+        const allowed = normalizedPolicy.allowedDomains.some((rule) => hostMatchesRule(hostname, rule));
+        if (allowed) return { allowed: true, reason: '' };
+        return {
+            allowed: false,
+            reason: `Dominio bloqueado por allowlist: ${hostname}`,
+        };
+    }
+
+    if (normalizedPolicy.mode === 'denylist') {
+        const blocked = normalizedPolicy.blockedDomains.some((rule) => hostMatchesRule(hostname, rule));
+        if (!blocked) return { allowed: true, reason: '' };
+        return {
+            allowed: false,
+            reason: `Dominio bloqueado por denylist: ${hostname}`,
+        };
+    }
+
+    return { allowed: true, reason: '' };
+}
+
 function normalizeAzureEndpoint(rawEndpoint = '') {
     const value = String(rawEndpoint || '').trim();
     if (!value) return '';
@@ -69,6 +161,13 @@ function getAzureDefaultsForModel(modelId = '') {
 }
 
 function buildInitialConfigFromEnv() {
+        const initialNavigationPolicy = normalizeNavigationPolicy({
+            mode: process.env.COMPUTER_USE_NAVIGATION_MODE || 'free',
+            allowedDomains: process.env.COMPUTER_USE_ALLOWED_DOMAINS || '',
+            blockedDomains: process.env.COMPUTER_USE_BLOCKED_DOMAINS || '',
+            blockBehavior: process.env.COMPUTER_USE_NAVIGATION_BLOCK_BEHAVIOR || 'block',
+        });
+
     const openRouterApiKey = process.env.OPENROUTER_API_KEY || '';
 
     const preferredProvider = String(process.env.COMPUTER_USE_MODEL_PROVIDER || '').trim();
@@ -109,6 +208,7 @@ function buildInitialConfigFromEnv() {
             openrouter: {
                 apiKey: openRouterApiKey,
             },
+            navigationPolicy: initialNavigationPolicy,
         };
     }
 
@@ -124,6 +224,7 @@ function buildInitialConfigFromEnv() {
         openrouter: {
             apiKey: openRouterApiKey,
         },
+        navigationPolicy: initialNavigationPolicy,
     };
 }
 
@@ -142,6 +243,7 @@ function maskConfig(config) {
         openrouter: {
             hasApiKey: Boolean(config.openrouter.apiKey),
         },
+        navigationPolicy: normalizeNavigationPolicy(config.navigationPolicy),
     };
 }
 
@@ -191,6 +293,7 @@ export function updateComputerUseRuntimeConfig(nextConfig = {}) {
         openrouter: {
             apiKey: String(nextConfig.openrouter?.apiKey ?? runtimeConfig.openrouter.apiKey ?? '').trim(),
         },
+        navigationPolicy: normalizeNavigationPolicy(nextConfig.navigationPolicy, runtimeConfig.navigationPolicy),
     };
 
     if (runtimeConfig.provider === 'azure-openai') {

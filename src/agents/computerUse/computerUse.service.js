@@ -24,6 +24,94 @@ import {
     clearRunUsage,
 } from './services/computerUse.llm.service.js';
 import { initSSE, sendSSE, sendScreenshot } from './services/computerUse.sse.service.js';
+import { getComputerUseRuntimeConfig, isNavigationAllowedByPolicy } from './services/computerUse.config.service.js';
+
+const activeRuns = new Map(); // runId -> { runId, sessionId, cancelled, reason }
+const activeRunBySession = new Map(); // sessionId -> runId
+
+const RUN_CANCELLED_CODE = '__RUN_CANCELLED__';
+
+class RunCancelledError extends Error {
+    constructor(message = 'Ejecucion cancelada por usuario') {
+        super(message);
+        this.name = 'RunCancelledError';
+        this.code = RUN_CANCELLED_CODE;
+    }
+}
+
+function isRunCancelledError(error) {
+    return error?.code === RUN_CANCELLED_CODE || error?.message === RUN_CANCELLED_CODE;
+}
+
+function registerActiveRun(runId, sessionId) {
+    const normalizedSessionId = String(sessionId || '').trim() || null;
+
+    const runState = {
+        runId,
+        sessionId: normalizedSessionId,
+        cancelled: false,
+        reason: '',
+        startedAt: Date.now(),
+    };
+
+    activeRuns.set(runId, runState);
+    if (normalizedSessionId) {
+        activeRunBySession.set(normalizedSessionId, runId);
+    }
+
+    return runState;
+}
+
+function unregisterActiveRun(runId) {
+    const state = activeRuns.get(runId);
+    if (!state) return;
+
+    if (state.sessionId && activeRunBySession.get(state.sessionId) === runId) {
+        activeRunBySession.delete(state.sessionId);
+    }
+
+    activeRuns.delete(runId);
+}
+
+function getRunStateByTarget({ runId, sessionId }) {
+    const normalizedRunId = String(runId || '').trim();
+    if (normalizedRunId && activeRuns.has(normalizedRunId)) {
+        return activeRuns.get(normalizedRunId);
+    }
+
+    const normalizedSessionId = String(sessionId || '').trim();
+    if (normalizedSessionId) {
+        const foundRunId = activeRunBySession.get(normalizedSessionId);
+        if (foundRunId && activeRuns.has(foundRunId)) {
+            return activeRuns.get(foundRunId);
+        }
+    }
+
+    return null;
+}
+
+function assertRunNotCancelled(runState) {
+    if (runState?.cancelled) {
+        throw new RunCancelledError(runState.reason || 'Ejecucion cancelada por usuario');
+    }
+}
+
+export function cancelComputerUseRun({ runId, sessionId, reason = '' } = {}) {
+    const state = getRunStateByTarget({ runId, sessionId });
+    if (!state) {
+        return { cancelled: false, message: 'No hay corrida activa para cancelar.' };
+    }
+
+    state.cancelled = true;
+    state.reason = String(reason || 'Cancelado por usuario').trim() || 'Cancelado por usuario';
+
+    return {
+        cancelled: true,
+        runId: state.runId,
+        sessionId: state.sessionId,
+        message: state.reason,
+    };
+}
 
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -57,6 +145,23 @@ async function executeBrowserCommand(page, command) {
         case 'wait': await page.waitForTimeout(parseInt(command.value ?? '1000')); break;
         case 'go_back': await page.goBack(); break;
     }
+}
+
+function applyNavigationPolicyToCommand(command = {}, navigationPolicy = {}) {
+    if (!command || command.action !== 'navigate') return command;
+
+    const validation = isNavigationAllowedByPolicy(command.url, navigationPolicy);
+    if (validation.allowed) return command;
+
+    if (String(navigationPolicy?.blockBehavior || 'block') === 'skip') {
+        return {
+            action: 'wait',
+            value: '700',
+            note: `Navegacion omitida por politica: ${validation.reason}`,
+        };
+    }
+
+    throw new Error(`Navegacion bloqueada por politica: ${validation.reason}`);
 }
 
 function getCommandSettleDelayMs(command) {
@@ -208,7 +313,7 @@ function applyExecutionStatusesToHierarchy(steps, executionStatusMap) {
 // ────────────────────────────────────────────────────────────────────────────
 // HEADLESS FALLBACK (runs on App Service server)
 // ────────────────────────────────────────────────────────────────────────────
-async function runHeadless(goal, steps, res, telemetryBase) {
+async function runHeadless(goal, steps, res, telemetryBase, runState) {
     sendSSE(res, 'status', { message: 'No hay bridge conectado. Usando browser headless en servidor...', phase: 'connecting' });
     await logAgentAction({
         ...telemetryBase,
@@ -227,9 +332,12 @@ async function runHeadless(goal, steps, res, telemetryBase) {
 
     const executableSteps = collectExecutableSteps(steps);
     const executionStatusMap = new Map();
+    const runtimeConfig = getComputerUseRuntimeConfig({ includeSecrets: false });
+    const navigationPolicy = runtimeConfig?.navigationPolicy || { mode: 'free', allowedDomains: [], blockedDomains: [], blockBehavior: 'block' };
 
     try {
         for (const step of executableSteps) {
+            assertRunNotCancelled(runState);
             sendSSE(res, 'step_start', { id: step.id, description: step.description });
             executionStatusMap.set(step.id, 'in_progress');
             let succeeded = false;
@@ -244,8 +352,10 @@ async function runHeadless(goal, steps, res, telemetryBase) {
 
             for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
                 try {
+                    assertRunNotCancelled(runState);
                     const dom = await extractInteractiveDOM(page);
-                    const command = await generateBrowserCommand(step.description, dom, telemetryBase);
+                    const generatedCommand = await generateBrowserCommand(step.description, dom, telemetryBase);
+                    const command = applyNavigationPolicyToCommand(generatedCommand, navigationPolicy);
                     sendSSE(res, 'command', { stepId: step.id, command });
                     await logAgentAction({
                         ...telemetryBase,
@@ -257,6 +367,7 @@ async function runHeadless(goal, steps, res, telemetryBase) {
                         modelIdentifier: MODEL,
                     });
                     await executeBrowserCommand(page, command);
+                    assertRunNotCancelled(runState);
                     await waitAfterCommand(page, command);
                     await sendScreenshot(res, page);
                     const domAfter = await extractInteractiveDOM(page);
@@ -320,6 +431,9 @@ async function runHeadless(goal, steps, res, telemetryBase) {
                         modelIdentifier: MODEL,
                     });
                 } catch (err) {
+                    if (isRunCancelledError(err)) {
+                        throw err;
+                    }
                     sendSSE(res, 'step_error', { id: step.id, attempt: attempt + 1, error: err.message });
                     await logAgentAction({
                         ...telemetryBase,
@@ -333,6 +447,7 @@ async function runHeadless(goal, steps, res, telemetryBase) {
                     });
 
                     if (attempt < MAX_ATTEMPTS - 1) {
+                        assertRunNotCancelled(runState);
                         await tryRecoveryTask(
                             page,
                             step,
@@ -417,6 +532,7 @@ export async function runComputerUseAgent(goal, sessionId, res, options = {}) {
         agentPublicName: TELEMETRY_AGENT_PUBLIC,
         platform: TELEMETRY_PLATFORM,
     };
+    const runState = registerActiveRun(runId, telemetryBase.sessionId);
     initRunUsage(runId);
     const requirePlanConfirmation = Boolean(options?.requirePlanConfirmation);
     const providedSteps = normalizeProvidedSteps(options?.steps);
@@ -487,21 +603,47 @@ export async function runComputerUseAgent(goal, sessionId, res, options = {}) {
                 modelIdentifier: MODEL,
             });
             const executionSteps = collectExecutableSteps(steps).map((step) => ({ id: step.id, description: step.description, status: 'pending' }));
-            await runViaBridge(sessionId, goal, executionSteps, res, telemetryBase);
+            await runViaBridge(sessionId, goal, executionSteps, res, telemetryBase, {
+                isCancelled: () => Boolean(runState.cancelled),
+                cancelReason: () => runState.reason || 'Cancelado por usuario',
+            });
         } else {
             // Headless fallback
-            await runHeadless(goal, steps, res, telemetryBase);
+            await runHeadless(goal, steps, res, telemetryBase, runState);
         }
     } catch (err) {
-        sendSSE(res, 'error', { message: err.message });
-        await logAgentAction({
-            ...telemetryBase,
-            actionType: 'run_error',
-            status: 'failed',
-            errorMessage: err.message,
-            modelIdentifier: MODEL,
-        });
+        if (isRunCancelledError(err)) {
+            sendSSE(res, 'done', {
+                success: false,
+                cancelled: true,
+                message: runState.reason || 'Ejecucion cancelada por usuario',
+                usage: getRunUsage(telemetryBase.runId),
+                summary: [],
+            });
+
+            await logAgentAction({
+                ...telemetryBase,
+                actionType: 'run_cancelled',
+                status: 'cancelled',
+                description: runState.reason || 'Ejecucion cancelada por usuario',
+                payload: {
+                    cancelled: true,
+                    reason: runState.reason || 'Cancelado por usuario',
+                },
+                modelIdentifier: MODEL,
+            });
+        } else {
+            sendSSE(res, 'error', { message: err.message });
+            await logAgentAction({
+                ...telemetryBase,
+                actionType: 'run_error',
+                status: 'failed',
+                errorMessage: err.message,
+                modelIdentifier: MODEL,
+            });
+        }
     } finally {
+        unregisterActiveRun(runId);
         clearRunUsage(runId);
         res.end();
     }
