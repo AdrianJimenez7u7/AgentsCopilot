@@ -1,10 +1,18 @@
 import { AzureOpenAI } from "openai";
 import { Constantes } from "../utils/constantes.js";
+import { randomUUID } from 'crypto';
+import { logAgentAction, logModelUsage } from '../../../shared/services/agentTelemetry.service.js';
 
 const endpoint = "https://ia-generativa.cognitiveservices.azure.com/";
 //const modelName = "gpt-4.1-mini";
 const modelName = process.env.AZURE_OPENAI_MODEL;
 const deployment = process.env.AZURE_OPENAI_MODEL;
+
+const TELEMETRY_PROJECT = 'AgentsCopilot';
+const TELEMETRY_MODULE = 'operaciones';
+const TELEMETRY_AGENT_LOGICAL = 'operaciones';
+const TELEMETRY_AGENT_PUBLIC = 'Operaciones';
+const TELEMETRY_PLATFORM = 'backend';
 
 export class OpenAIService {
 
@@ -207,11 +215,12 @@ export class OpenAIService {
      * Clasifica un producto usando el modelo de razonamiento gpt-5-mini (AZURE_OPENAI_5_1_MINI_*).
      * Retorna el JSON de clasificación más los tokens REALES consumidos desde response.usage.
      */
-    static async clasificarProductoRazonamiento(sku, searchContext, retries = 3) {
+    static async clasificarProductoRazonamiento(sku, searchContext, retries = 3, telemetry = {}) {
         const apiKey = process.env.AZURE_OPENAI_5_MINI_API_KEY;
         const apiVersion = process.env.AZURE_OPENAI_5_MINI_API_VERSION;
         const endpoint5 = process.env.AZURE_OPENAI_5_MINI_ENDPOINT;
         const model5 = process.env.AZURE_OPENAI_5_MINI_MODEL; // gpt-5-mini
+        const runId = telemetry.runId || randomUUID();
 
         const client = new AzureOpenAI({ endpoint: endpoint5, apiKey, apiVersion, deployment: model5 });
 
@@ -268,6 +277,7 @@ export class OpenAIService {
 
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
+                const startedAt = Date.now();
                 const safeContext = (searchContext || '').slice(0, 6000);
                 const userMsg = `Analiza este producto (SKU: ${sku}).\n\nCONTEXTO TÉCNICO ENCONTRADO:\n${safeContext}`;
 
@@ -295,6 +305,45 @@ export class OpenAIService {
 
                 console.log(`[Razonamiento] SKU: ${sku} | tokens reales → entrada: ${resultado.tokens_entrada} | salida: ${resultado.tokens_salida} | total: ${resultado.tokens_total}`);
 
+                const modelIdentifier = `azure-openai/${model5}`;
+                const durationMs = Date.now() - startedAt;
+
+                await logModelUsage({
+                    runId,
+                    sessionId: telemetry.sessionId || null,
+                    collaboratorId: telemetry.collaboratorId || null,
+                    tokensInput: Number(resultado.tokens_entrada || 0),
+                    tokensOutput: Number(resultado.tokens_salida || 0),
+                    tokensTotal: Number(resultado.tokens_total || 0),
+                    timeEjecucionSec: durationMs / 1000,
+                    modelIdentifier,
+                    project: TELEMETRY_PROJECT,
+                    module: TELEMETRY_MODULE,
+                    agentLogicalName: TELEMETRY_AGENT_LOGICAL,
+                    agentPublicName: TELEMETRY_AGENT_PUBLIC,
+                    platform: TELEMETRY_PLATFORM,
+                });
+
+                await logAgentAction({
+                    runId,
+                    sessionId: telemetry.sessionId || null,
+                    actionType: 'llm_call',
+                    stepId: `analisis:${sku}`,
+                    description: `Clasificación SKU ${sku} con modelo de razonamiento`,
+                    status: 'completed',
+                    tokensInput: Number(resultado.tokens_entrada || 0),
+                    tokensOutput: Number(resultado.tokens_salida || 0),
+                    tokensTotal: Number(resultado.tokens_total || 0),
+                    durationMs,
+                    payload: { sku, model: model5 },
+                    modelIdentifier,
+                    project: TELEMETRY_PROJECT,
+                    module: TELEMETRY_MODULE,
+                    agentLogicalName: TELEMETRY_AGENT_LOGICAL,
+                    agentPublicName: TELEMETRY_AGENT_PUBLIC,
+                    platform: TELEMETRY_PLATFORM,
+                });
+
                 return resultado;
 
             } catch (error) {
@@ -319,11 +368,12 @@ export class OpenAIService {
      * @param {Array<{sku: string, context: string}>} items
      * @returns {Array<Object>} array de productos clasificados, en el mismo orden que items
      */
-    static async clasificarProductosLote(items, retries = 3) {
+    static async clasificarProductosLote(items, retries = 3, telemetry = {}) {
         const apiKey = process.env.AZURE_OPENAI_5_MINI_API_KEY;
         const apiVersion = process.env.AZURE_OPENAI_5_MINI_API_VERSION;
         const endpoint5 = process.env.AZURE_OPENAI_5_MINI_ENDPOINT;
         const model5 = process.env.AZURE_OPENAI_5_MINI_MODEL;
+        const runId = telemetry.runId || randomUUID();
 
         const client = new AzureOpenAI({ endpoint: endpoint5, apiKey, apiVersion, deployment: model5 });
 
@@ -393,6 +443,7 @@ export class OpenAIService {
 
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
+                const startedAt = Date.now();
                 const response = await client.chat.completions.create({
                     model: model5,
                     messages: [
@@ -412,6 +463,45 @@ export class OpenAIService {
 
                 console.log(`[Lote] tokens reales → entrada: ${tokensEntrada} | salida: ${tokensSalida} | total: ${tokensTotal}`);
                 console.log(`[Lote] ahorro vs individual: ~${((tokensEntrada * (items.length - 1))).toLocaleString()} tokens evitados`);
+
+                const modelIdentifier = `azure-openai/${model5}`;
+                const durationMs = Date.now() - startedAt;
+
+                await logModelUsage({
+                    runId,
+                    sessionId: telemetry.sessionId || null,
+                    collaboratorId: telemetry.collaboratorId || null,
+                    tokensInput: Number(tokensEntrada || 0),
+                    tokensOutput: Number(tokensSalida || 0),
+                    tokensTotal: Number(tokensTotal || 0),
+                    timeEjecucionSec: durationMs / 1000,
+                    modelIdentifier,
+                    project: TELEMETRY_PROJECT,
+                    module: TELEMETRY_MODULE,
+                    agentLogicalName: TELEMETRY_AGENT_LOGICAL,
+                    agentPublicName: TELEMETRY_AGENT_PUBLIC,
+                    platform: TELEMETRY_PLATFORM,
+                });
+
+                await logAgentAction({
+                    runId,
+                    sessionId: telemetry.sessionId || null,
+                    actionType: 'llm_batch_call',
+                    stepId: 'analisis:lote',
+                    description: `Clasificación por lote de ${items.length} SKUs`,
+                    status: 'completed',
+                    tokensInput: Number(tokensEntrada || 0),
+                    tokensOutput: Number(tokensSalida || 0),
+                    tokensTotal: Number(tokensTotal || 0),
+                    durationMs,
+                    payload: { items: items.length, model: model5 },
+                    modelIdentifier,
+                    project: TELEMETRY_PROJECT,
+                    module: TELEMETRY_MODULE,
+                    agentLogicalName: TELEMETRY_AGENT_LOGICAL,
+                    agentPublicName: TELEMETRY_AGENT_PUBLIC,
+                    platform: TELEMETRY_PLATFORM,
+                });
 
                 // Map results by numero_parte (safe), fallback to positional order
                 const byParte = new Map(productos.map(p => [String(p.numero_parte ?? '').toUpperCase(), p]));

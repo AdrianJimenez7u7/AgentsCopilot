@@ -22,6 +22,7 @@ router.post('/clasificar-test', ProductosController.clasificarProductoTest);
 router.post('/my-data', ProductosController.getMyData);
 
 router.get('/products-from-sharepoint-list', ProductosController.getProductsFromSharepointList);
+router.get('/sharepoint-list-metadata', ProductosController.getSharepointListMetadata);
 
 router.post('/user-by-purchase-order', ProductosController.getUserByPurchaseOrder);
 

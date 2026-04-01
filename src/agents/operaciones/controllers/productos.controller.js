@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { Constantes } from "../utils/constantes.js";
 import { powerAppsService } from "../services/powerApps.service.js";
 import { SapService } from "../services/sap.service.js";
+import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -26,13 +27,17 @@ export class ProductosController {
     static async extractProductData(req, res) {
 
         const sku = req.body.sku;
+        const telemetry = {
+            runId: randomUUID(),
+            collaboratorId: req.body.email || null,
+        };
         if (!sku) {
             return res.status(400).json({ error: "SKU es requerido" });
         }
-        const rawResults = await SearchService.search(sku);
+        const rawResults = await SearchService.search(sku, 2, telemetry);
         const contextString = JSON.stringify(rawResults);
 
-        const productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString);
+        const productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 3, telemetry);
         return res.status(200).json(productoLimpio);
     }
     /**
@@ -41,17 +46,21 @@ export class ProductosController {
      */
     static async clasificarProductoTest(req, res) {
         const sku = req.body.sku;
+        const telemetry = {
+            runId: randomUUID(),
+            collaboratorId: req.body.email || null,
+        };
         if (!sku) {
             return res.status(400).json({ error: "SKU es requerido" });
         }
 
         try {
             console.log(`[ClasificarTest] Iniciando búsqueda para SKU: ${sku}`);
-            const rawResults = await SearchService.search(sku);
+            const rawResults = await SearchService.search(sku, 2, telemetry);
             const contextString = JSON.stringify(rawResults);
 
             console.log(`[ClasificarTest] Búsqueda completa. Clasificando con modelo de razonamiento...`);
-            const resultado = await OpenAIService.clasificarProductoRazonamiento(sku, contextString);
+            const resultado = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 3, telemetry);
 
             return res.status(200).json({
                 status: 200,
@@ -103,6 +112,10 @@ export class ProductosController {
     static async getProductCard(req, res) {
         const sku = req.body.sku;
         const cliente = req.body.cliente;
+        const telemetry = {
+            runId: randomUUID(),
+            collaboratorId: req.body.email || null,
+        };
 
         if (!sku) {
             return res.status(400).json({ error: "SKU es requerido" });
@@ -123,10 +136,10 @@ export class ProductosController {
             // SKU is new — search and extract with AI
             let productoLimpio;
             try {
-                const rawResults = await SearchService.search(sku);
+                const rawResults = await SearchService.search(sku, 2, telemetry);
                 const contextString = JSON.stringify(rawResults);
                 // retries=0: fail fast for card requests — error card is shown immediately
-                productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 0);
+                productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 0, telemetry);
             } catch (aiError) {
                 console.error("AI error in getProductCard:", aiError.message);
                 // Friendly error message depending on error type
@@ -209,16 +222,11 @@ export class ProductosController {
                 }
             });
 
-            // Sync with SharePoint (Temporarily disabled by user request)
-            /* 
             try {
                 await powerAppsService.insertProductInSharepointList(updated);
             } catch (spError) {
                 console.error("🔴 Error syncing to SharePoint:", spError);
-                // Optionally rollback DB update here if strict consistency is required, 
-                // but for now we just log the error so the user isn't completely blocked.
             }
-            */
 
             return res.status(200).json({ status: 200, message: "Producto validado correctamente.", data: updated });
         } catch (error) {
@@ -322,15 +330,30 @@ export class ProductosController {
         const { id } = req.params;
         // Exclude identity/read-only columns — SQL Server cannot update id
         const { status, id: _id, sku: _sku, createdAt: _createdAt, user_email: _email, ...rest } = req.body;
+        const nextStatus = status || 'Validated';
 
         try {
+            const previous = await prisma.productoPendienteValidation.findUnique({
+                where: { id: parseInt(id) }
+            });
+
             const updated = await prisma.productoPendienteValidation.update({
                 where: { id: parseInt(id) },
                 data: {
-                    status: status,
+                    status: nextStatus,
                     ...rest
                 }
             });
+
+            // Sync to SharePoint only on transition to Validated to avoid duplicate inserts.
+            if (nextStatus === 'Validated' && previous?.status !== 'Validated') {
+                try {
+                    await powerAppsService.insertProductInSharepointList(updated);
+                } catch (spError) {
+                    console.error("🔴 Error syncing validated product to SharePoint:", spError);
+                }
+            }
+
             return res.status(200).json(updated);
         } catch (error) {
             console.error("Error updating validation status:", error);
@@ -419,6 +442,24 @@ export class ProductosController {
         } catch (error) {
             console.error("Error fetching products from sharepoint list:", error);
             return res.status(500).json({ error: "Error obteniendo productos de sharepoint list" });
+        }
+    }
+
+    static async getSharepointListMetadata(req, res) {
+        try {
+            const metadata = await powerAppsService.getSharepointListMetadata();
+            return res.status(200).json({
+                status: 200,
+                message: "Metadata de la lista de SharePoint obtenida exitosamente",
+                data: metadata,
+            });
+        } catch (error) {
+            console.error("Error fetching sharepoint list metadata:", error);
+            return res.status(500).json({
+                status: 500,
+                error: "Error obteniendo metadata de la lista de SharePoint",
+                details: error?.message ?? String(error),
+            });
         }
     }
 

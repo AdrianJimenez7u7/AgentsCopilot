@@ -1,4 +1,5 @@
 import XLSX from 'xlsx';
+import { randomUUID } from 'crypto';
 import { SearchService } from './search.service.js';
 import { OpenAIService } from './openAI.service.js';
 import { PrismaClient } from '@prisma/client';
@@ -25,6 +26,11 @@ async function runWithConcurrency(tasks, limit = 5) {
 
 export class operacionesService {
     static async extractSKUfromXLSX(file, userEmail) {
+        const telemetry = {
+            runId: randomUUID(),
+            collaboratorId: userEmail || null,
+        };
+
         const workbook = XLSX.readFile(file.path);
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
@@ -64,7 +70,7 @@ export class operacionesService {
         // Phase 1: run all Tavily searches in parallel (fast, no AI cost)
         console.log(`[XLSX] Fase 1: buscando ${skusNuevos.length} SKUs en paralelo con Tavily...`);
         const searchResults = await Promise.allSettled(
-            skusNuevos.map(sku => SearchService.search(sku))
+            skusNuevos.map(sku => SearchService.search(sku, 2, telemetry))
         );
 
         // Build items array for batch classification
@@ -77,7 +83,7 @@ export class operacionesService {
 
         // Phase 2: classify ALL SKUs in a single AI call (system prompt sent only once)
         console.log(`[XLSX] Fase 2: clasificando ${items.length} SKUs en lote con modelo de razonamiento...`);
-        const clasificados = await OpenAIService.clasificarProductosLote(items);
+        const clasificados = await OpenAIService.clasificarProductosLote(items, 3, telemetry);
 
         const settled = clasificados.map((producto, i) => ({
             status: producto ? 'fulfilled' : 'rejected',

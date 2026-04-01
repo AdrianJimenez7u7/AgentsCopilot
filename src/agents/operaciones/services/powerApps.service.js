@@ -87,6 +87,8 @@ export class powerAppsService {
     // IDs obtenidos mediante script de prueba (Sub-sitio TD)
     static DRIVE_ID = "b!bSuHMmR-nUmBip_FT67_ODpp-ZUHAWZFq91jHGiCJADUKY-CuWOtQ5coNu0a6zDL";
     static SHAREPOINT_FOLDER = "/Agentes/Aria";
+    static SHAREPOINT_SITE_ID = 'compucad1.sharepoint.com,32872b6d-7e64-499d-818a-9fc54faeff38,95f9693a-0107-4566-abdd-631c68822400';
+    static SHAREPOINT_LIST_ID = '7c087114-705b-4d65-af5a-1cd6012f1160';
 
     // Helper para obtener token de Graph API
     static async _getGraphToken() {
@@ -178,13 +180,16 @@ export class powerAppsService {
     static async insertProductInSharepointList(product) {
         try {
             const graphToken = await this._getGraphToken();
-            const siteId = 'compucad1.sharepoint.com,32872b6d-7e64-499d-818a-9fc54faeff38,95f9693a-0107-4566-abdd-631c68822400';
-            const listId = '7c087114-705b-4d65-af5a-1cd6012f1160';
+            const siteId = this.SHAREPOINT_SITE_ID;
+            const listId = this.SHAREPOINT_LIST_ID;
 
-            // Parse dimensions from '10x5x3' format
+            // Parse dimensions from variants like '10x5x3' or '13.5 x 13 x 2'.
             let ancho = 0, altura = 0, longitud = 0;
             if (product.medidas_cm) {
-                const parts = product.medidas_cm.toLowerCase().split('x').map(p => parseFloat(p.trim()));
+                const parts = String(product.medidas_cm)
+                    .toLowerCase()
+                    .split(/x|×/i)
+                    .map(p => parseFloat(p.trim().replace(',', '.')));
                 if (parts.length === 3 && parts.every(p => !isNaN(p))) {
                     [ancho, altura, longitud] = parts;
                 }
@@ -201,7 +206,7 @@ export class powerAppsService {
                     ancho: String(ancho),
                     altura: String(altura),
                     Longitud: String(longitud),
-                    Estatus: 'Pendiente', // or whatever status SharePoint expects initially
+                    Estatus: 'Pendiente de verificación',
                 }
             };
 
@@ -233,8 +238,8 @@ export class powerAppsService {
             const graphToken = await this._getGraphToken();
 
             // IDs confirmed via Graph API diagnostic
-            const siteId = 'compucad1.sharepoint.com,32872b6d-7e64-499d-818a-9fc54faeff38,95f9693a-0107-4566-abdd-631c68822400';
-            const listId = '7c087114-705b-4d65-af5a-1cd6012f1160'; // "CCADDEV210 - Alta de productos en SAP"
+            const siteId = this.SHAREPOINT_SITE_ID;
+            const listId = this.SHAREPOINT_LIST_ID; // "CCADDEV210 - Alta de productos en SAP"
 
             const allItems = [];
             let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?expand=fields&$top=999`;
@@ -264,7 +269,7 @@ export class powerAppsService {
                 clave_producto_servicio_sat: f['C_x00f3_digodeclasificaci_x00f3_'] || '',
                 clave_unidad_sat: f.Unidaddemedida || '',
                 marca: f.Marca || '',
-                medidas_cm: `${f.ancho || 0}x${f.altura || 0}x${f.Longitud || 0}`,
+                medidas_cm: `${f.ancho || 0} x ${f.altura || 0} x ${f.Longitud || 0}`,
                 peso_kg: parseFloat(f.peso) || 0,
                 user_email: '',   // AuthorLookupId is a numeric ID, not an email — expand separately if needed
                 status: f.Estatus || 'Pendiente',
@@ -277,5 +282,36 @@ export class powerAppsService {
             console.error('❌ Error al obtener productos:', error);
             return null;
         }
+    }
+
+    /** Temporary helper endpoint support to validate which SharePoint list is configured. */
+    static async getSharepointListMetadata() {
+        const graphToken = await this._getGraphToken();
+        const siteId = this.SHAREPOINT_SITE_ID;
+        const listId = this.SHAREPOINT_LIST_ID;
+
+        const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${graphToken}`,
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error("Error obteniendo metadata de SharePoint list: " + await response.text());
+        }
+
+        const list = await response.json();
+        return {
+            configuredSiteId: siteId,
+            configuredListId: listId,
+            graphListId: list.id,
+            displayName: list.displayName,
+            webUrl: list.webUrl,
+            createdDateTime: list.createdDateTime,
+            lastModifiedDateTime: list.lastModifiedDateTime,
+        };
     }
 }
