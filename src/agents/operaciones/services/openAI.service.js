@@ -16,6 +16,23 @@ const TELEMETRY_PLATFORM = 'backend';
 
 export class OpenAIService {
 
+    static sanitizeSatClassificationCode(value) {
+        const raw = String(value ?? '').trim();
+        if (!raw) return '';
+
+        // Normalize values like "43211503.0" or "43211503.00".
+        return raw.replace(/^(\d+)\.0+$/, '$1');
+    }
+
+    static sanitizeProductoClasificado(producto = {}) {
+        if (!producto || typeof producto !== 'object') return producto;
+
+        return {
+            ...producto,
+            clave_producto_servicio_sat: this.sanitizeSatClassificationCode(producto.clave_producto_servicio_sat),
+        };
+    }
+
     static async extractProductData(sku, searchContext, retries = 3) {
         //const apiKey = process.env.OPENAI_API_KEY;
         const apiKey = process.env.AZURE_API_KEY;
@@ -91,7 +108,8 @@ export class OpenAIService {
                     max_tokens: 2500
                 });
 
-                return JSON.parse(response.choices[0].message.content);
+                const parsed = JSON.parse(response.choices[0].message.content);
+                return this.sanitizeProductoClasificado(parsed);
 
             } catch (error) {
                 const isRateLimit = error?.status === 429 || error?.code === 'RateLimitReached';
@@ -192,7 +210,8 @@ export class OpenAIService {
                     max_tokens: 2500
                 });
 
-                return JSON.parse(response.choices[0].message.content);
+                const parsed = JSON.parse(response.choices[0].message.content);
+                return this.sanitizeProductoClasificado(parsed);
 
             } catch (error) {
                 const isRateLimit = error?.status === 429 || error?.code === 'RateLimitReached';
@@ -295,7 +314,9 @@ export class OpenAIService {
                     max_completion_tokens: 16000,  // reasoning models require max_completion_tokens
                 });
 
-                const resultado = JSON.parse(response.choices[0].message.content);
+                const resultado = this.sanitizeProductoClasificado(
+                    JSON.parse(response.choices[0].message.content)
+                );
 
                 // Tokens REALES de la API — no depende de que el modelo los calcule
                 resultado.tokens_entrada = response.usage?.prompt_tokens ?? 0;
@@ -455,7 +476,7 @@ export class OpenAIService {
                 });
 
                 const parsed = JSON.parse(response.choices[0].message.content);
-                const productos = parsed.productos ?? [];
+                const productos = (parsed.productos ?? []).map((p) => this.sanitizeProductoClasificado(p));
 
                 const tokensEntrada = response.usage?.prompt_tokens ?? 0;
                 const tokensSalida = response.usage?.completion_tokens ?? 0;

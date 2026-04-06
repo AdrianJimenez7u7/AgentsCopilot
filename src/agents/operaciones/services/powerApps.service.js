@@ -1,5 +1,49 @@
 
+import { Constantes } from '../utils/constantes.js';
+
 export class powerAppsService {
+    static normalizeMarcaText(value) {
+        return String(value ?? '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9 ]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    static resolveMarcaId(marcaValue) {
+        const raw = String(marcaValue ?? '').trim();
+        if (!raw) return '';
+
+        // If value already starts with a valid brand id (e.g. "287 - MICROSOFT" or "287").
+        const leadingId = raw.match(/^(\d{2,4})\b/);
+        if (leadingId && Constantes.CodigoMarcas[leadingId[1]]) {
+            return leadingId[1];
+        }
+
+        const normalizedRaw = this.normalizeMarcaText(raw);
+
+        // 1) Exact normalized match
+        const exact = Object.entries(Constantes.CodigoMarcas)
+            .find(([, name]) => this.normalizeMarcaText(name) === normalizedRaw);
+        if (exact) return exact[0];
+
+        // 2) Partial contains match (e.g. "PNY TECHNOLOGIES" -> "PNY")
+        const partial = Object.entries(Constantes.CodigoMarcas)
+            .filter(([, name]) => {
+                const normalizedName = this.normalizeMarcaText(name);
+                return normalizedName && (
+                    normalizedName.includes(normalizedRaw) ||
+                    normalizedRaw.includes(normalizedName)
+                );
+            })
+            // Prefer the most specific match
+            .sort((a, b) => this.normalizeMarcaText(b[1]).length - this.normalizeMarcaText(a[1]).length)[0];
+
+        return partial ? partial[0] : '';
+    }
+
     // --- 5. OBTENER USUARIOS DEL SISTEMA (SYSTEMUSER) ---
     static async getSystemUsers(req, res) {
         try {
@@ -182,6 +226,7 @@ export class powerAppsService {
             const graphToken = await this._getGraphToken();
             const siteId = this.SHAREPOINT_SITE_ID;
             const listId = this.SHAREPOINT_LIST_ID;
+            const marcaId = this.resolveMarcaId(product.marca);
 
             // Parse dimensions from variants like '10x5x3' or '13.5 x 13 x 2'.
             let ancho = 0, altura = 0, longitud = 0;
@@ -201,14 +246,18 @@ export class powerAppsService {
                     Descripcion: product.descripcion_comercial,
                     C_x00f3_digodeclasificaci_x00f3_: product.clave_producto_servicio_sat,
                     Unidaddemedida: product.clave_unidad_sat,
-                    Marca: product.marca,
+                    Marca: marcaId || product.marca,
                     peso: String(product.peso_kg || 0),
                     ancho: String(ancho),
                     altura: String(altura),
                     Longitud: String(longitud),
-                    Estatus: 'Pendiente de verificación',
+                    Estatus: 'Verificado',
                 }
             };
+
+            if (!marcaId) {
+                console.warn(`⚠️ No se pudo resolver ID de marca para "${product.marca}". Se enviará valor original.`);
+            }
 
             const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`;
             const response = await fetch(url, {
