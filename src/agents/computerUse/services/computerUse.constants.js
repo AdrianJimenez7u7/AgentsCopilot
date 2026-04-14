@@ -30,7 +30,7 @@ export const CMD_PROMPT = `Convierte un paso en UN SOLO comando de navegador.
 Acciones permitidas: click, type, navigate, scroll, hover, select, wait, go_back.
 
 Reglas importantes:
-1) Usa selectores CSS robustos y concretos (id, name, data-*, aria-label, role, texto cercano).
+1) REGLA DE ORO DE SELECTORES: Debes USAR SIEMPRE el atributo \`cu-id\` si está presente en el elemento (Ejemplo: target: "[cu-id='42']"). Nunca inventes clases complejas si tienes el cu-id a la vista. Como segunda opcion usa (id, name, aria-label).
 2) Si la tarea requiere ir a una URL explicita, usa navigate.
 3) Si NO hay objetivo claro para navegar, NO inventes URL; usa wait o una accion segura en la pagina actual.
 4) Para type, siempre incluye target y text.

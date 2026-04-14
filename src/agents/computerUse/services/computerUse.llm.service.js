@@ -16,7 +16,9 @@ import {
 
 const ALLOWED_ACTIONS = new Set(['click', 'type', 'navigate', 'scroll', 'hover', 'select', 'wait', 'go_back']);
 
-const URL_REGEX = /https?:\/\/[^\s"'<>]+/i;
+// Regex simple: captura la URL hasta el primer espacio o char claramente fuera de URL.
+// Se excluyen () [] {} porque el LLM los usa como delimitadores en texto, no como parte de URLs reales.
+const URL_REGEX = /https?:\/\/[^\s"'<>()[\]{}]+/i;
 const runUsageMap = new Map();
 
 function normalizeRunUsage(raw = {}) {
@@ -269,11 +271,32 @@ export function safeParseLLMJson(raw) {
     }
 }
 
+// Chars que el LLM pega al final de una URL cuando ésta aparece entre
+// paréntesis, comillas, corchetes o al final de una frase.
+const TRAILING_JUNK_RE = /[)\]}'".,;:!?\s]+$/;
+
 function normalizeUrl(url = '') {
-    const raw = String(url || '').trim();
-    if (!raw) return '';
-    if (/^https?:\/\//i.test(raw)) return raw;
-    if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) return `https://${raw}`;
+    let value = String(url || '').trim();
+    if (!value) return '';
+
+    // Reparar protocolos malformados comunes del modelo.
+    value = value
+        .replace(/^https;\/\//i, 'https://')
+        .replace(/^http;\/\//i,  'http://')
+        .replace(/^https:\/\/+/i, 'https://')
+        .replace(/^http:\/\/+/i,  'http://')
+        .replace(/^https:\\+/i,  'https://')
+        .replace(/^http:\\+/i,   'http://');
+
+    // Eliminar chars de cierre incrustados antes de una barra: https://host)/ → https://host/
+    value = value.replace(/[)\]}'"]+(?=\/)/g, '');
+
+    // Eliminar chars de cierre que el LLM añade al final de la URL.
+    value = value.replace(TRAILING_JUNK_RE, '');
+
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
+    if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(value)) return `https://${value}`;
     return '';
 }
 
@@ -283,7 +306,8 @@ function inferUrlFromText(text = '') {
     const direct = raw.match(URL_REGEX)?.[0] || '';
     if (direct) return normalizeUrl(direct);
 
-    const domainLike = raw.match(/[a-z0-9.-]+\.[a-z]{2,}(?::\d{2,5})?(?:\/[^\s"')\]}]*)?(?:\?[^\s"')\]}]*)?(?:#[^\s"')\]}]*)?/i)?.[0] || '';
+    // Fallback: detectar dominio sin protocolo, excluyendo chars de cierre.
+    const domainLike = raw.match(/[a-z0-9.-]+\.[a-z]{2,}(?::\d{2,5})?(?:\/[^\s"')\]},;:!?]*)?(?:\?[^\s"')\]},;:!?]*)?(?:#[^\s"')\]},;:!?]*)?/i)?.[0]?.replace(TRAILING_JUNK_RE, '') || '';
     if (domainLike) return normalizeUrl(domainLike);
     return '';
 }
@@ -487,7 +511,12 @@ function normalizeExtractedItems(items) {
         .slice(0, 30);
 }
 
-export async function evaluateStepWithExtraction(description, dom, telemetry, goal = '') {
+export async function evaluateStepWithExtraction(description, dom, telemetry, goal = '', history = [], navigationMap = '') {
+    const historyBlock = (Array.isArray(history) && history.length > 0) 
+        ? `\n\n[Historial de intentos previos fallidos en este paso]\n${JSON.stringify(history)}` 
+        : '';
+    const navBlock = navigationMap ? `\n\n[Mapa de Navegación]\n${navigationMap}` : '';
+        
     const raw = await callLLM([
         {
             role: 'system',
@@ -496,7 +525,7 @@ Ademas, si el paso u objetivo implican extraer informacion, devuelve los datos d
 Responde SOLO JSON valido con formato:
 {"ok":true|false,"reason":"texto corto","extracted":[{"label":"campo","value":"valor"}],"summary":"resumen corto"}`,
         },
-        { role: 'user', content: `Objetivo: ${goal || 'N/A'}\nPaso: ${description}\nDOM actual:\n${dom}` },
+        { role: 'user', content: `Objetivo: ${goal || 'N/A'}\nPaso: ${description}${historyBlock}${navBlock}\nDOM actual:\n${dom}` },
     ], telemetry, 'evaluacion y extraccion de paso');
 
     try {
