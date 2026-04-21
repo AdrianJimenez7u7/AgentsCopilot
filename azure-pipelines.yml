@@ -10,11 +10,11 @@ variables:
   - group: Variable-prod
 
   - name: azureSubscription
-    value: InnoConnect
+    value: InnoConnect042026
   - name: appName
-    value: InnoBackend
+    value: hubbin-API
   - name: resourceGroupName
-    value: Vacaciones-App
+    value: Aplicaciones-TXDX-Productivo
   - name: packagePath
     value: $(System.DefaultWorkingDirectory)
 
