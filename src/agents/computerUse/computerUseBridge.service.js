@@ -111,9 +111,14 @@ export function registerBridge(sessionId, ws) {
             const runtimeConfig = getComputerUseRuntimeConfig({ includeSecrets: false });
             const policy = runtimeConfig?.navigationPolicy || { mode: 'free', allowedDomains: [], blockedDomains: [], blockBehavior: 'block' };
             try {
+                const historyBlock = (Array.isArray(msg.history) && msg.history.length > 0) 
+                    ? `\n\n[Historial de intentos previos fallidos en este paso]\n${JSON.stringify(msg.history)}` 
+                    : '';
+                const navBlock = msg.navigationMap ? `\n\n[Mapa de Navegación]\n${msg.navigationMap}` : '';
+                const userContent = `Paso: ${msg.description}\n\nDOM:\n${msg.dom}${navBlock}${historyBlock}`;
                 const raw2 = await callLLM([
                     { role: 'system', content: CMD_PROMPT },
-                    { role: 'user', content: `Paso: ${msg.description}\n\nDOM:\n${msg.dom}` },
+                    { role: 'user', content: userContent },
                 ], {
                     runId: msg.runId || null,
                     sessionId: normalizedSessionId,
@@ -134,10 +139,12 @@ export function registerBridge(sessionId, ws) {
                     msg.description,
                     msg.dom,
                     {
-                    runId: msg.runId || null,
-                    sessionId: normalizedSessionId,
+                        runId: msg.runId || null,
+                        sessionId: normalizedSessionId,
                     },
-                    msg.goal || ''
+                    msg.goal || '',
+                    msg.history || [],
+                    msg.navigationMap || ''
                 );
                 ws.send(JSON.stringify({
                     type: 'eval_response',

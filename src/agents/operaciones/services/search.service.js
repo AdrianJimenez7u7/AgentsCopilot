@@ -11,20 +11,65 @@ const TELEMETRY_PLATFORM = 'backend';
 
 export class SearchService {
 
+    static NON_TECH_KEYWORDS = [
+        'moto', 'motocicleta', 'automovil', 'coche', 'llanta', 'paraguas', 'sombrilla',
+        'zapato', 'camisa', 'pantalon', 'reloj', 'perfume', 'comida', 'bebida', 'juguete',
+        'bicicleta', 'casco', 'mochila escolar', 'ropa', 'bolso'
+    ];
+
+    static queryVariants(sku) {
+        return [
+            `"${sku}" ficha técnica especificaciones peso dimensiones marca descripción producto de tecnología`,
+            `"${sku}" datasheet technical specifications manufacturer technology product`,
+            `"${sku}" site:hp.com OR site:dell.com OR site:lenovo.com OR site:cdw.com OR site:amazon.com.mx tecnología`
+        ];
+    }
+
+    static assessSearchQuality(response, sku) {
+        const results = Array.isArray(response?.results) ? response.results : [];
+        if (results.length === 0) {
+            return { isValid: false, reason: 'empty_results', nonTechHits: 0 };
+        }
+
+        const corpus = results
+            .slice(0, 3)
+            .map(r => `${r?.title || ''} ${r?.content || ''} ${r?.url || ''}`.toLowerCase())
+            .join(' ');
+
+        const skuText = String(sku || '').toLowerCase();
+        const includesSku = skuText.length > 2 && corpus.includes(skuText);
+
+        const nonTechHits = this.NON_TECH_KEYWORDS.reduce((acc, kw) => acc + (corpus.includes(kw) ? 1 : 0), 0);
+
+        const isValid = includesSku && nonTechHits === 0;
+        const reason = isValid ? 'ok' : `low_quality:sku=${includesSku};nonTech=${nonTechHits}`;
+
+        return { isValid, reason, nonTechHits };
+    }
+
     static async search(sku, retries = 2, telemetry = {}) {
-        // Exact SKU match + technical specs in Spanish for better results
-        const query = `"${sku}" ficha técnica especificaciones peso dimensiones marca descripción`;
         const runId = telemetry.runId || randomUUID();
         const startedAt = Date.now();
+        const queries = this.queryVariants(sku);
 
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
+                const query = queries[Math.min(attempt, queries.length - 1)];
                 const response = await tvly.search(query, {
                     searchDepth: "advanced",
                     maxResults: 3,
                     includeImages: false,
                     includeRawContent: false,
                 });
+
+                const quality = this.assessSearchQuality(response, sku);
+
+                if (!quality.isValid) {
+                    console.warn(`[SearchQuality] SKU ${sku} rechazado por calidad (${quality.reason}) en intento ${attempt + 1}/${retries + 1}`);
+                    if (attempt < retries) {
+                        continue;
+                    }
+                }
 
                 await logAgentAction({
                     runId,
@@ -39,6 +84,7 @@ export class SearchService {
                         provider: 'tavily',
                         attempt: attempt + 1,
                         resultsCount: Array.isArray(response?.results) ? response.results.length : null,
+                        quality,
                     },
                     modelIdentifier: 'search/tavily',
                     collaboratorId: telemetry.collaboratorId || null,
@@ -49,7 +95,7 @@ export class SearchService {
                     platform: TELEMETRY_PLATFORM,
                 });
 
-                return response;
+                return quality.isValid ? response : null;
             } catch (error) {
                 if (attempt < retries) {
                     const wait = 1000 * Math.pow(2, attempt); // 1s, 2s

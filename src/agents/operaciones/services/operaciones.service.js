@@ -73,13 +73,37 @@ export class operacionesService {
             skusNuevos.map(sku => SearchService.search(sku, 2, telemetry))
         );
 
-        // Build items array for batch classification
-        const items = skusNuevos.map((sku, i) => ({
-            sku,
-            context: searchResults[i].status === 'fulfilled'
-                ? JSON.stringify(searchResults[i].value)
-                : '',
-        }));
+        // Build batch only with valid search contexts (technology relevance gate)
+        const items = [];
+        const itemSkuIndexes = [];
+        const skusConError = [];
+
+        skusNuevos.forEach((sku, i) => {
+            const settled = searchResults[i];
+            const value = settled.status === 'fulfilled' ? settled.value : null;
+            if (value?.results?.length) {
+                items.push({
+                    sku,
+                    context: JSON.stringify(value),
+                });
+                itemSkuIndexes.push(i);
+            } else {
+                skusConError.push(sku);
+            }
+        });
+
+        if (skusConError.length > 0) {
+            console.warn(`[XLSX] SKUs rechazados por falta de contexto tecnológico confiable: ${skusConError.join(', ')}`);
+        }
+
+        if (items.length === 0) {
+            return {
+                processed: [],
+                skipped: [...skusExistentes],
+                errors: skusConError,
+                message: `0 guardados, ${skusExistentes.size} omitidos, ${skusConError.length} con error de búsqueda.`,
+            };
+        }
 
         // Phase 2: classify ALL SKUs in a single AI call (system prompt sent only once)
         console.log(`[XLSX] Fase 2: clasificando ${items.length} SKUs en lote con modelo de razonamiento...`);
@@ -102,10 +126,9 @@ export class operacionesService {
 
         const productos = [];
         const skusProcesados = [];
-        const skusConError = [];
-
         settled.forEach((result, i) => {
-            const sku = skusNuevos[i];
+            const skuIndex = itemSkuIndexes[i];
+            const sku = skusNuevos[skuIndex];
             if (result.status === 'fulfilled' && result.value) {
                 productos.push(result.value);
                 skusProcesados.push(sku);

@@ -1,5 +1,6 @@
 import path from 'path';
-import { generateDocxReport } from "../services/docx.service.js";
+import fs from 'fs';
+import { generatePdfReport } from "../services/pdf.service.js";
 import { EmailService } from "../services/email.service.js";
 
 export class PMsitoController {
@@ -13,18 +14,15 @@ export class PMsitoController {
 
             const {
                 data,
-                templateName,
+                templateName, // se conserva por retrocompatibilidad pero ya no se usa
                 recipient,
                 chartType = 'bar',
                 outputName = `reporte_${Date.now()}`,
                 nameReport
             } = payload;
 
-            console.log(payload);
-            console.log(JSON.stringify(payload, null, 2));
-
-            if (!data || !templateName ) {
-                return res.status(400).json({ error: 'Faltan parámetros obligatorios: data, templateName' });
+            if (!data) {
+                return res.status(400).json({ error: 'Faltan parámetros obligatorios: data' });
             }
 
             // validar chartType y normalizar
@@ -32,33 +30,32 @@ export class PMsitoController {
                 ? String(chartType).toLowerCase()
                 : 'bar';
 
-            // pasar outputName como 3er arg y chartType como 4to, nameReport como 5to
-            const {outPath: docPath, outChartPath: chartPath} = await generateDocxReport(data, templateName, outputName, ct, nameReport);
+            // Generar PDF (reemplaza la generación DOCX anterior)
+            const { outPath: pdfPath } = await generatePdfReport(data, outputName, ct, nameReport);
 
-            const docName = path.basename(docPath);
+            const docName = path.basename(pdfPath);
             let correoEnviado = false;
 
-            try {
-                await EmailService.enviarReportePlanner(recipient, docPath, docName);
-                correoEnviado = true;
-                if (correoEnviado) {
+            if (recipient) {
+                try {
+                    await EmailService.enviarReportePlanner(recipient, pdfPath, docName);
+                    correoEnviado = true;
                     console.log(`Correo enviado exitosamente a ${recipient}`);
-                    const fs = await import('fs');
-                    if (fs.existsSync(docPath)) {
-                        fs.unlinkSync(docPath);
-                    }
-                    if (fs.existsSync(chartPath)) {
-                        fs.unlinkSync(chartPath);
-                        console.log(`Archivo temporal ${docName} eliminado.`);
-                    }
+                } catch (emailErr) {
+                    console.error('Error enviando correo:', emailErr);
+                    correoEnviado = false;
                 }
-            } catch (emailErr) {
-                console.error('Error enviando correo:', emailErr);
-                correoEnviado = false;
             }
 
-            return res.status(200).json({ docPath, docName, correoEnviado, recipient });
+            // Limpiar archivo temporal después de enviar
+            if (correoEnviado && fs.existsSync(pdfPath)) {
+                fs.unlinkSync(pdfPath);
+                console.log(`Archivo temporal ${docName} eliminado.`);
+            }
+
+            return res.status(200).json({ docPath: pdfPath, docName, correoEnviado, recipient });
         } catch (error) {
+            console.error('Error generando reporte:', error);
             return res.status(500).json({ error: error.message });
         }
     }

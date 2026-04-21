@@ -35,6 +35,11 @@ export class ProductosController {
             return res.status(400).json({ error: "SKU es requerido" });
         }
         const rawResults = await SearchService.search(sku, 2, telemetry);
+        if (!rawResults?.results?.length) {
+            return res.status(422).json({
+                error: "No se encontró contexto web confiable para un producto de tecnología. Intenta nuevamente con otro SKU o valida el número de parte."
+            });
+        }
         const contextString = JSON.stringify(rawResults);
 
         const productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 3, telemetry);
@@ -57,6 +62,13 @@ export class ProductosController {
         try {
             console.log(`[ClasificarTest] Iniciando búsqueda para SKU: ${sku}`);
             const rawResults = await SearchService.search(sku, 2, telemetry);
+            if (!rawResults?.results?.length) {
+                return res.status(422).json({
+                    status: 422,
+                    sku,
+                    message: "La búsqueda no devolvió evidencia suficiente de un producto de tecnología."
+                });
+            }
             const contextString = JSON.stringify(rawResults);
 
             console.log(`[ClasificarTest] Búsqueda completa. Clasificando con modelo de razonamiento...`);
@@ -137,6 +149,13 @@ export class ProductosController {
             let productoLimpio;
             try {
                 const rawResults = await SearchService.search(sku, 2, telemetry);
+                if (!rawResults?.results?.length) {
+                    const card = AdaptiveCardService.createErrorCard(
+                        sku,
+                        "No se encontró evidencia confiable de que el SKU corresponda a un producto de tecnología. Verifica el número de parte e inténtalo de nuevo."
+                    );
+                    return res.status(200).json(card);
+                }
                 const contextString = JSON.stringify(rawResults);
                 // retries=0: fail fast for card requests — error card is shown immediately
                 productoLimpio = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 0, telemetry);

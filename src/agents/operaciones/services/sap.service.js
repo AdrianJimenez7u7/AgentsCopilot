@@ -26,7 +26,6 @@ export class SapService {
 
             const data = response.data;
             const session = new Sesion(data["@odata.metadata"], data.SessionId, data.Version, data.SessionTimeout);
-            console.log(session)
             return session;
         } catch (error) {
 

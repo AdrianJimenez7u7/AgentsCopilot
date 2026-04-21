@@ -476,7 +476,7 @@ export class AriaController {
             console.log("👥 Obteniendo usuarios del sistema desde Dataverse...");
 
             // A. CONFIGURACIÓN (reutilizamos las mismas credenciales)
-            const tenantId = "267e7400-d5af-4805-bce9-1e4247c0c3a7";
+            const tenantId = process.env.TENANT_ID;
             const clientId = "6840a6b2-7154-4c5d-8081-003edd0da715";
             const clientSecret = process.env.DYNAMIC_SECRET;
             const scope = "https://ccad.api.crm.dynamics.com/.default";
