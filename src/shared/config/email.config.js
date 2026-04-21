@@ -5,8 +5,8 @@ export const transporter = nodemailer.createTransport({
   secureConnection: false,
   port: 587,
   auth: {
-    user: "transformacion.digital@compucad.com.mx",
-    pass: "T.D.2223#"
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 

@@ -5,9 +5,9 @@ export class EmailService {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: 'Reporte del Planner',
-      text: 'Adjunto encontrará el reporte del planner solicitado.',
-      html: '<p>Adjunto encontrará el reporte del planner solicitado mediante la herramienta PMsito.</p>',
+      subject: 'Reporte de Avances del Proyecto',
+      text: 'Adjunto encontrará el reporte de avances del proyecto solicitado.',
+      html: '<p>Adjunto encontrará el reporte de avances del proyecto solicitado mediante la herramienta PMsito.</p>',
       attachments: [{
         filename: docName,
         path: documentoPath
