@@ -47,7 +47,6 @@ export class powerAppsService {
     // --- 5. OBTENER USUARIOS DEL SISTEMA (SYSTEMUSER) ---
     static async getSystemUsers(req, res) {
         try {
-            console.log("👥 Obteniendo usuarios del sistema desde Dataverse...");
 
             // A. CONFIGURACIÓN (reutilizamos las mismas credenciales)
             const tenantId = "267e7400-d5af-4805-bce9-1e4247c0c3a7";
@@ -87,8 +86,6 @@ export class powerAppsService {
 
             const json = await dataResponse.json();
             const users = json.value || [];
-
-            console.log(`✅ Se obtuvieron ${users.length} usuarios @compucad.com.mx`);
 
             // D. MAPEAR A FORMATO LIMPIO
             const mappedUsers = users
@@ -274,7 +271,6 @@ export class powerAppsService {
             }
 
             const json = await response.json();
-            console.log(`✅ Producto insertado en SharePoint con ID: ${json.id}`);
             return json;
         } catch (error) {
             console.error('❌ Error al insertar producto en SharePoint:', error);
@@ -324,8 +320,6 @@ export class powerAppsService {
                 status: f.Estatus || 'Pendiente',
                 createdAt: f.Created || new Date().toISOString(),
             }));
-
-            console.log(`✅ Productos obtenidos de SharePoint: ${products.length}`);
             return products;
         } catch (error) {
             console.error('❌ Error al obtener productos:', error);

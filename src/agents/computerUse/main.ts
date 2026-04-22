@@ -119,8 +119,7 @@ function log(level: "info" | "warn" | "error", message: string, data?: unknown) 
     };
 
     const prefix = level === "error" ? "❌" : level === "warn" ? "⚠️" : "ℹ️";
-    console.log(`${prefix} [${entry.timestamp}] ${message}`);
-    if (data) console.log(JSON.stringify(data, null, 2));
+    if (data)
 
     if (logFilePath) {
         fs.appendFileSync(logFilePath, JSON.stringify(entry) + "\n");
@@ -146,8 +145,6 @@ function askUser(question: string): Promise<string> {
 }
 
 async function confirmDangerous(action: string, details: string): Promise<boolean> {
-    console.log(`\n⚠️  ACCIÓN PELIGROSA: ${action}`);
-    console.log(`   Detalles: ${details}`);
     const answer = await askUser("   ¿Permitir? (si/no) > ");
     return answer.toLowerCase() === "si";
 }
@@ -706,19 +703,13 @@ async function runAgent() {
 
     const goal = await askUser("🧠 ¿Qué quieres que haga el agente?\n> ");
     log("info", `Objetivo recibido: ${goal}`);
-
-    console.log("\n🧠 Generando plan...\n");
     const plan = await generatePlan(goal);
 
     const hasBrowser = plan.steps.some(s => s.type === "browser");
     const hasDesktop = plan.steps.some(s => s.type === "desktop");
-
-    console.log("📋 PLAN:");
     plan.steps.forEach((s, i) => {
         const icon = s.type === "browser" ? "🌐" : "💻";
-        console.log(`${i + 1}. ${icon} [${s.type}] ${s.description}`);
     });
-    console.log(`\n   Dominos: ${hasBrowser ? "🌐 Browser" : ""} ${hasDesktop ? "💻 Desktop" : ""}`);
 
     const confirm = await askUser("\n¿Ejecutar plan? (si/no)\n> ");
     if (confirm.toLowerCase() !== "si") {
@@ -753,7 +744,6 @@ async function runAgent() {
             } else {
                 const command = await stepToDesktopCommand(node.description);
                 commandOutput = await executeDesktopCommand(command);
-                console.log(`   📝 Output: ${commandOutput.slice(0, 200)}`);
             }
 
             // Evaluar el paso individual

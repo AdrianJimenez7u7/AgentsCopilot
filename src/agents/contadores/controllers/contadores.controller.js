@@ -45,8 +45,6 @@ export class ContadoresController {
    */
   static async splitPdf(req, res) {
     try {
-      console.log('req.files:', req.files);
-      console.log('req.body:', req.body);
       // El archivo ya fue procesado por multer en el middleware
       if (!req.files || req.files.length === 0) {
         return errorResponse(res, 'No se proporcionó un archivo PDF', 400);
@@ -166,12 +164,8 @@ export class ContadoresController {
       // Determinar el cliente: usar el campo Cliente del form o el nombre del archivo
       const cliente = req.body.Cliente || originalName.replace(/\.[^/.]+$/, ''); // Remover extensión
 
-      console.log(`Procesando PDF: ${originalName} (Cliente: ${cliente})`);
-
       // 1. Dividir el PDF
       const splitFiles = await PdfService.splitPdfByPages(pdfPath, originalName);
-
-      console.log(`${splitFiles.length} páginas encontradas`);
 
       // Limpiar archivo temporal
       const fs = await import('fs');
@@ -229,11 +223,9 @@ export class ContadoresController {
                 });
 
                 if (clienteEncontrado) {
-                  console.log("Serie correcta encontrada:", clienteEncontrado.Serie);
                   extractedData.encontrada = true;
                   impresoraCliente = clienteEncontrado;
                 } else {
-                  console.log("No se encontró ninguna coincidencia.");
                   extractedData.encontrada = false;
                 }
                 //metodo busqueda fin
@@ -278,7 +270,6 @@ export class ContadoresController {
                             // No actualizamos la fecha aqui, esa se actualiza con la logica de abajo si corresponde
                           }
                         });
-                        console.log(`Contadores actualizados para ${extractedData.Serie}: ${actualTotal} -> ${nuevoTotal}`);
                       } else {
                         console.warn(`[WARN] Intento de bajar contador para ${extractedData.Serie}. Actual: ${actualTotal}, Nuevo: ${nuevoTotal}. Ignorando update.`);
                       }
@@ -309,7 +300,6 @@ export class ContadoresController {
                             where: { id: impresoraInfo.id },
                             data: { FechaLimiteReporte: nextDate }
                           });
-                          console.log(`Fecha Limite Actualizada para ${extractedData.Serie}: ${nextDate.toISOString()}`);
                         }
                       }
                     }
@@ -317,22 +307,17 @@ export class ContadoresController {
                   // -------------------------------------------
 
                   completedPages++;
-                  console.log(`Página ${pageNumber} completada`);
                 } else {
-                  console.log(`Página ${pageNumber} sin completar: No se encontró impresora con serie ${extractedData.Serie}`);
                 }
               } catch (dbError) {
-                console.log(`Página ${pageNumber} sin completar: Error en base de datos`);
                 console.error(dbError);
                 extractedData.encontrada = false;
               }
             } else {
               extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
-              console.log(`Página ${pageNumber} sin completar por falta de entrenamiento`);
             }
           } else {
             extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
-            console.log(`Página ${pageNumber} sin completar por falta de entrenamiento`);
           }
 
           results.push({
@@ -345,7 +330,6 @@ export class ContadoresController {
             pagina: splitFile.nombre,
             error: error.message
           });
-          console.log(`Página ${pageNumber} sin completar: ${error.message}`);
         }
       }
 
@@ -356,8 +340,6 @@ export class ContadoresController {
           fsSync.unlinkSync(splitFile.ruta);
         }
       }
-
-      console.log(`${completedPages}/${splitFiles.length} páginas completadas`);
 
       return successResponse(res, {
         totalPaginas: splitFiles.length,
@@ -783,7 +765,6 @@ export class ContadoresController {
               Estatus: null
             }
           });
-          console.log({ impresoraCliente });
           // Actualizar ContadoresInfoClientes (Totales actuales)
           const actualTotal = Number(impresoraCliente.ImpresionesActuales) || 0;
 
@@ -828,7 +809,6 @@ export class ContadoresController {
           logger.error(`Error procesando escaneo para serie ${escaneo.serie}`, innerError);
         }
       }
-      console.log({ procesados, omitidos, errores, detalles });
       return successResponse(res, { procesados, omitidos, errores, detalles }, 'Importación por Excel finalizada');
 
     } catch (error) {

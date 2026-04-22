@@ -54,9 +54,7 @@ export async function copilotChat({
     const startActs = await client.startConversationAsync(true);
     
     // LOG: Ver estructura completa de startConversationAsync
-    console.log('\n=== SDK startConversationAsync Response ===');
-    console.log(JSON.stringify(startActs, null, 2));
-    console.log('===========================================\n');
+
 
     // 3a) intenta tomarlo de activities (si vino)
     convId = extractConversationIdFromActivities(startActs);
@@ -80,10 +78,6 @@ export async function copilotChat({
   const activities = await client.askQuestionAsync(text, convId);
   
   // LOG: Ver estructura completa de askQuestionAsync
-  console.log('\n=== SDK askQuestionAsync Response ===');
-  console.log('ConversationId:', convId);
-  console.log('Activities:', JSON.stringify(activities, null, 2));
-  console.log('======================================\n');
 
   return {
     conversationId: convId,

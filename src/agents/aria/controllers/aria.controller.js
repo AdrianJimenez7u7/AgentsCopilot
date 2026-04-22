@@ -23,11 +23,9 @@ export class AriaController {
     // --- 2. MÉTODO PRINCIPAL: DASHBOARD DE ARIA ---
     static async getDashboardStats(req, res) {
         try {
-            console.log("🔵 Iniciando carga de Dashboard para ARIA...");
 
             // Obtener parámetro de días para filtrar (opcional)
             const daysParam = req.query.days ? parseInt(req.query.days) : null;
-            console.log(`📅 Filtro de días: ${daysParam || 'Todos'}`);
 
             // A. CONFIGURACIÓN Y CREDENCIALES
             // (Idealmente mueve estos valores a tu archivo .env en producción)
@@ -60,7 +58,6 @@ export class AriaController {
                 cutoffDate.setDate(cutoffDate.getDate() - daysParam);
                 const isoDate = cutoffDate.toISOString();
                 dataverseFilter += ` and createdon ge ${isoDate}`;
-                console.log(`📅 Filtrando desde: ${isoDate}`);
             }
 
             const dataverseUrl = `https://ccad.api.crm.dynamics.com/api/data/v9.2/conversationtranscripts?$filter=${encodeURIComponent(dataverseFilter)}&$top=5000&$orderby=createdon desc`;
@@ -78,8 +75,6 @@ export class AriaController {
 
             const json = await dataResponse.json();
             const ariaTranscripts = json.value || [];
-
-            console.log(`📊 Stats: ${ariaTranscripts.length} registros de ARIA obtenidos ${daysParam ? `(últimos ${daysParam} días)` : '(todos)'}`);
 
             // E. PROCESAMIENTO DE MÉTRICAS
             let uniqueUsers = new Set();
@@ -279,7 +274,6 @@ export class AriaController {
     // --- 3. MÉTODO: HISTORIAL COMPLETO ---
     static async getHistory(req, res) {
         try {
-            console.log("🔵 Obteniendo historial completo para ARIA...");
 
             // A. CONFIGURACIÓN Y CREDENCIALES (Reutilizar lógica - idealmente refactorizar)
             const tenantId = "267e7400-d5af-4805-bce9-1e4247c0c3a7";
@@ -377,8 +371,6 @@ export class AriaController {
                 return res.status(400).json({ error: 'Session ID is required' });
             }
 
-            console.log(`🔵 Obteniendo detalle del chat para sesión: ${sessionId}`);
-
             // A. CONFIGURACIÓN Y CREDENCIALES
             const tenantId = "267e7400-d5af-4805-bce9-1e4247c0c3a7";
             const clientId = "6840a6b2-7154-4c5d-8081-003edd0da715";
@@ -473,7 +465,6 @@ export class AriaController {
     // --- 5. OBTENER USUARIOS DEL SISTEMA (SYSTEMUSER) ---
     static async getSystemUsers(req, res) {
         try {
-            console.log("👥 Obteniendo usuarios del sistema desde Dataverse...");
 
             // A. CONFIGURACIÓN (reutilizamos las mismas credenciales)
             const tenantId = process.env.TENANT_ID;
@@ -513,8 +504,6 @@ export class AriaController {
 
             const json = await dataResponse.json();
             const users = json.value || [];
-
-            console.log(`✅ Se obtuvieron ${users.length} usuarios @compucad.com.mx`);
 
             // D. MAPEAR A FORMATO LIMPIO
             const mappedUsers = users
@@ -603,8 +592,6 @@ export class AriaController {
             const safeName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
             const fileName = `${Date.now()}_${safeName}`;
 
-            console.log(`📤 Subiendo archivo a SharePoint: ${fileName}`);
-
             // URL: PUT /drives/{drive-id}/root:/{path}/{filename}:/content
             const uploadUrl = `https://graph.microsoft.com/v1.0/drives/${AriaController.DRIVE_ID}/root:${AriaController.SHAREPOINT_FOLDER}/${fileName}:/content`;
 
@@ -623,8 +610,6 @@ export class AriaController {
 
             const json = await uploadResponse.json();
             const itemId = json.id; // ID del archivo en SharePoint
-
-            console.log(`✅ Archivo subido exitosamente. ID: ${itemId}`);
 
             // Construir URL pública del proxy (usando ID de SharePoint)
             const baseUrl = req.protocol + '://' + req.get('host');

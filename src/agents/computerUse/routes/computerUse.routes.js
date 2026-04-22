@@ -98,7 +98,6 @@ export function attachBridgeWS(server) {
         });
 
         ws.on('close', () => {
-            console.log(`[Bridge WS] Closed: ${sessionId}`);
         });
     });
 

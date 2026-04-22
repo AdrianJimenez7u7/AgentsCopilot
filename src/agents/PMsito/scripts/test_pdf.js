@@ -15,9 +15,7 @@ const testData = [
 
 async function main() {
   try {
-    console.log('Generando PDF de prueba...');
     const result = await generatePdfReport(testData, 'test_report', 'bar', 'Reporte de Avances Azure DRP — Química SONS');
-    console.log('✅ PDF generado:', result.outPath);
   } catch (err) {
     console.error('❌ Error:', err);
     process.exit(1);

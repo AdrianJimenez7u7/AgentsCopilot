@@ -24,16 +24,12 @@ async function upload() {
         form.append('file', fs.createReadStream(filePath));
         form.append('email', 'test@example.com');
 
-        console.log('Uploading file:', filePath);
-
         const response = await axios.post(`${BASE_URL.replace(/\/+$/, '')}/agente/operaciones/search/file`, form, {
             headers: {
                 ...form.getHeaders(),
                 'x-api-key': API_KEY
             }
         });
-
-        console.log('Upload success:', JSON.stringify(response.data, null, 2));
     } catch (error) {
         if (error.response) {
             console.error('Upload failed with status:', error.response.status);

@@ -11,7 +11,6 @@ const FOLDER_PATH = "/Agentes/Aria";
 
 async function main() {
     try {
-        console.log("1. Obteniendo Token...");
         const tokenParams = new URLSearchParams();
         tokenParams.append('client_id', CLIENT_ID);
         tokenParams.append('scope', 'https://graph.microsoft.com/.default');
@@ -22,8 +21,6 @@ async function main() {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
         const { access_token } = tokenRes.data;
-
-        console.log(`2. Listando archivos en: ${FOLDER_PATH}...`);
         // Listar hijos de la carpeta
         const url = `https://graph.microsoft.com/v1.0/drives/${DRIVE_ID}/root:${FOLDER_PATH}:/children`;
 
@@ -32,12 +29,7 @@ async function main() {
         });
 
         const files = listRes.data.value;
-        console.log(`\n--- ARCHIVOS ENCONTRADOS (${files.length}) ---`);
         files.forEach(f => {
-            console.log(`[${f.name}]`);
-            console.log(`   ID: ${f.id}`);
-            console.log(`   WebUrl: ${f.webUrl}`);
-            console.log("-----------------------------------");
         });
 
     } catch (error) {

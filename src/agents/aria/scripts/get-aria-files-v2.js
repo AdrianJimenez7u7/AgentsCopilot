@@ -30,11 +30,8 @@ async function main() {
         });
 
         const files = listRes.data.value;
-        console.log("--- START FILES ---");
         files.forEach(f => {
-            console.log(`FILE:${f.name}|ID:${f.id}`);
         });
-        console.log("--- END FILES ---");
 
     } catch (error) {
         console.error("ERROR:", error.response ? error.response.data : error.message);

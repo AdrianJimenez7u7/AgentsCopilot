@@ -12,7 +12,6 @@ const SITE_PATH = "/sites/ccad/td";
 
 async function main() {
     try {
-        console.log("1. Obteniendo Token...");
         const tokenParams = new URLSearchParams();
         tokenParams.append('client_id', CLIENT_ID);
         tokenParams.append('scope', 'https://graph.microsoft.com/.default');
@@ -23,30 +22,22 @@ async function main() {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
         const { access_token } = tokenRes.data;
-
-        console.log(`2. Buscando Site ID para: ${SITE_HOSTNAME}:${SITE_PATH}...`);
         const siteRes = await axios.get(`https://graph.microsoft.com/v1.0/sites/${SITE_HOSTNAME}:${SITE_PATH}`, {
             headers: { Authorization: `Bearer ${access_token}` }
         });
 
         const siteData = siteRes.data;
-        console.log(`✅ Site ID (TD): ${siteData.id}`);
-
-        console.log("3. Listando Drives del sub-sitio...");
         const drivesRes = await axios.get(`https://graph.microsoft.com/v1.0/sites/${siteData.id}/drives`, {
             headers: { Authorization: `Bearer ${access_token}` }
         });
 
         const drivesData = drivesRes.data;
-        console.log("--- DRIVES EN (TD) ---");
         drivesData.value.forEach(d => {
-            console.log(`Name: ${d.name} | URL: ${d.webUrl} | ID: ${d.id}`);
         });
 
         // Buscar Documentos
         const documentsDrive = drivesData.value.find(d => d.name === "Documentos" || d.name === "Documents" || d.webUrl.includes("Shared Documents"));
         if (documentsDrive) {
-            console.log(`\n📂 Drive 'Documentos' en TD: ${documentsDrive.id}`);
         }
 
     } catch (error) {

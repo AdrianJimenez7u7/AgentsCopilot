@@ -9,11 +9,6 @@ if (!tenantId || tenantId.trim().length === 0) {
   process.exit(1);
 }
 
-console.log('✅ entraJwtAuth inicializado:', {
-  tenantId: tenantId.trim(),
-  jwksUri: `https://login.microsoftonline.com/${tenantId.trim()}/discovery/v2.0/keys`,
-});
-
 // Usamos JWKS v2 (sirve aunque el issuer sea STS)
 const jwksUri = `https://login.microsoftonline.com/${tenantId.trim()}/discovery/v2.0/keys`;
 
@@ -33,13 +28,11 @@ const allowedIssuers = [
 const client = jwksClient({ jwksUri });
 
 function getKey(header, cb) {
-  console.log("🔐 Buscando clave pública para kid:", header.kid);
   client.getSigningKey(header.kid, (err, key) => {
     if (err) {
       console.error("❌ Error obteniendo signing key:", err.message);
       return cb(err);
     }
-    console.log("✅ Clave pública obtenida");
     cb(null, key.getPublicKey());
   });
 }
@@ -51,11 +44,6 @@ export function entraJwtAuth(req, res, next) {
 
   // Decodificar sin validar para debugging
   const decoded = jwt.decode(token);
-  console.log("🔍 Token recibido:", {
-    audience: decoded?.aud,
-    iss: decoded?.iss,
-    expectedAudiences: audienceList,
-  });
 
   // 1) Verifica firma Y SOLO firma (sin validar audience por ahora)
   jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
@@ -74,7 +62,6 @@ export function entraJwtAuth(req, res, next) {
         details: err.message,
       });
     }
-    console.log("✅ JWT Verificado correctamente (firma válida)");
     
     // 2) Validar audiencia manualmente después
     const receivedAudience = decoded?.aud;
@@ -87,7 +74,6 @@ export function entraJwtAuth(req, res, next) {
         expectedAudiences: audienceList,
       });
     }
-    console.log("✅ Audience válida:", receivedAudience);
 
     // 2) Valida issuer manualmente (porque tu token trae STS)
     if (!allowedIssuers.includes(decoded?.iss)) {

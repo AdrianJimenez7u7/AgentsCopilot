@@ -25,11 +25,6 @@ export async function copilotSendActivity({
 	const activities = await client.sendActivity(activity, convId);
 	
 	// LOG: Ver estructura completa de sendActivity
-	console.log('\n=== SDK sendActivity Response ===');
-	console.log('ConversationId:', convId);
-	console.log('Activity enviada:', JSON.stringify(activity, null, 2));
-	console.log('Activities recibidas:', JSON.stringify(activities, null, 2));
-	console.log('=================================\n');
 
 	return { conversationId: convId, activities };
 }

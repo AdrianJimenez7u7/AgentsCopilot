@@ -95,7 +95,6 @@ export class OpenAIService {
                 // Estimate: ~4 chars per token (OpenAI standard heuristic)
                 const estSystem = Math.ceil(systemPrompt.length / 4);
                 const estUser = Math.ceil(userMsg.length / 4);
-                console.log(`[OpenAI] SKU: ${sku} | tokens estimados → system: ${estSystem} | user: ${estUser} | total: ${estSystem + estUser}`);
 
                 const response = await client.chat.completions.create({
                     model: modelName,
@@ -197,7 +196,6 @@ export class OpenAIService {
                 // Estimate: ~4 chars per token (OpenAI standard heuristic)
                 const estSystem = Math.ceil(systemPrompt.length / 4);
                 const estUser = Math.ceil(userMsg.length / 4);
-                console.log(`[OpenAI] SKU: ${sku} | tokens estimados → system: ${estSystem} | user: ${estUser} | total: ${estSystem + estUser}`);
 
                 const response = await client.chat.completions.create({
                     model: modelName,
@@ -302,7 +300,6 @@ export class OpenAIService {
 
                 const estSystem = Math.ceil(systemPrompt.length / 4);
                 const estUser = Math.ceil(userMsg.length / 4);
-                console.log(`[Razonamiento] SKU: ${sku} | modelo: ${model5} | tokens estimados → system: ${estSystem} | user: ${estUser} | total: ${estSystem + estUser}`);
 
                 const response = await client.chat.completions.create({
                     model: model5,
@@ -323,8 +320,6 @@ export class OpenAIService {
                 resultado.tokens_salida = response.usage?.completion_tokens ?? 0;
                 resultado.tokens_total = response.usage?.total_tokens ?? 0;
                 resultado.modelo = model5;
-
-                console.log(`[Razonamiento] SKU: ${sku} | tokens reales → entrada: ${resultado.tokens_entrada} | salida: ${resultado.tokens_salida} | total: ${resultado.tokens_total}`);
 
                 const modelIdentifier = `azure-openai/${model5}`;
                 const durationMs = Date.now() - startedAt;
@@ -460,7 +455,6 @@ export class OpenAIService {
 
         const estSystem = Math.ceil(systemPrompt.length / 4);
         const estUser = Math.ceil(userMsg.length / 4);
-        console.log(`[Lote] ${items.length} SKUs | tokens estimados → system: ${estSystem} | user: ${estUser} | total: ${estSystem + estUser}`);
 
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
@@ -481,9 +475,6 @@ export class OpenAIService {
                 const tokensEntrada = response.usage?.prompt_tokens ?? 0;
                 const tokensSalida = response.usage?.completion_tokens ?? 0;
                 const tokensTotal = response.usage?.total_tokens ?? 0;
-
-                console.log(`[Lote] tokens reales → entrada: ${tokensEntrada} | salida: ${tokensSalida} | total: ${tokensTotal}`);
-                console.log(`[Lote] ahorro vs individual: ~${((tokensEntrada * (items.length - 1))).toLocaleString()} tokens evitados`);
 
                 const modelIdentifier = `azure-openai/${model5}`;
                 const durationMs = Date.now() - startedAt;

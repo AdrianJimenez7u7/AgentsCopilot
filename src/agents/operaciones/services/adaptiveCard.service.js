@@ -28,7 +28,6 @@ export class AdaptiveCardService {
                 if (potentialMatches.length > 0) {
                     const bestMatch = potentialMatches[0];
                     defaultMarca = `${bestMatch[0]} - ${bestMatch[1]}`;
-                    console.log(`Marca parcial encontrada: IA="${marcaIA}" -> Catálogo="${bestMatch[1]}"`);
                 }
             }
         }

@@ -65,34 +65,6 @@ async function main() {
       },
     });
   }
-
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        modelPrimary: {
-          id: modelPrimary.id,
-          proveedor: modelPrimary.proveedor,
-          name: modelPrimary.name,
-          version: modelPrimary.version,
-        },
-        modelBridge: {
-          id: modelBridge.id,
-          proveedor: modelBridge.proveedor,
-          name: modelBridge.name,
-          version: modelBridge.version,
-        },
-        agent: {
-          id: agent.id,
-          nombre_logico: agent.nombre_logico,
-          nombre_publico: agent.nombre_publico,
-          idModelo: agent.idModelo,
-        },
-      },
-      null,
-      2
-    )
-  );
 }
 
 main()

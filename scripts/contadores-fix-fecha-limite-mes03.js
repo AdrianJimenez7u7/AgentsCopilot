@@ -18,9 +18,6 @@ function moveDateToMarchKeepingYearDay(dateInput) {
 async function main() {
   const isApply = process.argv.includes('--apply');
 
-  console.log('[contadores-fix] Iniciando proceso...');
-  console.log(`[contadores-fix] Modo: ${isApply ? 'APPLY (actualiza BD)' : 'PREVIEW (sin cambios)'}`);
-
   const [clientes, escaneos] = await Promise.all([
     prisma.contadoresInfoClientes.findMany({
       select: {
@@ -87,12 +84,6 @@ async function main() {
     });
   }
 
-  console.log(`[contadores-fix] Impresoras cliente totales: ${clientes.length}`);
-  console.log(`[contadores-fix] Sin escaneos relacionados: ${totalNoScan}`);
-  console.log(`[contadores-fix] Con 1 escaneo relacionado: ${totalOneScan}`);
-  console.log(`[contadores-fix] Con mas de 1 escaneo relacionado: ${totalManyScan}`);
-  console.log(`[contadores-fix] Con 1 escaneo y FechaLimiteReporte valida: ${totalOneScanWithDate}`);
-
   if (!isApply) {
     const sample = updatePayload.slice(0, 20).map((row) => ({
       id: row.id,
@@ -103,13 +94,9 @@ async function main() {
     }));
 
     if (sample.length > 0) {
-      console.log('[contadores-fix] Vista previa (primeros 20 cambios):');
       console.table(sample);
     } else {
-      console.log('[contadores-fix] No hay cambios a aplicar.');
     }
-
-    console.log('[contadores-fix] Ejecuta con --apply para aplicar cambios.');
     return;
   }
 
@@ -120,8 +107,6 @@ async function main() {
     });
     totalUpdated += 1;
   }
-
-  console.log(`[contadores-fix] Cambios aplicados: ${totalUpdated}`);
 }
 
 main()

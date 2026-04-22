@@ -68,9 +68,6 @@ export async function getBatchEndpointDetails(endpointName) {
     validateStatus: () => true 
   });
 
-  console.log(`[AML Catalog] Get Batch Endpoint Details '${endpointName}' - Status: ${resp.status}`);
-  console.log(`[AML Catalog] Full Response:`, JSON.stringify(resp.data, null, 2));
-
   if (resp.status !== 200) {
     throw new Error(`Failed to get endpoint details: ${resp.status} - ${JSON.stringify(resp.data)}`);
   }
@@ -88,9 +85,6 @@ export async function listBatchEndpoints() {
     headers: { Authorization: `Bearer ${token}` },
     validateStatus: () => true 
   });
-
-  console.log(`[AML Catalog] List Batch Endpoints - Status: ${resp.status}`);
-  console.log(`[AML Catalog] Response:`, JSON.stringify(resp.data, null, 2));
 
   if (resp.status !== 200) {
     throw new Error(`Failed to list batch endpoints: ${resp.status} - ${JSON.stringify(resp.data)}`);
@@ -118,8 +112,6 @@ export async function listOnlineEndpoints() {
     validateStatus: () => true 
   });
 
-  console.log(`[AML Catalog] List Online Endpoints - Status: ${resp.status}`);
-
   if (resp.status !== 200) {
     throw new Error(`Failed to list online endpoints: ${resp.status} - ${JSON.stringify(resp.data)}`);
   }
@@ -143,10 +135,6 @@ export async function listBatchDeployments(endpointName) {
     headers: { Authorization: `Bearer ${token}` },
     validateStatus: () => true 
   });
-
-  console.log(`[AML Catalog] List Deployments for '${endpointName}' - Status: ${resp.status}`);
-  console.log(`[AML Catalog] URL: ${url}`);
-  console.log(`[AML Catalog] Response:`, JSON.stringify(resp.data, null, 2));
 
   if (resp.status !== 200) {
     throw new Error(`Failed to list deployments: ${resp.status} - ${JSON.stringify(resp.data)}`);

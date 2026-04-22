@@ -11,12 +11,9 @@ const DATAVERSE_URL = "https://orgf61000bc.api.crm.dynamics.com";
 
 async function main() {
     try {
-        console.log("--- INICIANDO SCRIPT ---");
         if (!CLIENT_SECRET) {
             throw new Error("DYNAMIC_SECRET no está definida en las variables de entorno.");
         }
-
-        console.log("1. Autenticando con Dataverse...");
 
         const tokenParams = new URLSearchParams();
         tokenParams.append('client_id', CLIENT_ID);
@@ -28,7 +25,6 @@ async function main() {
         const { access_token } = tokenRes.data;
 
         // 2. Consultar proyectos (Top 50 para asegurar que encontramos el que buscamos)
-        console.log("\n2. Consultando Proyectos (Top 50)...");
         const projectsUrl = `${DATAVERSE_URL}/api/data/v9.2/msdyn_projects?$select=msdyn_projectid,msdyn_subject&$top=50`;
 
         const projectsRes = await axios.get(projectsUrl, {
@@ -36,17 +32,14 @@ async function main() {
         });
 
         const projects = projectsRes.data.value;
-        console.log(`--- Encontrados ${projects.length} proyectos ---`);
 
         // Buscando el proyecto específico en memoria (más seguro que OData filter si hay caracteres raros)
         const targetNamePart = "BayWa";
         const targetProject = projects.find(p => p.msdyn_subject && p.msdyn_subject.includes(targetNamePart));
 
         if (targetProject) {
-            console.log(`✅ PROYECTO ENCONTRADO: "${targetProject.msdyn_subject}" (ID: ${targetProject.msdyn_projectid})`);
 
             // 4. Obtener Tareas
-            console.log(`\n4. Obteniendo tareas para este proyecto...`);
             const tasksUrl = `${DATAVERSE_URL}/api/data/v9.2/msdyn_projecttasks?$filter=_msdyn_project_value eq ${targetProject.msdyn_projectid}&$select=msdyn_subject,msdyn_start,msdyn_finish&$top=20`;
 
             const tasksRes = await axios.get(tasksUrl, {
@@ -57,15 +50,10 @@ async function main() {
             });
 
             const tasks = tasksRes.data.value;
-            console.log(`--- Tareas (${tasks.length}) ---`);
             tasks.forEach(t => {
-                console.log(`- [${t.msdyn_subject}] Inicio: ${t.msdyn_start || 'N/A'} | Fin: ${t.msdyn_finish || 'N/A'}`);
             });
 
         } else {
-            console.log(`❌ No se encontró ningún proyecto que contenga "${targetNamePart}" en los últimos 50.`);
-            console.log("Listado de proyectos encontrados:");
-            projects.forEach(p => console.log(`  - ${p.msdyn_subject}`));
         }
 
 

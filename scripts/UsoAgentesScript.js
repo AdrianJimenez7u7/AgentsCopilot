@@ -672,10 +672,7 @@ function printReport(usageRows, totalSessions, environmentName, bots) {
     const bName = b.name || b.schemaname || '';
     return aName.localeCompare(bName, 'es', { sensitivity: 'base' });
   });
-
-  console.log('\n=== 0) Tabla bots (catálogo de agentes) ===');
   if (sortedBots.length === 0) {
-    console.log('No se encontraron registros en la tabla bots.');
   } else {
     sortedBots.forEach((bot, index) => {
       const botName = bot.name || bot.schemaname || 'Sin nombre';
@@ -683,29 +680,15 @@ function printReport(usageRows, totalSessions, environmentName, bots) {
         || bot.runtimeprovider
         || bot.RuntimeProvider
         || 'Sin RuntimeProvider';
-      console.log(`${index + 1}. ${botName} | id=${bot.botid} | proveedor=${runtimeProvider}`);
     });
   }
-
-  console.log('\n=== 1) Lista de agentes (con y sin uso) ===');
   sortedByName.forEach((row, index) => {
-    console.log(
-      `${index + 1}. ${row.agentName} | id=${row.agentId} | origen=${row.sourceType} | entorno=${row.environmentName}`
-    );
   });
-
-  console.log('\n=== 2) Uso por agente ===');
   sortedByUsage.forEach((row, index) => {
     const pct = totalSessions > 0 ? ((row.sessions / totalSessions) * 100).toFixed(2) : '0.00';
     const firstSeen = row.firstSeen ? row.firstSeen.toISOString() : '-';
     const lastSeen = row.lastSeen ? row.lastSeen.toISOString() : '-';
-
-    console.log(
-      `${index + 1}. ${row.agentName} | proveedor=${row.runtimeProvider || 'Sin RuntimeProvider'} | origen=${row.sourceType} | entorno=${row.environmentName} | sesiones=${row.sessions} | ${pct}% | primera=${firstSeen} | ultima=${lastSeen}`
-    );
   });
-
-  console.log('\n=== 2.1) Creado por registro (plataforma/servicio) ===');
   sortedByUsage.forEach((row, index) => {
     const creators = Array.from(row.creatorsMap.entries())
       .map(([creatorId, data]) => ({ creatorId, creatorName: data.creatorName, sessions: data.sessions }))
@@ -715,11 +698,7 @@ function printReport(usageRows, totalSessions, environmentName, bots) {
     const creatorsText = creators.length > 0
       ? creators.map((c) => `${c.creatorName} (${c.creatorId})=${c.sessions}`).join(' | ')
       : 'Sin creadores detectados';
-
-    console.log(`${index + 1}. ${row.agentName} | ${creatorsText}`);
   });
-
-  console.log('\n=== 2.2) Usuarios finales por agente ===');
   sortedByUsage.forEach((row, index) => {
     const endUsers = Array.from(row.endUsersMap.entries())
       .map(([endUserId, data]) => ({
@@ -734,22 +713,10 @@ function printReport(usageRows, totalSessions, environmentName, bots) {
     const endUsersText = endUsers.length > 0
       ? endUsers.map((u) => `${u.endUserName} <${u.endUserEmail || 'sin-email'}> (${u.endUserId})=${u.sessions}`).join(' | ')
       : 'Sin usuarios finales detectados';
-
-    console.log(`${index + 1}. ${row.agentName} | ${endUsersText}`);
   });
-
-  console.log('\n=== 3) Uso por origen/tipo ===');
   sourceRows.forEach(([sourceType, sessions], index) => {
     const pct = totalSessions > 0 ? ((sessions / totalSessions) * 100).toFixed(2) : '0.00';
-    console.log(`${index + 1}. ${sourceType} | sesiones=${sessions} | ${pct}%`);
   });
-
-  console.log('\n=== 4) Uso por entorno ===');
-  console.log(`1. ${environmentName} | sesiones=${totalEnvSessions}`);
-
-  console.log('\n=== Totales ===');
-  console.log(`Agentes: ${usageRows.length}`);
-  console.log(`Sesiones (conversationtranscripts): ${totalSessions}`);
 }
 
 async function main() {
@@ -758,32 +725,22 @@ async function main() {
   let graphData = null;
 
   for (const environment of config.environments) {
-    console.log(`\n================ Entorno: ${environment.name} ================`);
     if (environment.id) {
-      console.log(`Environment Id: ${environment.id}`);
     }
     if (environment.organizationId) {
-      console.log(`Organization Id: ${environment.organizationId}`);
     }
-
-    console.log('Obteniendo token...');
     const token = await getAccessToken({
       tenantId: config.tenantId,
       clientId: config.clientId,
       clientSecret: config.clientSecret,
       scopeBaseUrl: environment.baseUrl,
     });
-
-    console.log('Consultando conversationtranscripts sin filtro...');
     const transcripts = await fetchConversationTranscripts(environment.baseUrl, token);
-
-    console.log('Consultando systemusers para resolver correos...');
     const systemUsers = await fetchSystemUsers(environment.baseUrl, token);
     const userEmailLookup = buildUserEmailLookup(systemUsers);
 
     let bots = [];
     let botLookup = new Map();
-    console.log('Consultando tabla bots para catálogo de agentes...');
     try {
       bots = await fetchBots(environment.baseUrl, token);
       botLookup = buildBotLookup(bots);
@@ -795,8 +752,6 @@ async function main() {
     allUsageRows.push(...usageRows);
     printReport(usageRows, transcripts.length, environment.name, bots);
   }
-
-  console.log('\nConsultando Microsoft Graph para Copilot 365...');
   try {
     const graphToken = await getAccessToken({
       tenantId: config.tenantId,
@@ -811,11 +766,6 @@ async function main() {
     const usageRows = parseCsvRows(csvText);
     const usageSummary = summarizeM365UsageByApp(usageRows);
 
-    console.log(`Apps totales en Entra: ${allApps.length}`);
-    console.log(`Posibles apps/agentes Copilot: ${possibleApps.length}`);
-    console.log(`Filas reporte M365 Copilot (${config.m365Period}): ${usageRows.length}`);
-    console.log('Nota: el reporte de Graph obtenido es por usuario (no por agente 365 específico).');
-
     graphData = {
       apps: possibleApps,
       usageRows,
@@ -828,7 +778,6 @@ async function main() {
 
   const excelRows = buildExcelRows(allUsageRows);
   const excelPath = await exportToExcel(excelRows, graphData);
-  console.log(`\nExcel generado: ${excelPath}`);
 }
 
 main().catch((error) => {

@@ -72,8 +72,6 @@ async function testAgent(agentName) {
 }
 
 async function main() {
-  console.log(`Backend URL: ${baseUrl}`);
-  console.log(`Mensaje de prueba: ${message}`);
 
   if (!bearerToken) {
     console.error(
@@ -88,24 +86,14 @@ async function main() {
   }
 
   for (const agentName of agents) {
-    console.log(`\n=== Probando agente: ${agentName} ===`);
+
     try {
       const result = await testAgent(agentName);
-      console.log(`POST ${result.url}`);
-      console.log(`HTTP ${result.status}`);
 
       if (!result.ok) {
-        console.log(
-          typeof result.data === "string"
-            ? result.data
-            : JSON.stringify(result.data, null, 2)
-        );
         continue;
       }
 
-      console.log(`conversationId: ${result.data?.conversationId || "(vacío)"}`);
-      console.log("botMessages:");
-      console.log(summarizeMessages(result.data));
     } catch (error) {
       console.error(`Error probando ${agentName}: ${error.message}`);
     }

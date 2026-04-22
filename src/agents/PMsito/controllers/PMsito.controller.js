@@ -40,7 +40,6 @@ export class PMsitoController {
                 try {
                     await EmailService.enviarReportePlanner(recipient, pdfPath, docName);
                     correoEnviado = true;
-                    console.log(`Correo enviado exitosamente a ${recipient}`);
                 } catch (emailErr) {
                     console.error('Error enviando correo:', emailErr);
                     correoEnviado = false;
@@ -50,7 +49,6 @@ export class PMsitoController {
             // Limpiar archivo temporal después de enviar
             if (correoEnviado && fs.existsSync(pdfPath)) {
                 fs.unlinkSync(pdfPath);
-                console.log(`Archivo temporal ${docName} eliminado.`);
             }
 
             return res.status(200).json({ docPath: pdfPath, docName, correoEnviado, recipient });

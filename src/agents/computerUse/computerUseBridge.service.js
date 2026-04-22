@@ -92,7 +92,6 @@ export function registerBridge(sessionId, ws) {
     if (existing?.readyState === 1) { try { existing.close(); } catch { /* ignore */ } }
 
     bridges.set(normalizedSessionId, ws);
-    console.log(`[Bridge] Connected: ${normalizedSessionId}`);
 
     // Handle messages from the bridge (LLM relay)
     ws.on('message', async (raw) => {
@@ -161,7 +160,6 @@ export function registerBridge(sessionId, ws) {
 
     ws.on('close', () => {
         bridges.delete(normalizedSessionId);
-        console.log(`[Bridge] Disconnected: ${normalizedSessionId}`);
     });
 }
 

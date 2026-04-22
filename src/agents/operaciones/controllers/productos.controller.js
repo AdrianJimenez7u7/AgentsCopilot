@@ -60,7 +60,6 @@ export class ProductosController {
         }
 
         try {
-            console.log(`[ClasificarTest] Iniciando búsqueda para SKU: ${sku}`);
             const rawResults = await SearchService.search(sku, 2, telemetry);
             if (!rawResults?.results?.length) {
                 return res.status(422).json({
@@ -70,8 +69,6 @@ export class ProductosController {
                 });
             }
             const contextString = JSON.stringify(rawResults);
-
-            console.log(`[ClasificarTest] Búsqueda completa. Clasificando con modelo de razonamiento...`);
             const resultado = await OpenAIService.clasificarProductoRazonamiento(sku, contextString, 3, telemetry);
 
             return res.status(200).json({
@@ -104,7 +101,6 @@ export class ProductosController {
                 return res.status(404).json({ error: 'Producto no encontrado' });
             }
             await prisma.productoPendienteValidation.delete({ where: { id } });
-            console.log(`[Delete] Producto id:${id} (SKU: ${existing.sku}) eliminado`);
             return res.status(200).json({ message: 'Producto eliminado correctamente', sku: existing.sku });
         } catch (error) {
             console.error(`[Delete] Error al eliminar id:${id}:`, error?.message ?? error);
@@ -427,8 +423,6 @@ export class ProductosController {
 
             // Merge: CodigosClasificacion (curated names take priority)
             const codigosClasificacion = { ...catalogoCompleto, ...Constantes.CodigosClasificacion };
-
-            console.log(`[Catalogo] Claves SAT totales: ${Object.keys(codigosClasificacion).length}`);
             return res.status(200).json({
                 status: 200,
                 message: "Marcas, codigos clasificacion y unidades SAT obtenidos exitosamente",

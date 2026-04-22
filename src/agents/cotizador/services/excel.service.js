@@ -43,30 +43,24 @@ export class ExcelService {
           const parsePrice = v => {
             const debug = process.env.DEBUG_EXCEL_PARSE === '1';
             if (v == null) {
-              if (debug) console.log('parsePrice: valor es null/undefined');
               return 0;
             }
 
             // Si ya es un número, retornarlo directamente
             if (typeof v === 'number') {
-              if (debug) console.log('parsePrice: valor ya es número:', v);
               return v;
             }
 
             // Convertir a string y limpiar
             const original = v.toString();
-            if (debug) console.log('parsePrice: valor original:', original);
 
             // Eliminar símbolos de moneda y comas, mantener puntos decimales
             const cleaned = original.replace(/[^0-9.,-]/g, '').replace(/,/g, '');
-            if (debug) console.log('parsePrice: valor limpio:', cleaned);
 
             // Convertir a número
             const n = parseFloat(cleaned);
-            if (debug) console.log('parsePrice: valor parseado:', n);
 
             if (isNaN(n)) {
-              if (debug) console.log('parsePrice: no se pudo parsear a número');
               return 0;
             }
 
@@ -75,15 +69,10 @@ export class ExcelService {
 
           // Debug: mostrar las claves detectadas en la fila (ej. para detectar ' UnitPrice' con espacio)
           if (Object.keys(row).length && process.env.DEBUG_EXCEL_KEYS === '1') {
-            console.log('Debug - claves de la fila normalizada (primeras 10):', Object.keys(row).slice(0,10));
           }
 
           // Debug: mostrar el valor de UnitPrice antes del parseo (usa la fila normalizada)
           if (row.UnitPrice !== undefined && process.env.DEBUG_EXCEL_PARSE === '1') {
-            console.log(`Debug - UnitPrice raw para ${row.SkuTitle || row.Sku || 'N/A'}:`, {
-              value: row.UnitPrice,
-              type: typeof row.UnitPrice
-            });
           }
 
           const precio = parsePrice(row.UnitPrice);
@@ -125,16 +114,12 @@ export class ExcelService {
         // Mostrar algunos ejemplos de parsing para depuración
         try {
           const ejemplo = data[0] || {};
-          console.log(`✅ Leídos ${data.length} productos del archivo: ${archivo} (ejemplo UnitPrice raw: "${ejemplo.UnitPrice}")`);
         } catch (e) {
-          console.log(`✅ Leídos ${data.length} productos del archivo: ${archivo}`);
         }
       } catch (error) {
         console.error(`❌ Error al leer archivo ${archivo}:`, error.message);
       }
     });
-
-    console.log(`📊 Total de productos cargados: ${productos.length}`);
     return productos;
   }
 

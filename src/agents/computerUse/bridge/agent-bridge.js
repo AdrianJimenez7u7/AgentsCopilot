@@ -30,9 +30,6 @@ const WS_PATH = `${SERVER_URL}/agente/computer-use/bridge`;
 const MAX_PARSE_RETRIES = 2;
 const MAX_ATTEMPTS = 3;
 
-console.log(`[Bridge] Conectando a ${WS_PATH}`);
-console.log(`[Bridge] Session ID: ${SESSION_ID}`);
-
 // ── Playwright helpers ───────────────────────────────────────────────────────
 async function extractDOM(page) {
     return page.evaluate(() => {
@@ -78,7 +75,6 @@ async function main() {
     const ws = new WebSocket(WS_PATH);
 
     ws.on('open', () => {
-        console.log('[Bridge] ✅ Conectado al servidor');
         ws.send(JSON.stringify({ type: 'hello', sessionId: SESSION_ID }));
     });
 
@@ -87,12 +83,9 @@ async function main() {
         try { msg = JSON.parse(raw.toString()); } catch { return; }
 
         if (msg.type === 'ack') {
-            console.log(`[Bridge] ✅ Registrado con sesión ${msg.sessionId}`);
-            console.log('[Bridge] Esperando tareas...');
         }
 
         if (msg.type === 'run') {
-            console.log(`[Bridge] ▶ Nueva tarea: ${msg.goal}`);
             const { goal, steps } = msg;
             let anyFailed = false;
 
@@ -152,7 +145,6 @@ async function main() {
     });
 
     ws.on('close', () => {
-        console.log('[Bridge] Desconectado del servidor. El browser permanece abierto.');
     });
     ws.on('error', (err) => console.error('[Bridge] Error WS:', err.message));
 }

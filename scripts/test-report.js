@@ -10,7 +10,6 @@ const sampleData = [
 (async () => {
   try {
     const outPath = await ReportService.generateReport(sampleData, 'test_input.xlsx');
-    console.log('Reporte generado en:', outPath);
   } catch (err) {
     console.error('Error generando reporte de prueba:', err);
     process.exitCode = 1;

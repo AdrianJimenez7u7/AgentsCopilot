@@ -56,8 +56,6 @@ export class operacionesService {
         const skusExistentes = new Set(existentes.map(e => e.sku));
         const skusNuevos = skus.filter(sku => !skusExistentes.has(sku));
 
-        console.log(`SKUs en archivo: ${skus.length} | Ya en BD: ${skusExistentes.size} | A procesar: ${skusNuevos.length}`);
-
         if (skusNuevos.length === 0) {
             return {
                 processed: [],
@@ -68,7 +66,6 @@ export class operacionesService {
         }
 
         // Phase 1: run all Tavily searches in parallel (fast, no AI cost)
-        console.log(`[XLSX] Fase 1: buscando ${skusNuevos.length} SKUs en paralelo con Tavily...`);
         const searchResults = await Promise.allSettled(
             skusNuevos.map(sku => SearchService.search(sku, 2, telemetry))
         );
@@ -106,7 +103,6 @@ export class operacionesService {
         }
 
         // Phase 2: classify ALL SKUs in a single AI call (system prompt sent only once)
-        console.log(`[XLSX] Fase 2: clasificando ${items.length} SKUs en lote con modelo de razonamiento...`);
         const clasificados = await OpenAIService.clasificarProductosLote(items, 3, telemetry);
 
         const settled = clasificados.map((producto, i) => ({

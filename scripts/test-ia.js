@@ -35,12 +35,8 @@ const iaPath = path.join(__dirname, '..', 'src', 'agents', 'cotizador', 'service
 
   try {
     const res = await IAService.buscarProductosRelevantes(solicitud, todosProductos);
-    console.log('\n--- Resultado de prueba ---');
-    console.log('productos.length =', res.productos.length);
     res.productos.forEach((p, i) => {
-      console.log(i, p.nombre, 'precio=', p.precio, 'quantity=', p.quantity, 'requestedBillingPlan=', p.requestedBillingPlan || 'N/A');
     });
-    console.log('raw from model:', res.raw);
   } catch (e) {
     console.error('Error en test:', e);
   }

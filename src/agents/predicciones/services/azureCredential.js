@@ -10,9 +10,7 @@ export function getAzureCredential() {
   const isAppService = process.env.WEBSITE_INSTANCE_ID ? true : false;
   
   if (isAppService) {
-    console.log("🔑 [Azure ML] Usando Managed Identity del App Service");
   } else {
-    console.log("🔑 [Azure ML] Usando credenciales disponibles (dev: Azure CLI, env vars, etc.)");
   }
   
   return new DefaultAzureCredential();

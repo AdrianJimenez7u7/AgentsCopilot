@@ -169,13 +169,6 @@ export class IAService {
     const umbralMinimo = tieneMultiplesProductos ? 2.0 : 1.0; // umbral más alto para evitar falsos positivos
     let productosRelevantes = scored.filter(s => s.score > umbralMinimo).sort((a,b) => b.score - a.score);
     
-    console.log('🎯 Filtrado de productos:', {
-      totalProductos: todosProductos.length,
-      productosConScore: scored.filter(s => s.score > 0).length,
-      productosRelevantes: productosRelevantes.length,
-      umbralUsado: umbralMinimo
-    });
-    
     // Mostrar top 10 productos con sus scores para debug
     const topProductos = productosRelevantes.slice(0, 10);
     // console.log('🏆 Top productos encontrados:');
@@ -406,7 +399,6 @@ export class IAService {
     // console.log('--------------------------------');
     // console.log(`Tokens del prompt: ${tokensUsados.prompt_tokens}`);
     // console.log(`Tokens de la respuesta: ${tokensUsados.completion_tokens}`);
-    console.log(`Total de tokens: ${tokensUsados.total_tokens}`);
     // console.log('--------------------------------\n');
 
     // Normalize parsedResult into array of objects {index, quantity, billingPlan?}
@@ -757,8 +749,6 @@ Si no puedes identificar productos específicos, devuelve un array vacío [].`;
       completion_tokens: data.usage?.completion_tokens || 0,
       total_tokens: data.usage?.total_tokens || 0
     };
-
-    console.log(`Tokens usados en selección IA: ${tokensUsadosSeleccion.total_tokens} (prompt: ${tokensUsadosSeleccion.prompt_tokens}, completion: ${tokensUsadosSeleccion.completion_tokens})`);
 
     // Limpiar respuesta
     contenido = contenido.replace(/```[\s\S]*?```/g, match => {

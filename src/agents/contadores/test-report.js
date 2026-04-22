@@ -14,7 +14,6 @@ async function runTest() {
 
     // 1. Clean directory
     if (fs.existsSync(reportsDir)) {
-        console.log('Cleaning reports directory...');
         const files = fs.readdirSync(reportsDir);
         for (const file of files) {
             fs.unlinkSync(path.join(reportsDir, file));
@@ -29,20 +28,16 @@ async function runTest() {
     });
 
     if (!record) {
-        console.log('No records found in Contadores table.');
         return;
     }
 
     const clientName = record.Cliente;
-    console.log(`Generating test report for client: ${clientName} (Dry Run)`);
 
     try {
         const result = await ReportService.generateReportFromDB({
             cliente: clientName,
             dryRun: true
         });
-        console.log('Test completed successfully.');
-        console.log('Generated files:', result);
     } catch (error) {
         console.error('Test failed:', error);
     } finally {

@@ -45,7 +45,6 @@ export class SapService {
 
             return response.data;
         } catch (error) {
-            console.log(salesOrderID)
             console.error('Error al obtener las órdenes de compra:');
             throw error;
         }
