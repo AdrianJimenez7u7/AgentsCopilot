@@ -10,9 +10,9 @@ beginDialog:
     - kind: HttpRequestAction
       id: node_GetPermissions
       method: Post
-      url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones/permissions
+      url: ${OPERACIONES_BACKEND_BASE_URL}/agente/operaciones/permissions
       headers:
-        x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+        x-api-key: ${OPERACIONES_COPILOT_X_API_KEY}
       body:
         kind: JsonRequestContent
         content: "={ email: System.User.Email }"

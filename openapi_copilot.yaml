@@ -4,7 +4,7 @@ info:
   description: "API de Integración para el Agente Copilot de Operaciones. Permite obtener tarjetas adaptativas de productos, validarlos, y verificar permisos."
   version: 1.0.0
 servers:
-  - url: https://drgvqp5s-3000.usw3.devtunnels.ms/agente/operaciones
+  - url: ${OPERACIONES_BACKEND_BASE_URL}/agente/operaciones
     description: Dev Tunnel Server
 paths:
   /permissions:
