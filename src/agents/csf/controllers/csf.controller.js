@@ -13,12 +13,10 @@ export class CsfController {
 
     try {
       const body = await CsfService.extraerDesdeBase64(base64Code);
-      return res.status(200).json({ body });
+      return res.status(200).json(body);
     } catch (error) {
       logger.error('Error procesando CSF con Document Intelligence', error);
-      return res.status(200).json({
-        body: CsfService.getEmptyBody()
-      });
+      return res.status(200).json(CsfService.getEmptyBody());
     }
   }
 }
