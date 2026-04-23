@@ -23,6 +23,7 @@ const OUTPUT_KEYS = [
   'Numero',
   'NumeroExterior',
   'NumeroInterior',
+  'Regimen',
   'RegimenCapital',
   'TelFijo',
   'TipoVialidad',
@@ -49,7 +50,8 @@ const FIELD_ALIASES = {
   Numero: ['Numero', 'Telefono', 'TelefonoMovil', 'Celular'],
   NumeroExterior: ['NumeroExterior'],
   NumeroInterior: ['NumeroInterior'],
-  RegimenCapital: ['RegimenCapital', 'Regimen'],
+  Regimen: ['Regimen'],
+  RegimenCapital: ['RegimenCapital'],
   TelFijo: ['TelFijo', 'TelefonoFijo'],
   TipoVialidad: ['TipoVialidad'],
   YCalle: ['YCalle'],
@@ -118,6 +120,14 @@ function cleanupFieldValue(value, key) {
     return compact;
   }
 
+  if (key === 'NumeroInterior') {
+    const cleanedInterior = compact
+      .replace(/^(NUMERO\s+)?INTERIOR[:\s-]*/i, '')
+      .replace(/^(NO\.?|NUM)\s*INTERIOR[:\s-]*/i, '')
+      .trim();
+    return cleanedInterior ? removeDiacritics(cleanedInterior).toUpperCase() : DEFAULT_VALUE;
+  }
+
   const normalized = removeDiacritics(compact).toUpperCase();
 
   if (key === 'LugarExpedicion') {
@@ -162,6 +172,8 @@ function isValidForKey(key, value) {
     case 'Numero':
     case 'TelFijo':
       return normalized.replace(/\D/g, '').length >= 8;
+    case 'Regimen':
+      return normalized.length >= 3;
     default:
       return true;
   }
@@ -312,6 +324,10 @@ function extractByRules(content) {
     NumeroInterior: pickRegex(text, [
       /NUMERO INTERIOR[:\s]+(.+?)(?=\s+NOMBRE DE LA COLONIA[:\s])/,
       /NO\.?\s*INTERIOR[:\s]+(.+?)(?=\s+NOMBRE DE LA COLONIA[:\s])/
+    ]),
+    Regimen: pickRegex(text, [
+      /REGIMENES[:\s]+REGIMEN\s+FECHA INICIO\s+FECHA FIN\s+(.+?)(?=\s+\d{1,2}\/\d{1,2}\/\d{4}|\s+OBLIGACIONES[:\s])/,
+      /REGIMEN[:\s]+(.+?)(?=\s+\d{1,2}\/\d{1,2}\/\d{4}|\s+OBLIGACIONES[:\s])/
     ]),
     RegimenCapital: pickRegex(text, [
       /REGIMEN CAPITAL[:\s]+(.+?)(?=\s+NOMBRE COMERCIAL[:\s])/,
