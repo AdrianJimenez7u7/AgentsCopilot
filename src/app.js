@@ -15,6 +15,7 @@ import operacionesRoutes from './agents/operaciones/routes/operaciones.routes.js
 import copilotRoutes from "./agents/copilotstudio/routes/copilot.routes.js";
 import computerUseRoutes from './agents/computerUse/routes/computerUse.routes.js';
 import { isBridgeConnected, getConnectedBridges } from './agents/computerUse/computerUseBridge.service.js';
+import csfRoutes from './agents/csf/routes/csf.routes.js';
 
 import catalogoRoutes from './agents/catalogo/routes/index.js';
 
@@ -39,6 +40,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // Permitir cargar imágenes desde otro origen (Frontend)
 }));
 app.use(cors());
+app.use('/csf', express.json({ limit: '25mb' }), csfRoutes);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
