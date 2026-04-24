@@ -41,6 +41,68 @@ function getAuthDebugPayload({ tokenFromXHudspot, tokenFromTokenHudspot, tokenFr
   };
 }
 
+function getRequestInspection(req) {
+  const headerEntries = Object.entries(req.headers ?? {}).map(([key, value]) => [
+    key,
+    Array.isArray(value) ? value.join(', ') : String(value ?? '')
+  ]);
+
+  const maskedHeaders = Object.fromEntries(
+    headerEntries.map(([key, value]) => {
+      const lowerKey = key.toLowerCase();
+      const shouldMask =
+        lowerKey.includes('authorization') ||
+        lowerKey.includes('token') ||
+        lowerKey.includes('api-key') ||
+        lowerKey.includes('apikey') ||
+        lowerKey.includes('secret');
+
+      return [key, shouldMask ? maskToken(value) : value];
+    })
+  );
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const query = req.query && typeof req.query === 'object' ? req.query : {};
+
+  return {
+    method: req.method,
+    path: req.originalUrl || req.url,
+    contentType: req.headers['content-type'] || null,
+    headerKeys: headerEntries.map(([key]) => key),
+    maskedHeaders,
+    queryKeys: Object.keys(query),
+    maskedQuery: Object.fromEntries(
+      Object.entries(query).map(([key, value]) => {
+        const lowerKey = key.toLowerCase();
+        const text = Array.isArray(value) ? value.join(', ') : String(value ?? '');
+        const shouldMask =
+          lowerKey.includes('authorization') ||
+          lowerKey.includes('token') ||
+          lowerKey.includes('api-key') ||
+          lowerKey.includes('apikey') ||
+          lowerKey.includes('secret');
+
+        return [key, shouldMask ? maskToken(text) : text];
+      })
+    ),
+    bodyKeys: Object.keys(body),
+    maskedBodyAuthCandidates: Object.fromEntries(
+      Object.entries(body)
+        .filter(([key]) => {
+          const lowerKey = key.toLowerCase();
+          return (
+            lowerKey.includes('authorization') ||
+            lowerKey.includes('token') ||
+            lowerKey.includes('api-key') ||
+            lowerKey.includes('apikey') ||
+            lowerKey.includes('secret')
+          );
+        })
+        .map(([key, value]) => [key, maskToken(value)])
+    )
+  };
+}
+
 export class PruebasHudspotController {
   static async registrarInteres(req, res) {
     const body = req.body ?? {};
@@ -60,8 +122,10 @@ export class PruebasHudspotController {
       tokenFromApiKey,
       tokenFromAuthorization
     });
+    const requestInspection = getRequestInspection(req);
 
     logger.info('Pruebas hudspot auth debug', authDebug);
+    logger.info('Pruebas hudspot request inspection', requestInspection);
 
     if (!expectedToken) {
       logger.error('La variable de entorno TokenHudspot no esta configurada.');
@@ -70,7 +134,8 @@ export class PruebasHudspotController {
         code: 'TOKEN_HUDSPOT_NOT_CONFIGURED',
         message: 'TokenHudspot no configurado en el servidor.',
         details: {
-          auth: authDebug
+          auth: authDebug,
+          requestInspection
         }
       });
     }
@@ -87,7 +152,8 @@ export class PruebasHudspotController {
             'TokenHudspot: <token>',
             'Authorization: Bearer <token>'
           ],
-          auth: authDebug
+          auth: authDebug,
+          requestInspection
         }
       });
     }
@@ -98,7 +164,8 @@ export class PruebasHudspotController {
         code: 'TOKEN_HUDSPOT_INVALID',
         message: 'Se recibio una credencial para TokenHudspot, pero su valor no coincide con el configurado.',
         details: {
-          auth: authDebug
+          auth: authDebug,
+          requestInspection
         }
       });
     }
