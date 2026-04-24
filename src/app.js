@@ -16,6 +16,7 @@ import copilotRoutes from "./agents/copilotstudio/routes/copilot.routes.js";
 import computerUseRoutes from './agents/computerUse/routes/computerUse.routes.js';
 import { isBridgeConnected, getConnectedBridges } from './agents/computerUse/computerUseBridge.service.js';
 import csfRoutes from './agents/csf/routes/csf.routes.js';
+import pruebasHudspotRoutes from './agents/Pruebas hudspot/routes/pruebasHudspot.routes.js';
 
 import catalogoRoutes from './agents/catalogo/routes/index.js';
 
@@ -41,6 +42,7 @@ app.use(helmet({
 }));
 app.use(cors());
 app.use('/csf', express.json({ limit: '25mb' }), csfRoutes);
+app.use('/agente/pruebas-hudspot', express.json({ limit: '2mb' }), pruebasHudspotRoutes);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -57,7 +59,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Rutas públicas (sin auth)
-app.get("/", (req, res) => {
+app.get("/", apiKeyAuth, (req, res) => {
   res.json({
     success: true,
     message: "API de Agentes - Bienvenido",
@@ -94,12 +96,12 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/health", (req, res) => {
+app.get("/health", apiKeyAuth, (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Public bridge status for extension keepalive/disconnect detection.
-app.get('/agente/computer-use/bridge/status', (req, res) => {
+app.get('/agente/computer-use/bridge/status', apiKeyAuth, (req, res) => {
   const rawSession = Array.isArray(req.query.sessionId) ? req.query.sessionId[0] : req.query.sessionId;
   const requestedSessionId = String(rawSession ?? '').trim();
   const sessions = getConnectedBridges();
@@ -118,11 +120,6 @@ app.get('/agente/computer-use/bridge/status', (req, res) => {
 // Rutas Auth Entra (Bearer) para Copilot Studio
 app.use("/agente/copilot", entraJwtAuth, copilotRoutes);
 
-// Rutas públicas sin API Key
-app.use('/agente/PMsito', PMsitoRoutes);
-app.use('/agente/aria', ariaRoutes);
-app.use("/agente/catalogo", catalogoRoutes);
-
 // Aplicar autenticación a todas las rutas protegidas
 app.use(apiKeyAuth);
 
@@ -134,6 +131,7 @@ app.use('/agente/operaciones', operacionesRoutes);
 app.use("/agente/PMsito", PMsitoRoutes);
 app.use("/agente/copilot", copilotRoutes);
 app.use("/agente/computer-use", computerUseRoutes);
+app.use("/agente/catalogo", catalogoRoutes);
 
 // Rutas de Predicciones (protegidas)
 app.use("/api/predicciones/inferencias", inferenciasRouter);

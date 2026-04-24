@@ -60,4 +60,34 @@ Request:
 
 Response: resumen con productos, totales y documento generado.
 
+## Pruebas hudspot
+
+Endpoint de ejemplo para registrar intereses comerciales y disparar un correo ejecutivo a `abraham.pardo@compucad.com.mx`.
+
+- Ruta: `POST /agente/pruebas-hudspot/interes`
+- Autenticacion propia: `TokenHudspot`
+  Debe enviarse en el header `x-hudspot-token`.
+
+Ejemplo:
+
+```json
+{
+  "interes": "Necesito una licencia de Copilot para 20 usuarios",
+  "nombreCliente": "Cliente Demo"
+}
+```
+
+Header requerido:
+
+```text
+x-hudspot-token: Guoi6aqThzGWo3TYzm9HWfYYJq
+```
+
+Comportamiento:
+
+- Detecta si la necesidad apunta a `Microsoft Copilot`, `Adobe Firefly` o `Autodesk`.
+- Genera una propuesta comercial en tono ejecutivo con IA y usa plantilla de respaldo si IA no responde.
+- Envia el correo a `abraham.pardo@compucad.com.mx`.
+- Devuelve contexto util para un agente de IA: marca detectada, preguntas de discovery, siguientes acciones y resumen de la propuesta.
+
 
