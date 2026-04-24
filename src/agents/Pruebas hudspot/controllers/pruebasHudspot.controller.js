@@ -25,7 +25,11 @@ function getBearerToken(headerValue) {
   if (!raw) return null;
 
   const match = raw.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : null;
+  if (match) {
+    return match[1].trim();
+  }
+
+  return raw;
 }
 
 function getAuthDebugPayload({ tokenFromXHudspot, tokenFromTokenHudspot, tokenFromApiKey, tokenFromAuthorization }) {
