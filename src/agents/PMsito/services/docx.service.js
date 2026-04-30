@@ -1,169 +1,414 @@
-import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import ImageModule from 'docxtemplater-image-module-free';
-import QuickChart from 'quickchart-js';
-
-// 1) Generar PNG del gráfico (Chart.js headless)
-async function buildChartPng({ categories, series, chartType }) {
-  const width = 900, height = 420;
-  const type = String(chartType ?? 'bar').toLowerCase();
-
-  // Construir configuración compatible con Chart.js (QuickChart usa la misma estructura)
-  let configuration;
-  if (type === 'pie' || type === 'doughnut') {
-    const dataValues = series && series.length ? series[0].data : [];
-    const backgroundColor = ['#4CAF50', '#F44336', '#2196F3', '#FFC107', '#9C27B0', '#00BCD4', '#FF9800', '#8BC34A'];
-    configuration = {
-      type: type === 'doughnut' ? 'doughnut' : 'pie',
-      data: {
-        labels: categories,
-        datasets: [{
-          label: series && series[0] ? series[0].name ?? 'Datos' : 'Datos',
-          data: dataValues,
-          backgroundColor: backgroundColor.slice(0, Math.max(categories.length, 1)),
-        }]
-      },
-      options: { responsive: false, plugins: { legend: { position: 'right' }, title: { display: false } } }
-    };
-  } else {
-    configuration = {
-      type: 'bar',
-      data: {
-        labels: categories,
-        datasets: series.map((s, idx) => ({
-          label: s.name ?? `Serie ${idx + 1}`,
-          data: s.data ?? []
-        }))
-      },
-      options: {
-        responsive: false,
-        plugins: { legend: { display: true }, title: { display: false } },
-        scales: { y: { beginAtZero: true } }
-      }
-    };
+ 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+ 
+// ──────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────
+function getEstado(pct) {
+  const v = Number(pct ?? 0);
+  if (v === 100) return 'Completado';
+  if (v > 0 && v < 100) return 'En proceso';
+  return 'Sin iniciar';
+}
+ 
+function estadoColor(estado) {
+  if (estado === 'Completado') return '4CAF50';  // green
+  if (estado === 'En proceso') return 'FFC107';  // yellow/amber
+  return 'E0E0E0';  // gray
+}
+ 
+function estadoTextColor(estado) {
+  if (estado === 'Sin iniciar') return '333333';
+  return 'FFFFFF';
+}
+ 
+function barFillColor(pct) {
+  if (pct >= 100) return '4CAF50';
+  if (pct > 0) return 'FFC107';
+  return 'E0E0E0';
+}
+ 
+function escapeXml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+ 
+// ──────────────────────────────────────────────
+// OOXML builders
+// ──────────────────────────────────────────────
+ 
+/** Título de grupo con fondo naranja */
+function xmlGroupTitle(text) {
+  return `<w:p>
+    <w:pPr><w:shd w:val="clear" w:color="auto" w:fill="E87722"/><w:spacing w:before="240" w:after="120"/>
+    <w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:color w:val="FFFFFF"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:color w:val="FFFFFF"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+}
+ 
+/** Header de la tabla de tareas */
+function xmlTaskTableHeader() {
+  const cellStyle = (w) => `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F5F5F5"/><w:tcMar><w:top w:w="40" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar></w:tcPr>`;
+  const hdrRun = (text) => `<w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="16"/><w:szCs w:val="16"/><w:color w:val="666666"/></w:rPr><w:t>${escapeXml(text)}</w:t></w:r>`;
+ 
+  return `<w:tr><w:trPr><w:trHeight w:val="280"/></w:trPr>
+    <w:tc>${cellStyle('420')}<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${hdrRun('#')}</w:p></w:tc>
+    <w:tc>${cellStyle('4200')}<w:p>${hdrRun('Tarea')}</w:p></w:tc>
+    <w:tc>${cellStyle('1200')}<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${hdrRun('Estado')}</w:p></w:tc>
+    <w:tc>${cellStyle('2700')}<w:p>${hdrRun('Progreso')}</w:p></w:tc>
+  </w:tr>`;
+}
+ 
+/** Badge de estado con fondo coloreado */
+function xmlStatusBadge(estado) {
+  const bg = estadoColor(estado);
+  const fg = estadoTextColor(estado);
+  return `<w:r><w:rPr>
+    <w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/>
+    <w:b/><w:bCs/><w:sz w:val="14"/><w:szCs w:val="14"/>
+    <w:color w:val="${fg}"/>
+    <w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>
+  </w:rPr><w:t xml:space="preserve"> ${escapeXml(estado)} </w:t></w:r>`;
+}
+ 
+/** Barra de progreso visual usando tabla anidada */
+function xmlProgressBar(pct) {
+  const v = Math.max(0, Math.min(100, Math.round(Number(pct ?? 0))));
+  const fillColor = barFillColor(v);
+  // Ancho total de la barra: 2000 twips ≈ 3.5cm
+  const totalW = 2000;
+  const filledW = Math.max(v > 0 ? 100 : 0, Math.round((v / 100) * totalW));
+  const emptyW = totalW - filledW;
+ 
+  let barCells = '';
+  if (filledW > 0) {
+    barCells += `<w:tc><w:tcPr><w:tcW w:w="${filledW}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${fillColor}"/><w:tcMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:spacing w:after="0" w:line="120" w:lineRule="exact"/></w:pPr></w:p></w:tc>`;
   }
-
-  // QuickChart: sin dependencias nativas, devuelve Buffer con toBinary()
-  const qc = new QuickChart();
-  qc.setConfig(configuration).setWidth(width).setHeight(height).setBackgroundColor('transparent');
-  const buffer = await qc.toBinary();
-  return buffer;
+  if (emptyW > 0) {
+    barCells += `<w:tc><w:tcPr><w:tcW w:w="${emptyW}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="E8E8E8"/><w:tcMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:spacing w:after="0" w:line="120" w:lineRule="exact"/></w:pPr></w:p></w:tc>`;
+  }
+ 
+  const barTable = `<w:tbl><w:tblPr><w:tblW w:w="${totalW}" w:type="dxa"/><w:tblBorders>
+    <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  </w:tblBorders><w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar><w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="0"/></w:tblPr>
+  <w:tblGrid>${filledW > 0 ? `<w:gridCol w:w="${filledW}"/>` : ''}${emptyW > 0 ? `<w:gridCol w:w="${emptyW}"/>` : ''}</w:tblGrid>
+  <w:tr><w:trPr><w:trHeight w:val="120" w:hRule="exact"/></w:trPr>${barCells}</w:tr></w:tbl>`;
+ 
+  // Párrafo con % debajo
+  const pctText = `<w:p><w:pPr><w:spacing w:before="20" w:after="0"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="14"/><w:szCs w:val="14"/><w:color w:val="999999"/></w:rPr><w:t>${v}%</w:t></w:r></w:p>`;
+ 
+  return barTable + pctText;
+}
+ 
+/** Fila de tarea con: #, nombre, badge de estado, barra de progreso */
+function xmlTaskRow(index, tarea, estado, pct, isEven) {
+  const rowBg = isEven ? 'FAFAFA' : 'FFFFFF';
+  const cellMargin = `<w:tcMar><w:top w:w="40" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar>`;
+ 
+  return `<w:tr><w:trPr><w:trHeight w:val="500"/></w:trPr>
+    <w:tc><w:tcPr><w:tcW w:w="420" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${rowBg}"/>${cellMargin}</w:tcPr>
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="16"/><w:szCs w:val="16"/><w:color w:val="999999"/></w:rPr><w:t>${index}</w:t></w:r></w:p></w:tc>
+    <w:tc><w:tcPr><w:tcW w:w="4200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${rowBg}"/>${cellMargin}</w:tcPr>
+      <w:p><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="333333"/></w:rPr><w:t xml:space="preserve">${escapeXml(tarea)}</w:t></w:r></w:p></w:tc>
+    <w:tc><w:tcPr><w:tcW w:w="1200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${rowBg}"/>${cellMargin}<w:vAlign w:val="center"/></w:tcPr>
+      <w:p><w:pPr><w:jc w:val="center"/></w:pPr>${xmlStatusBadge(estado)}</w:p></w:tc>
+    <w:tc><w:tcPr><w:tcW w:w="2700" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${rowBg}"/>${cellMargin}</w:tcPr>
+      ${xmlProgressBar(pct)}</w:tc>
+  </w:tr>`;
+}
+ 
+/** Tabla completa de tareas de un grupo */
+function xmlTaskTable(tareas) {
+  const tblBorders = `<w:tblBorders>
+    <w:top w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
+    <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
+    <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
+    <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  </w:tblBorders>`;
+ 
+  const rows = tareas.map((t, i) => xmlTaskRow(i + 1, t.tarea, t.estado, t.porcentaje, i % 2 === 0));
+ 
+  return `<w:tbl><w:tblPr><w:tblW w:w="8520" w:type="dxa"/>${tblBorders}<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>
+    <w:tblGrid><w:gridCol w:w="420"/><w:gridCol w:w="4200"/><w:gridCol w:w="1200"/><w:gridCol w:w="2700"/></w:tblGrid>
+    ${xmlTaskTableHeader()}${rows.join('')}</w:tbl>`;
+}
+ 
+/** Subtítulo (Actividades Completadas, etc.) */
+function xmlSubTitle(text) {
+  return `<w:p><w:pPr><w:spacing w:before="160" w:after="60"/>
+    <w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+}
+ 
+/** Bullet item */
+function xmlBulletItem(text) {
+  return `<w:p><w:pPr><w:spacing w:after="40"/><w:ind w:left="360"/>
+    <w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">•  ${escapeXml(text)}</w:t></w:r></w:p>`;
+}
+ 
+function xmlSpacer() {
+  return `<w:p><w:pPr><w:spacing w:after="60"/></w:pPr></w:p>`;
 }
 
-export async function generateDocxReport(data, templateName, outputName = `reporte_${Date.now()}`, chartType = 'bar', nameReport) {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
+/** Barra de estado del proyecto con tres segmentos: Completado, En Proceso, Sin Iniciar */
+function xmlProjectProgressBar(counts) {
+  const total = counts.completed + counts.inProgress + counts.notStarted;
+  if (total === 0) {
+    return `<w:p><w:r><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="999999"/></w:rPr><w:t>Sin datos</w:t></w:r></w:p>`;
+  }
 
-  // --- prepara datos para el gráfico (usa tu mismo cálculo) ---
-  // ordenar por posicion global para mantener el orden del planner
+  const totalW = 4500; // Ancho total de la barra en twips (más grande)
+  const completedW = Math.round((counts.completed / total) * totalW);
+  const inProgressW = Math.round((counts.inProgress / total) * totalW);
+  const notStartedW = totalW - completedW - inProgressW;
+
+  let barCells = '';
+  if (completedW > 0) {
+    barCells += `<w:tc><w:tcPr><w:tcW w:w="${completedW}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="4CAF50"/><w:tcMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:spacing w:after="0" w:line="180" w:lineRule="exact"/></w:pPr></w:p></w:tc>`;
+  }
+  if (inProgressW > 0) {
+    barCells += `<w:tc><w:tcPr><w:tcW w:w="${inProgressW}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="FFC107"/><w:tcMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:spacing w:after="0" w:line="180" w:lineRule="exact"/></w:pPr></w:p></w:tc>`;
+  }
+  if (notStartedW > 0) {
+    barCells += `<w:tc><w:tcPr><w:tcW w:w="${notStartedW}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="E0E0E0"/><w:tcMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:spacing w:after="0" w:line="180" w:lineRule="exact"/></w:pPr></w:p></w:tc>`;
+  }
+
+  const barTable = `<w:tbl><w:tblPr><w:tblW w:w="${totalW}" w:type="dxa"/><w:tblBorders>
+    <w:top w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
+    <w:left w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
+    <w:bottom w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
+    <w:right w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
+    <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  </w:tblBorders><w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar><w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="0"/></w:tblPr>
+  <w:tblGrid>${completedW > 0 ? `<w:gridCol w:w="${completedW}"/>` : ''}${inProgressW > 0 ? `<w:gridCol w:w="${inProgressW}"/>` : ''}${notStartedW > 0 ? `<w:gridCol w:w="${notStartedW}"/>` : ''}</w:tblGrid>
+  <w:tr><w:trPr><w:trHeight w:val="180" w:hRule="exact"/></w:trPr>${barCells}</w:tr></w:tbl>`;
+
+  // Leyenda en línea horizontal con mejor diseño
+  const completedPct = Math.round((counts.completed / total) * 100);
+  const inProgressPct = Math.round((counts.inProgress / total) * 100);
+  const notStartedPct = Math.round((counts.notStarted / total) * 100);
+
+  const legend = `<w:p><w:pPr><w:spacing w:before="120" w:after="60"/></w:pPr></w:p>
+  <w:p><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="4CAF50"/></w:rPr><w:t xml:space="preserve">● Completado: ${counts.completed} (${completedPct}%)</w:t></w:r></w:p>
+  <w:p><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="FFC107"/></w:rPr><w:t xml:space="preserve">● En proceso: ${counts.inProgress} (${inProgressPct}%)</w:t></w:r></w:p>
+  <w:p><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="999999"/></w:rPr><w:t xml:space="preserve">● Sin iniciar: ${counts.notStarted} (${notStartedPct}%)</w:t></w:r></w:p>`;
+
+  return barTable + legend;
+}
+ 
+// ──────────────────────────────────────────────
+// Preparar datos
+// ──────────────────────────────────────────────
+function prepareData(data, nameReport) {
   const sortedData = Array.isArray(data)
-    ? [...data].sort((a, b) => {
-        const pa = Number(a.posicion ?? a.pos ?? 0);
-        const pb = Number(b.posicion ?? b.pos ?? 0);
-        return pa - pb;
-      })
+    ? [...data].sort((a, b) => Number(a.posicion ?? a.pos ?? 0) - Number(b.posicion ?? b.pos ?? 0))
     : [];
-
-  // construir mapa de grupos en el orden en que aparecen en sortedData
+ 
   const groupsMap = sortedData.reduce((acc, t) => {
     const g = String(t.Grupo ?? 'Sin grupo');
     if (!acc[g]) acc[g] = [];
     acc[g].push(t);
     return acc;
   }, {});
-
-  // transformar tareas incluyendo nivel (nivel_tarea) y posicion para la plantilla
-  const groups = Object.entries(groupsMap).map(([grupo, tasks]) => {
-    const tareas = tasks.map((t, i) => {
+ 
+  const groups = Object.entries(groupsMap).map(([grupo, tasks], gi) => ({
+    grupo, index: gi + 1,
+    tareas: tasks.map(t => {
       const v = Number(t.porcentaje_100 ?? t.porcentaje ?? 0);
-      const Estado = v === 100 ? 'Completado' : v === 0 ? 'Sin iniciar' : v > 0 && v < 100 ? 'En proceso' : 'Sin datos';
-      const nivel = Number(t.nivel_tarea ?? t.nivel ?? 1);
-      const posicion = Number(t.posicion ?? t.pos ?? (i + 1));
-      // opcional: campo para mostrar indentación en la plantilla
-      const indent = '  '.repeat(Math.max(0, nivel - 1)); // usa espacio no separable para Word
-      return {
-        index: i + 1,
-        Tarea: t.Tarea ?? '',
-        TareaDisplay: `${indent}${t.Tarea ?? ''}`,
-        Estado,
-        porcentaje: t.porcentaje ?? '-',
-        porcentaje_100: t.porcentaje_100 ?? '-',
-        nivel,
-        posicion,
-      };
-    });
-    return { grupo, count: tasks.length, tareas };
-  });
+      return { tarea: t.Tarea ?? '', estado: getEstado(v), porcentaje: v };
+    }),
+  }));
+ 
   const total = sortedData.length;
-  // calcular conteos por estado: Completado, En proceso, Sin iniciar
-  const counts = groups.reduce((acc, g) => {
-    g.tareas.forEach(t => {
-      if (t.Estado === 'Completado') acc.completed++;
-      else if (t.Estado === 'En proceso') acc.inProgress++;
-      else if (t.Estado === 'Sin iniciar') acc.notStarted++;
-    });
-    return acc;
-  }, { completed: 0, inProgress: 0, notStarted: 0 });
-  const chartData = {
-    categories: ['Completado', 'En proceso', 'Sin iniciar'],
-    series: [{ name: 'Tareas', data: [counts.completed, counts.inProgress, counts.notStarted] }],
-    chartType,
-  };
+  const globalPct = total > 0
+    ? Math.round(groups.reduce((s, g) => s + g.tareas.reduce((s2, t) => s2 + t.porcentaje, 0), 0) / total)
+    : 0;
+ 
+  const now = new Date();
+  const fmt = (d) => d.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+  const fechaHasta = fmt(now);
+  // Default "Desde" = inicio del mes actual
+  const desde = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fechaDesde = fmt(desde);
+  const fechaHoy = fechaHasta;
+ 
+  const counts = { completed: 0, inProgress: 0, notStarted: 0 };
+  groups.forEach(g => g.tareas.forEach(t => {
+    if (t.estado === 'Completado') counts.completed++;
+    else if (t.estado === 'En proceso') counts.inProgress++;
+    else counts.notStarted++;
+  }));
+ 
+  return { groups, total, globalPct, fechaDesde, fechaHasta, fechaHoy, counts, titulo: nameReport || 'Reporte de Avances' };
+}
+ 
+// ──────────────────────────────────────────────
+// Construir contenido de secciones
+// ──────────────────────────────────────────────
+ 
+function buildExecutedTasksXml(report) {
+  const parts = [];
+ 
+  report.groups.forEach(g => {
+    const started = g.tareas.filter(t => t.porcentaje > 0);
+    if (started.length === 0) return;
+ 
+    parts.push(xmlGroupTitle(`${g.index}. ${g.grupo}`));
+    parts.push(xmlTaskTable(started));
+ 
+    const completed = started.filter(t => t.estado === 'Completado');
+    if (completed.length > 0) {
+      parts.push(xmlSubTitle('Actividades Completadas'));
+      completed.forEach(t => parts.push(xmlBulletItem(`${t.tarea} — Completado`)));
+    }
+ 
+    const inProgress = started.filter(t => t.estado === 'En proceso');
+    if (inProgress.length > 0) {
+      parts.push(xmlSubTitle('Actividades en Curso'));
+      inProgress.forEach(t => parts.push(xmlBulletItem(`${t.tarea} — ${t.porcentaje}%`)));
+    }
+ 
+    parts.push(xmlSpacer());
+  });
+ 
+  if (parts.length === 0) {
+    parts.push(xmlBulletItem('No hay tareas ejecutadas en este periodo.'));
+  }
+  return parts.join('');
+}
+ 
+function buildUpcomingTasksXml(report) {
+  const parts = [];
+ 
+  report.groups.forEach(g => {
+    const notStarted = g.tareas.filter(t => t.porcentaje === 0);
+    if (notStarted.length === 0) return;
+ 
+    parts.push(xmlGroupTitle(`${g.index}. ${g.grupo}`));
+    parts.push(xmlTaskTable(notStarted));
+    parts.push(xmlSpacer());
+  });
+ 
+  if (parts.length === 0) {
+    parts.push(xmlBulletItem('Todas las tareas han sido iniciadas.'));
+  }
+  return parts.join('');
+}
+ 
+// ──────────────────────────────────────────────
+// Generar DOCX
+// ──────────────────────────────────────────────
+export async function generateDocxReport(data, outputName = `reporte_${Date.now()}`, chartType = 'bar', nameReport) {
+  const templatePath = path.join(__dirname, '../data/CCD-PMO-F03.docx');
+  const content = fs.readFileSync(templatePath, 'binary');
+  const zip = new PizZip(content);
+  let docXml = zip.file('word/document.xml').asText();
+ 
+  const report = prepareData(data, nameReport);
+ 
+  // ═══ 1. Content Controls ═══
+  docXml = docXml.replace(
+    /(<w:sdtContent>[\s\S]*?<w:t[^>]*>)(Formato de reporte de avances)(<\/w:t>[\s\S]*?<\/w:sdtContent>)/g,
+    `$1${escapeXml(report.titulo)}$3`
+  );
+  docXml = docXml.replace(
+    /(<w:sdtContent>[\s\S]*?<w:t[^>]*>)(Compañía)(<\/w:t>[\s\S]*?<\/w:sdtContent>)/g,
+    `$1${escapeXml(report.titulo)}$3`
+  );
+ 
+  // ═══ 2. Porcentaje global ═══
+  // Eliminar la barra azul del "% COMPLETADO" de la plantilla
+  docXml = docXml.replace(
+    /(<w:p>[\s\S]*?% COMPLETADO[\s\S]*?<\/w:p>[\s\S]*?<w:p>[\s\S]*?<\/w:p>)/,
+    ''
+  );
 
-  // --- genera PNG ---
-  const chartPng = await buildChartPng(chartData);
+  // ═══ 2b. Fechas Desde/Hasta (tabla 2) ═══
+  // Celda vacía después de "Desde" — inyectar fecha
+  docXml = docXml.replace(
+    /(Desde<\/w:t><\/w:r><\/w:p><\/w:tc>\s*<w:tc>\s*<w:tcPr>[\s\S]*?<\/w:tcPr>\s*<w:p[^>]*>)([\s\S]*?)(<\/w:p>\s*<\/w:tc>\s*<\/w:tr>)/,
+    `$1<w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="21"/></w:rPr><w:t>${escapeXml(report.fechaDesde)}</w:t></w:r>$3`
+  );
+  // Celda vacía después de "Hasta"
+  docXml = docXml.replace(
+    /(Hasta<\/w:t><\/w:r><\/w:p><\/w:tc>\s*<w:tc>\s*<w:tcPr>[\s\S]*?<\/w:tcPr>\s*<w:p[^>]*>)([\s\S]*?)(<\/w:p>\s*<\/w:tc>\s*<\/w:tr>)/,
+    `$1<w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="21"/></w:rPr><w:t>${escapeXml(report.fechaHasta)}</w:t></w:r>$3`
+  );
 
-  // Guardar PNG temporalmente y pasar la ruta al ImageModule (evita pasar Buffer directo)
+  // ═══ 2c. Barra de estado del proyecto ═══
+  const projectBarXml = xmlProjectProgressBar(report.counts);
+  // Buscar la sección de "Periodo de actividades" e inyectar después
+  docXml = docXml.replace(
+    /(Periodo de actividades que incluye este reporte:[\s\S]*?<\/w:tr>\s*<\/w:tbl>)/,
+    `$1${projectBarXml}`
+  );
+
+  // ═══ 2d. Notas adicionales ═══
+  const notasXml = [
+    xmlBulletItem(`Total de tareas: ${report.total}`),
+    xmlBulletItem(`Completadas: ${report.counts.completed} | En proceso: ${report.counts.inProgress} | Sin iniciar: ${report.counts.notStarted}`),
+    xmlBulletItem(`Porcentaje global de avance: ${report.globalPct}%`),
+    xmlBulletItem(`Fecha de generación: ${report.fechaHoy}`),
+  ].join('');
+  docXml = docXml.replace(
+    /(adicionales[\s\S]*?<w:t>:<\/w:t><\/w:r><\/w:p>)/,
+    `$1${notasXml}`
+  );
+ 
+  // ═══ 3. Inyectar tareas en secciones ═══
+  const ejecutadasContent = buildExecutedTasksXml(report);
+  docXml = docXml.replace(
+    /(Tareas ejecutadas al momento<\/w:t><\/w:r><\/w:p>)/,
+    `$1${ejecutadasContent}`
+  );
+ 
+  const proximasContent = buildUpcomingTasksXml(report);
+  docXml = docXml.replace(
+    /(Próximas tareas<\/w:t><\/w:r><\/w:p>)/,
+    `$1${proximasContent}`
+  );
+ 
+  // ═══ 4. Actualizar propiedades ═══
+  try {
+    const coreXml = zip.file('docProps/core.xml')?.asText();
+    if (coreXml) zip.file('docProps/core.xml', coreXml.replace(/<dc:title>[^<]*<\/dc:title>/, `<dc:title>${escapeXml(report.titulo)}</dc:title>`));
+    const appXml = zip.file('docProps/app.xml')?.asText();
+    if (appXml) zip.file('docProps/app.xml', appXml.replace(/<Company>[^<]*<\/Company>/, `<Company>${escapeXml(report.titulo)}</Company>`));
+    for (const fileName of Object.keys(zip.files)) {
+      if (fileName.startsWith('customXml/item') && fileName.endsWith('.xml')) {
+        let itemXml = zip.file(fileName)?.asText();
+        if (itemXml) {
+          if (itemXml.includes('dc:title') || itemXml.includes('ns0:title'))
+            itemXml = itemXml.replace(/(<(?:dc|ns0):title[^>]*>)[^<]*(<\/(?:dc|ns0):title>)/, `$1${escapeXml(report.titulo)}$2`);
+          if (itemXml.includes('Company'))
+            itemXml = itemXml.replace(/(<(?:ns0:)?Company[^>]*>)[^<]*(<\/(?:ns0:)?Company>)/, `$1${escapeXml(report.titulo)}$2`);
+          zip.file(fileName, itemXml);
+        }
+      }
+    }
+  } catch (e) { console.warn('Warning updating doc properties:', e.message); }
+ 
+  // ═══ 5. Guardar ═══
+  zip.file('word/document.xml', docXml);
   const outDir = path.join(__dirname, '../output');
   fs.mkdirSync(outDir, { recursive: true });
-  const chartPath = path.join(outDir, `${outputName}_chart.png`);
-  fs.writeFileSync(chartPath, chartPng);
-
-  // --- image module gratis ---
-  const imageModule = new ImageModule({
-    // tagValue puede ser ruta (string) o Buffer; devolver siempre Buffer
-    getImage: function (tagValue /*, tagName */) {
-      if (!tagValue) throw new Error('tagValue vacío en imageModule');
-      if (Buffer.isBuffer(tagValue)) return tagValue;
-      if (typeof tagValue === 'string' && fs.existsSync(tagValue)) return fs.readFileSync(tagValue);
-      throw new Error('ImageModule: tagValue no es ruta válida ni Buffer: ' + String(tagValue));
-    },
-    // tamaño aproximado en px (ajusta si hace falta)
-    getSize: function (img /*, tagValue, tagName */) {
-      return [600, 280];
-    },
-  });
-
-  // --- render docx ---
-  const templatePath = path.join(__dirname, `../data/${templateName}.docx`);
-  const zip = new PizZip(fs.readFileSync(templatePath, 'binary'));
-  const doc = new Docxtemplater(zip, { modules: [imageModule], paragraphLoop: true, linebreaks: true });
-
-  const context = {
-    proyecto: nameReport || 'Reporte de Proyecto',
-    fecha: new Date().toLocaleDateString('es-ES'),
-    groups,
-    // pasar la RUTA al placeholder {chart_img} (imageModule leerá el fichero)
-    chart_img: chartPath,
-  };
-
-  try {
-    doc.render(context);
-  } catch (err) {
-    // si falla render, sacar error detallado (útil para debug)
-    console.error('docxtemplater render error:', err);
-    throw err;
-  }
-
-  const buf = doc.getZip().generate({ type: 'nodebuffer' });
-  // outDir ya fue creado arriba (reutilizar)
-  fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, `${outputName}.docx`);
-  const outChartPath = path.join(outDir, `${outputName}_chart.png`);
-  fs.writeFileSync(outPath, buf);
-  fs.writeFileSync(outChartPath, chartPng);
-  return {outPath , outChartPath};
+  fs.writeFileSync(outPath, zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' }));
+  return { outPath };
 }
