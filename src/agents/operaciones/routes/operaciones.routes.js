@@ -1,6 +1,6 @@
 import express from 'express';
 import { ProductosController } from '../controllers/productos.controller.js';
-
+import { DHLcontroller } from '../controllers/dhl.controller.js';
 const router = express.Router();
 
 router.post('/search', ProductosController.extractProductData);
@@ -25,6 +25,18 @@ router.get('/products-from-sharepoint-list', ProductosController.getProductsFrom
 router.get('/sharepoint-list-metadata', ProductosController.getSharepointListMetadata);
 
 router.post('/user-by-purchase-order', ProductosController.getUserByPurchaseOrder);
+
+// ── ENDPOINTS PAQUETERIA DHL ──────────────
+router.post('/dhl/validateAddress', DHLcontroller.validateAddress);
+router.post('/dhl/trackShipment', DHLcontroller.trackShipment);
+router.post('/dhl/trackSingleShipment', DHLcontroller.trackSingleShipment);
+router.post('/dhl/getRates', DHLcontroller.getRates);
+router.post('/dhl/getMultiPieceRates', DHLcontroller.getMultiPieceRates);
+router.post('/dhl/getLandedCost', DHLcontroller.getLandedCost);
+router.post('/dhl/getShipmentImage', DHLcontroller.getShipmentImage);
+router.post('/dhl/getProofOfDelivery', DHLcontroller.getProofOfDelivery);
+router.post('/dhl/getProducts', DHLcontroller.getProducts);
+router.post('/dhl/getIdentifiers', DHLcontroller.getIdentifiers);
 
 
 export default router;

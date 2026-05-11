@@ -102,29 +102,97 @@ export class DataverseService {
     
     async getComentariosCaso(casoId) {
         const token = await this.getAccessToken();
-        const parameters = new URLSearchParams();
-        parameters.set("$select", "annotationid,notetext,createdon,_objectid_value");
-        parameters.set("$expand", "objectid_incident($select=incidentid,title,ticketnumber)");
-        let filter = "objecttypecode eq 'incident'";
-        if (casoId) {
-            filter += ` and _objectid_value eq ${casoId}`;
-        }
-        parameters.set("$filter", filter);
-        const response = await fetch(`${this.webApiUrl}/annotations?${parameters.toString()}`, {
+
+        const params = new URLSearchParams();
+        params.set("$select", "annotationid,notetext,subject,createdon,_objectid_value,_createdby_value");
+        params.set("$expand", "createdby($select=fullname,internalemailaddress)");
+        // ✅ Filtro descomentado y correcto
+        params.set("$filter", `objecttypecode eq 'incident' and _objectid_value eq ${casoId}`);
+
+        const response = await fetch(`${this.webApiUrl}/annotations?${params.toString()}`, {
             headers: {
                 Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
                 "OData-MaxVersion": "4.0",
                 "OData-Version": "4.0",
-                Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"',
+                Accept: "application/json",
+                Prefer: 'odata.include-annotations="*"',
             },
         });
+
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Error fetching comentarios: ${response.status} - ${errorText}`);
+            const err = await response.text();
+            throw new Error(`Error fetching comentarios: ${response.status} - ${err}`);
         }
 
-        return response.json();
+        const data = await response.json();
+        return data.value.map(nota => ({
+            notaId: nota.annotationid,
+            titulo: nota.subject,
+            descripcion: nota.notetext?.replace(/<[^>]*>/g, "").trim(),
+            creadoEn: nota.createdon,
+            autor: nota.createdby?.internalemailaddress
+                || nota.createdby?.fullname
+                || nota["_createdby_value@OData.Community.Display.V1.FormattedValue"]
+                || null,
+        }));
+    }
+
+    async getCasoPorPlanner(plannerNombre) {
+        const token = await this.getAccessToken();
+
+        // Extraer texto dentro de los corchetes: "[Tropper] Seguridad y migración" → "Tropper"
+        const dentroCorchetes = plannerNombre.match(/\[([^\]]+)\]/)?.[1] ?? plannerNombre;
+        const terminoBusqueda = dentroCorchetes.replace(/'/g, "''");
+
+        console.log('Planner recibido:', plannerNombre);
+        console.log('Buscando por término:', terminoBusqueda);
+
+        const url = `${this.webApiUrl}/annotations` +
+            `?$select=annotationid,notetext,subject,createdon,_objectid_value` +
+            `&$filter=contains(notetext,'${terminoBusqueda}') or contains(subject,'${terminoBusqueda}')` +
+            `&$expand=objectid_incident($select=incidentid,ticketnumber,title,statecode)`;
+
+        console.log('URL de consulta:', url);
+
+        const response = await fetch(url, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+                Accept: "application/json",
+                Prefer: 'odata.include-annotations="*"',
+            },
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`Error: ${response.status} - ${err}`);
+        }
+
+        const data = await response.json();
+
+        const casos = data.value.map(nota => ({
+            casoId: nota._objectid_value,
+            casoNumero: nota.objectid_incident?.ticketnumber,
+            casoTitulo: nota.objectid_incident?.title,
+            casoEstado: nota.objectid_incident?.statecode,
+            casoEstadoLabel: nota.objectid_incident?.["statecode@OData.Community.Display.V1.FormattedValue"],
+            notaTitulo: nota.subject,
+            descripcion: nota.notetext?.replace(/<[^>]*>/g, "").trim(),
+            creadoEn: nota.createdon,
+        }));
+
+        const casosConComentarios = await Promise.all(
+            casos.map(async caso => ({
+                ...caso,
+                comentarios: await this.getComentariosCaso(caso.casoId).catch(err => {
+                    console.error(`Error comentarios caso ${caso.casoId}:`, err);
+                    return [];
+                }),
+            }))
+        );
+
+        return casosConComentarios;
     }
 
     async getTareasCaso(casoId) {
@@ -174,6 +242,109 @@ export class DataverseService {
         }
         return response.json();
     }
+
+    async getPlannerAndTasks(plannerName) {
+        const token = await this.getAccessTokenForUpgrade();
+        const upgradeWebApiUrl = process.env.DATAVERSE_UPGRADE_WEB_API_URL || "https://orgf61000bc.api.crm.dynamics.com/api/data/v9.2";
+        const safePlannerName = String(plannerName || '').replace(/'/g, "''");
+
+        const projectParams = new URLSearchParams({
+            "$select": "msdyn_projectid,msdyn_subject,createdon",
+            "$filter": `msdyn_subject eq '${safePlannerName}'`
+        });
+
+        const response = await fetch(`${upgradeWebApiUrl}/msdyn_projects?${projectParams.toString()}`, { 
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },  
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error fetching planner and tasks: ${response.statusText} - ${errorText}`);
+        }
+        const projectData = await response.json();
+        const projects = projectData?.value || [];
+
+        const projectResults = await Promise.all(projects.map(async (proj) => {
+            const taskParams = new URLSearchParams({
+                "$select": "msdyn_subject,msdyn_start,msdyn_finish,msdyn_progress,msdyn_displaysequence,msdyn_outlinelevel,statuscode,_msdyn_parenttask_value,createdon",
+                "$filter": `_msdyn_project_value eq ${proj.msdyn_projectid}`
+            });
+
+            const tasksResponse = await fetch(`${upgradeWebApiUrl}/msdyn_projecttasks?${taskParams.toString()}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                    Prefer: 'odata.include-annotations="*"'
+                },
+            });
+
+            if (!tasksResponse.ok) {
+                const errorText = await tasksResponse.text();
+                throw new Error(`Error fetching project tasks: ${tasksResponse.statusText} - ${errorText}`);
+            }
+
+            const tasksData = await tasksResponse.json();
+            return { ...proj, msdyn_tasks: tasksData?.value || [] };
+        }));
+
+        return { value: projectResults };
+    }
+
+    /**
+     * Obtener todos los datos listos para el reporte de un planner.
+     * Llama a getPlannerAndTasks y getCasoPorPlanner y devuelve un objeto
+     * { tasks: [...], meta: { plannerName, casos: [...] } }
+     */
+    async getPlannerReportData(plannerName) {
+        try {
+            const plannerRes = await this.getPlannerAndTasks(plannerName).catch(err => {
+                console.error('Error fetching plannerAndTasks:', err);
+                return { value: [] };
+            });
+
+            const projects = plannerRes?.value || [];
+            const tasks = [];
+
+            projects.forEach(proj => {
+                const projectName = proj.msdyn_subject || '';
+                const projectTasks = proj.msdyn_tasks || [];
+                if (Array.isArray(projectTasks) && projectTasks.length > 0) {
+                    projectTasks.forEach((t, idx) => {
+                        // msdyn_progress is a decimal between 0 and 1
+                        const progressValue = t.msdyn_progress ? Math.round(t.msdyn_progress * 100) : 0;
+                        const parentTaskLabel = t["_msdyn_parenttask_value@OData.Community.Display.V1.FormattedValue"];
+                        const grupoValue = parentTaskLabel || projectName || plannerName;
+                        tasks.push({
+                            Tarea: t.msdyn_subject || `Tarea ${idx + 1}`,
+                            porcentaje_100: Number(progressValue) || 0,
+                            porcentaje: Number(progressValue) || 0,
+                            Grupo: grupoValue,
+                            posicion: Number(t.msdyn_displaysequence) || idx + 1,
+                            Estado: t.statuscode,
+                            nivel_tarea: t.msdyn_outlinelevel,
+                            FechaInicio: t.msdyn_start,
+                            FechaFin: t.msdyn_finish,
+                        });
+                    });
+                }
+            });
+
+            // Obtener casos y comentarios relacionados al planner (si existen)
+            const casos = await this.getCasoPorPlanner(plannerName).catch(err => {
+                console.error('Error fetching casos por planner:', err);
+                return [];
+            });
+
+            console.log(`getPlannerReportData: plannerName="${plannerName}", tasks=${tasks.length}, casos=${casos.length}`);
+            return { tasks, meta: { plannerName, casos } };
+        } catch (err) {
+            console.error('getPlannerReportData error:', err);
+            return { tasks: [], meta: { plannerName, casos: [] } };
+        }
+    }
+
 
     async getListaDeCarteras() {
         const token = await this.getAccessTokenForUpgrade();

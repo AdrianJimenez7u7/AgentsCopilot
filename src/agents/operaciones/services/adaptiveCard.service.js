@@ -1,21 +1,21 @@
 import { Constantes } from '../utils/constantes.js';
-
+ 
 export class AdaptiveCardService {
-
+ 
     static createProductCard(productData) {
-
-        // Hemos retirado los ChoiceSets masivos de Marca y SAT porque las 
+ 
+        // Hemos retirado los ChoiceSets masivos de Marca y SAT porque las
         // Tarjetas Adaptativas no soportan incrustar miles de registros estáticos
         // dentro del payload sin romper el render de Teams/Copilot.
-
+ 
         // Limpieza de Clave SAT (quitar ".0" si existe por error de la IA)
         let defaultSat = (productData.clave_producto_servicio_sat || "").toString().replace(/\.0$/, "");
         const defaultUnit = productData.clave_unidad_sat || "H87";
-
+ 
         // Lógica para encontrar la marca por defecto
         let defaultMarca = "";
         const marcaIA = (productData.marca || "").toUpperCase();
-
+ 
         if (marcaIA) {
             const foundEntry = Object.entries(Constantes.CodigoMarcas).find(([key, value]) => value === marcaIA);
             if (foundEntry) {
@@ -24,26 +24,27 @@ export class AdaptiveCardService {
                 const potentialMatches = Object.entries(Constantes.CodigoMarcas)
                     .filter(([key, value]) => marcaIA.includes(value))
                     .sort((a, b) => b[1].length - a[1].length);
-
+ 
                 if (potentialMatches.length > 0) {
                     const bestMatch = potentialMatches[0];
                     defaultMarca = `${bestMatch[0]} - ${bestMatch[1]}`;
+                    console.log(`Marca parcial encontrada: IA="${marcaIA}" -> Catálogo="${bestMatch[1]}"`);
                 }
             }
         }
-
-        const VALIDATION_URL = `https://innofront-b4htgzhdb2gxe0ga.southcentralus-01.azurewebsites.net/operaciones/validacion/?sku=${encodeURIComponent(productData.numero_parte || "")}`;
-
+ 
+        const VALIDATION_URL = `https://hubinn.compucad.com.mx/operaciones/validacion/?sku=${encodeURIComponent(productData.numero_parte || "")}`;
+ 
         // Construir opciones de SAT asegurando que el valor default existe en la lista
         const satChoices = Object.entries(Constantes.CodigosClasificacion).map(([code, name]) => ({
             title: `${code} - ${name}`,
             value: code
         }));
-
+ 
         if (defaultSat && !Constantes.CodigosClasificacion[defaultSat]) {
             satChoices.unshift({ title: `${defaultSat} (Sugerido por IA)`, value: defaultSat });
         }
-
+ 
         // Estructura simplificada solicitada por el usuario
         return {
             items: [
@@ -107,11 +108,11 @@ export class AdaptiveCardService {
             ]
         };
     }
-
+ 
     /** Card shown when the AI model fails (rate limit, timeout, etc.) */
     static createErrorCard(sku, errorMessage) {
-        const VALIDATION_URL = `https://innofront-b4htgzhdb2gxe0ga.southcentralus-01.azurewebsites.net/operaciones/validacion/?sku=${encodeURIComponent(sku || "")}`;
-
+        const VALIDATION_URL = `https://hubinn.compucad.com.mx/operaciones/validacion/?sku=${encodeURIComponent(sku || "")}`;
+ 
         return {
             type: "Container",
             style: "attention",
@@ -149,7 +150,7 @@ export class AdaptiveCardService {
             ]
         };
     }
-
+ 
     /** Card shown when the SKU already exists in DB — shows current data */
     static createExistingProductCard(product) {
         const fields = [
@@ -161,7 +162,7 @@ export class AdaptiveCardService {
             { label: "Peso (kg)", value: String(product.peso_kg ?? "—") },
             { label: "Estatus", value: product.status || "—" },
         ];
-
+ 
         return {
             type: "Container",
             style: "emphasis",
@@ -187,12 +188,12 @@ export class AdaptiveCardService {
             ]
         };
     }
-
+ 
     /** Summary card shown after XLSX upload */
     static createUploadSummaryCard({ processed = [], skipped = [], errors = [] }) {
-        const VALIDATION_URL = "https://innofront-b4htgzhdb2gxe0ga.southcentralus-01.azurewebsites.net/operaciones/validacion/";
+        const VALIDATION_URL = "https://hubinn.compucad.com.mx/operaciones/validacion/";
         const skuList = (arr) => arr.length > 0 ? arr.join(", ") : "Ninguno";
-
+ 
         return {
             type: "Container",
             items: [

@@ -1,0 +1,455 @@
+openapi: 3.0.3
+info:
+  title: PMsito Agent API
+  version: 1.0.0
+  description: API para generar reportes PMsito y consultar datos CRM.
+servers:
+  - url: https://{host}
+    variables:
+      host:
+        default: ms12swqt-3000.usw3.devtunnels.ms
+        description: Host del servicio
+paths:
+  /agente/PMsito/generar-reporte:
+    post:
+      summary: Generar reporte desde payload
+      operationId: generarReporte
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerarReporteRequest'
+      responses:
+        '200':
+          description: Reporte generado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteResponse'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/generar-reporte/planner:
+    post:
+      summary: Generar reporte desde planner y enviar por correo
+      operationId: generarReporteDesdePlanner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerarReportePlannerRequest'
+      responses:
+        '200':
+          description: Reporte generado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteResponse'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/generar-reporte/planner/descargar:
+    post:
+      summary: Generar reporte desde planner y descargar DOCX
+      operationId: generarReporteDesdePlannerDescargar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerarReportePlannerDescargarRequest'
+      responses:
+        '200':
+          description: Archivo DOCX
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/casos-crm:
+    get:
+      summary: Obtener casos CRM
+      operationId: obtenerCasosCRM
+      responses:
+        '200':
+          description: Lista de casos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CasosResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/casos-crm/comentarios:
+    get:
+      summary: Obtener comentarios de un caso CRM
+      operationId: obtenerComentariosCRM
+      parameters:
+        - name: incidentId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de comentarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComentariosResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/casos-crm/comentarios/{incidentId}:
+    get:
+      summary: Obtener comentarios de un caso CRM por id
+      operationId: obtenerComentariosCRMById
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de comentarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComentariosResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/casos-crm/tareas:
+    get:
+      summary: Obtener tareas de un caso CRM
+      operationId: obtenerTareasCasosCRM
+      parameters:
+        - name: incidentId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de tareas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TareasResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/casos-crm/tareas/{incidentId}:
+    get:
+      summary: Obtener tareas de un caso CRM por id
+      operationId: obtenerTareasCasosCRMById
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de tareas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TareasResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/planners:
+    get:
+      summary: Obtener planners
+      operationId: obtenerPlanners
+      responses:
+        '200':
+          description: Lista de planners
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlannersResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /agente/PMsito/casos-crm/extracciones:
+    get:
+      summary: Obtener informacion de caso CRM por planner
+      operationId: obtenerInformacionCasoCRMByPlanner
+      parameters:
+        - name: planner
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Informacion CRM relacionada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CasosExtraccionResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    ReporteResponse:
+      type: object
+      properties:
+        docPath:
+          type: string
+        docName:
+          type: string
+        correoEnviado:
+          type: boolean
+        recipient:
+          type: string
+      required:
+        - docPath
+        - docName
+        - correoEnviado
+    GenerarReporteRequest:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TareaReporte'
+        recipient:
+          type: string
+        outputName:
+          type: string
+        nameReport:
+          type: string
+      required:
+        - data
+    GenerarReportePlannerRequest:
+      type: object
+      properties:
+        plannerName:
+          type: string
+        recipient:
+          type: string
+        outputName:
+          type: string
+        nameReport:
+          type: string
+      required:
+        - plannerName
+    GenerarReportePlannerDescargarRequest:
+      type: object
+      properties:
+        plannerName:
+          type: string
+        outputName:
+          type: string
+        nameReport:
+          type: string
+      required:
+        - plannerName
+    TareaReporte:
+      type: object
+      properties:
+        Tarea:
+          type: string
+        Grupo:
+          type: string
+        Estado:
+          type: integer
+        porcentaje:
+          type: number
+        porcentaje_100:
+          type: number
+        posicion:
+          type: integer
+        nivel_tarea:
+          type: integer
+    CasosResponse:
+      type: object
+      properties:
+        value:
+          type: array
+          items:
+            $ref: '#/components/schemas/CasoCRM'
+      required:
+        - value
+    ComentariosResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/Comentario'
+    Comentario:
+      type: object
+      properties:
+        notaId:
+          type: string
+        titulo:
+          type: string
+        descripcion:
+          type: string
+        creadoEn:
+          type: string
+        autor:
+          type: string
+    TareasResponse:
+      type: object
+      properties:
+        value:
+          type: array
+          items:
+            $ref: '#/components/schemas/TareaCasoCRM'
+      required:
+        - value
+    PlannersResponse:
+      type: object
+      properties:
+        value:
+          type: array
+          items:
+            $ref: '#/components/schemas/Planner'
+      required:
+        - value
+    CasosExtraccionResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/CasoExtraccion'
+    CasoExtraccion:
+      type: object
+      properties:
+        casoId:
+          type: string
+        casoNumero:
+          type: string
+        casoTitulo:
+          type: string
+        casoEstado:
+          type: integer
+        casoEstadoLabel:
+          type: string
+        notaTitulo:
+          type: string
+        descripcion:
+          type: string
+        creadoEn:
+          type: string
+        comentarios:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comentario'
+    CasoCRM:
+      type: object
+      properties:
+        incidentid:
+          type: string
+        title:
+          type: string
+        createdon:
+          type: string
+        statuscode:
+          type: integer
+        cad_area_servicio:
+          type: integer
+        _cr2bd_clientev2_value:
+          type: string
+    Planner:
+      type: object
+      properties:
+        msdyn_projectid:
+          type: string
+        msdyn_subject:
+          type: string
+        createdon:
+          type: string
+        _owningbusinessunit_value:
+          type: string
+        owningbusinessunit:
+          type: object
+          properties:
+            name:
+              type: string
+    TareaCasoCRM:
+      type: object
+      properties:
+        activityid:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        createdon:
+          type: string
+        statecode:
+          type: integer
+        statuscode:
+          type: integer
+        regardingobjectid_incident:
+          type: object
+          properties:
+            incidentid:
+              type: string
+            title:
+              type: string
+            ticketnumber:
+              type: string

@@ -40,6 +40,20 @@ function escapeXml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+function formatDateEs(dateValue) {
+  if (!dateValue) return '';
+  const d = new Date(dateValue);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function getDateValue(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
  
 // ──────────────────────────────────────────────
 // OOXML builders
@@ -153,6 +167,73 @@ function xmlSubTitle(text) {
     <w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>
     <w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
 }
+
+/** Titulo de caso CRM */
+function xmlCaseTitle(text) {
+  return `<w:p><w:pPr><w:spacing w:before="120" w:after="40"/>
+    <w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="19"/><w:szCs w:val="19"/><w:color w:val="333333"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="19"/><w:szCs w:val="19"/><w:color w:val="333333"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+}
+
+function xmlCaseSeparator() {
+  return `<w:p><w:pPr><w:spacing w:after="80"/>
+    <w:pBdr><w:bottom w:val="single" w:sz="6" w:space="6" w:color="E0E0E0"/></w:pBdr>
+  </w:pPr></w:p>`;
+}
+
+/** Bullet item con indentacion extra (comentarios) */
+function xmlCommentItem(text) {
+  return `<w:p><w:pPr><w:spacing w:after="30"/><w:ind w:left="720"/>
+    <w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">-  ${escapeXml(text)}</w:t></w:r></w:p>`;
+}
+
+function xmlPercentLine(text) {
+  return `<w:p><w:pPr><w:spacing w:before="60" w:after="80"/>
+    <w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:color w:val="333333"/></w:rPr></w:pPr>
+    <w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:color w:val="333333"/></w:rPr><w:t>${escapeXml(text)}</w:t></w:r></w:p>`;
+}
+
+function xmlRiskTableHeader() {
+  const cellStyle = (w) => `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F5F5F5"/><w:tcMar><w:top w:w="40" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar></w:tcPr>`;
+  const hdrRun = (text) => `<w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:b/><w:bCs/><w:sz w:val="16"/><w:szCs w:val="16"/><w:color w:val="666666"/></w:rPr><w:t>${escapeXml(text)}</w:t></w:r>`;
+  return `<w:tr><w:trPr><w:trHeight w:val="280"/></w:trPr>
+    <w:tc>${cellStyle('2200')}<w:p>${hdrRun('Riesgo')}</w:p></w:tc>
+    <w:tc>${cellStyle('1400')}<w:p>${hdrRun('Impacto')}</w:p></w:tc>
+    <w:tc>${cellStyle('1400')}<w:p>${hdrRun('Prob.')}</w:p></w:tc>
+    <w:tc>${cellStyle('1400')}<w:p>${hdrRun('Severidad')}</w:p></w:tc>
+    <w:tc>${cellStyle('2520')}<w:p>${hdrRun('Mitigacion')}</w:p></w:tc>
+  </w:tr>`;
+}
+
+function xmlRiskRow(item, isEven) {
+  const rowBg = isEven ? 'FAFAFA' : 'FFFFFF';
+  const cellMargin = `<w:tcMar><w:top w:w="40" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar>`;
+  const cellText = (text, w) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${rowBg}"/>${cellMargin}</w:tcPr>
+    <w:p><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="333333"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p></w:tc>`;
+  return `<w:tr><w:trPr><w:trHeight w:val="520"/></w:trPr>
+    ${cellText(item.riesgo || '', '2200')}
+    ${cellText(item.impacto || '', '1400')}
+    ${cellText(item.probabilidad || '', '1400')}
+    ${cellText(item.severidad || '', '1400')}
+    ${cellText(item.mitigacion || '', '2520')}
+  </w:tr>`;
+}
+
+function xmlRiskTable(items) {
+  const tblBorders = `<w:tblBorders>
+    <w:top w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
+    <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
+    <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+    <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
+    <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+  </w:tblBorders>`;
+  const rows = items.map((item, i) => xmlRiskRow(item, i % 2 === 0));
+  return `<w:tbl><w:tblPr><w:tblW w:w="8920" w:type="dxa"/>${tblBorders}<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>
+    <w:tblGrid><w:gridCol w:w="2200"/><w:gridCol w:w="1400"/><w:gridCol w:w="1400"/><w:gridCol w:w="1400"/><w:gridCol w:w="2520"/></w:tblGrid>
+    ${xmlRiskTableHeader()}${rows.join('')}</w:tbl>`;
+}
  
 /** Bullet item */
 function xmlBulletItem(text) {
@@ -242,11 +323,30 @@ function prepareData(data, nameReport) {
  
   const now = new Date();
   const fmt = (d) => d.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
-  const fechaHasta = fmt(now);
-  // Default "Desde" = inicio del mes actual
-  const desde = new Date(now.getFullYear(), now.getMonth(), 1);
-  const fechaDesde = fmt(desde);
-  const fechaHoy = fechaHasta;
+  let minDate = null;
+  let maxDate = null;
+  let minCreated = null;
+  let maxCreated = null;
+  sortedData.forEach(t => {
+    const start = getDateValue(t.FechaInicio || t.fechaInicio || t.start || t.msdyn_start);
+    const finish = getDateValue(t.FechaFin || t.fechaFin || t.finish || t.msdyn_finish);
+    const created = getDateValue(t.creadoEn || t.createdon || t.CreadoEn);
+    if (start && (!minDate || start < minDate)) minDate = start;
+    if (finish && (!maxDate || finish > maxDate)) maxDate = finish;
+    if (created && (!minCreated || created < minCreated)) minCreated = created;
+    if (created && (!maxCreated || created > maxCreated)) maxCreated = created;
+  });
+  let fromDate = minDate;
+  let toDate = maxDate;
+  if (!fromDate || !toDate || (fromDate && toDate && fromDate.getTime() === toDate.getTime())) {
+    if (minCreated && maxCreated) {
+      fromDate = minCreated;
+      toDate = maxCreated;
+    }
+  }
+  const fechaDesde = fromDate ? fmt(fromDate) : fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+  const fechaHasta = toDate ? fmt(toDate) : fmt(now);
+  const fechaHoy = fmt(now);
  
   const counts = { completed: 0, inProgress: 0, notStarted: 0 };
   groups.forEach(g => g.tareas.forEach(t => {
@@ -319,8 +419,13 @@ export async function generateDocxReport(data, outputName = `reporte_${Date.now(
   const content = fs.readFileSync(templatePath, 'binary');
   const zip = new PizZip(content);
   let docXml = zip.file('word/document.xml').asText();
- 
-  const report = prepareData(data, nameReport);
+
+  // Support payloads that include both tasks array and meta info
+  // If `data` is an object with `tasks` or `items`, extract them; otherwise assume it's an array of tasks
+  let inputTasks = Array.isArray(data) ? data : (data?.tasks || data?.items || []);
+  const extraMeta = data && !Array.isArray(data) ? (data.meta || { caseId: data.caseId, plannerName: data.plannerName, comments: data.comments }) : {};
+
+  const report = prepareData(inputTasks, nameReport);
  
   // ═══ 1. Content Controls ═══
   docXml = docXml.replace(
@@ -351,12 +456,12 @@ export async function generateDocxReport(data, outputName = `reporte_${Date.now(
     `$1<w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="21"/></w:rPr><w:t>${escapeXml(report.fechaHasta)}</w:t></w:r>$3`
   );
 
-  // ═══ 2c. Barra de estado del proyecto ═══
+  // ═══ 2c. Porcentaje de proyecto + barra ═══
   const projectBarXml = xmlProjectProgressBar(report.counts);
-  // Buscar la sección de "Periodo de actividades" e inyectar después
+  const percentLine = xmlPercentLine(`${report.globalPct}%`);
   docXml = docXml.replace(
-    /(Periodo de actividades que incluye este reporte:[\s\S]*?<\/w:tr>\s*<\/w:tbl>)/,
-    `$1${projectBarXml}`
+    /(<w:p[\s\S]*?Porcentaje de Proyecto completado[\s\S]*?<\/w:p>)/,
+    `$1${percentLine}${projectBarXml}`
   );
 
   // ═══ 2d. Notas adicionales ═══
@@ -370,6 +475,68 @@ export async function generateDocxReport(data, outputName = `reporte_${Date.now(
     /(adicionales[\s\S]*?<w:t>:<\/w:t><\/w:r><\/w:p>)/,
     `$1${notasXml}`
   );
+
+  // ═══ Meta CRM / Planner (si viene en payload) ═══
+  if (extraMeta && (extraMeta.caseId || extraMeta.plannerName || (Array.isArray(extraMeta.comments) && extraMeta.comments.length > 0) || (Array.isArray(extraMeta.casos) && extraMeta.casos.length > 0))) {
+    const metaParts = [];
+    if (extraMeta.caseId) metaParts.push(xmlBulletItem(`Caso CRM: ${extraMeta.caseId}`));
+    if (extraMeta.plannerName) metaParts.push(xmlBulletItem(`Planner: ${extraMeta.plannerName}`));
+    if (Array.isArray(extraMeta.casos) && extraMeta.casos.length > 0) {
+      metaParts.push(xmlSubTitle('Casos CRM relacionados'));
+      extraMeta.casos.forEach(caso => {
+        const labelParts = [];
+        if (caso.casoNumero) labelParts.push(`Caso #${caso.casoNumero}`);
+        if (caso.casoTitulo) labelParts.push(caso.casoTitulo);
+        const statusLabel = caso.casoEstadoLabel || caso.casoEstado;
+        const labelBase = labelParts.length > 0 ? labelParts.join(' - ') : (caso.casoId || 'Caso');
+        const label = statusLabel ? `${labelBase} (${statusLabel})` : labelBase;
+        metaParts.push(xmlCaseTitle(label));
+
+        if (Array.isArray(caso.comentarios) && caso.comentarios.length > 0) {
+          caso.comentarios.forEach(com => {
+            const txt = com.descripcion || com.notetext || com.text || '';
+            const fecha = formatDateEs(com.creadoEn || com.createdon);
+            const autor = com.autor || com.author || '';
+            const prefixParts = [fecha, autor].filter(Boolean);
+            const prefix = prefixParts.length > 0 ? `${prefixParts.join(' - ')}: ` : '';
+            if (txt) metaParts.push(xmlCommentItem(`${prefix}${txt}`));
+          });
+        } else {
+          metaParts.push(xmlCommentItem('Sin comentarios.'));
+        }
+        metaParts.push(xmlCaseSeparator());
+      });
+    }
+    if (extraMeta.riskEvaluation) {
+      const riskEval = extraMeta.riskEvaluation || {};
+      const riskItems = Array.isArray(riskEval.items) ? riskEval.items : [];
+      const normalizedItems = riskItems.length > 0
+        ? riskItems
+        : (riskEval.resumen ? [{ riesgo: riskEval.resumen, impacto: '', probabilidad: '', severidad: '', mitigacion: '' }] : []);
+      metaParts.push(xmlSubTitle('Evaluacion de riesgos'));
+      if (riskEval.resumen) metaParts.push(xmlBulletItem(`Resumen: ${riskEval.resumen}`));
+      if (normalizedItems.length > 0) {
+        metaParts.push(xmlRiskTable(normalizedItems));
+      } else {
+        metaParts.push(xmlCommentItem('Sin riesgos identificados.'));
+      }
+    }
+    if (Array.isArray(extraMeta.comments) && extraMeta.comments.length > 0) {
+      metaParts.push(xmlSubTitle('Comentarios relacionados'));
+      extraMeta.comments.forEach(c => {
+        // c may be string or object {text, author, createdon, parentCase}
+        const txt = typeof c === 'string' ? c : (c.notetext || c.text || c.comment || '');
+        const metaText = typeof c === 'object' && c.parentCase ? `${txt} (${c.parentCase})` : txt;
+        metaParts.push(xmlBulletItem(metaText));
+      });
+    }
+
+    // Insert meta right after notas (append to the paragraph we replaced above)
+    docXml = docXml.replace(
+      /(adicionales[\s\S]*?<w:t>:<\/w:t><\/w:r><\/w:p>)/,
+      `$1${metaParts.join('')}`
+    );
+  }
  
   // ═══ 3. Inyectar tareas en secciones ═══
   const ejecutadasContent = buildExecutedTasksXml(report);

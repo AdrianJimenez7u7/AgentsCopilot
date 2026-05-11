@@ -52,4 +52,6 @@ router.post('/clientes/bulk', ContadoresController.uploadCsv, ContadoresControll
 
 router.get('/tecnicos', ContadoresController.getTecnicos);
 
+router.post('/pdf/counter', ContadoresController.uploadPdf, ContadoresController.obtenerNumeroHojas);
+
 export default router;

@@ -60,4 +60,15 @@ export class PdfService {
       throw new Error(`Error procesando PDF: ${error.message}`);
     }
   }
+
+  async getPdfPageCount(pdfPath) {
+    try {
+      const pdfBytes = await readFile(pdfPath);
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+      return pdfDoc.getPageCount();
+    } catch (error) {
+      logger.error('Error al obtener número de páginas del PDF', error);
+      throw new Error(`Error leyendo PDF: ${error.message}`);
+    }
+  }
 }

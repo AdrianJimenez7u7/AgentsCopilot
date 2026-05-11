@@ -1,0 +1,862 @@
+kind: AdaptiveDialog
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main
+  intent: {}
+  actions:
+    - kind: Question
+      id: question_CiSkzM
+      interruptionPolicy:
+        allowInterruption: true
+
+      variable: init:Topic.Var1
+      prompt: En base a las siguientes opciones, en que necesitas que te ayude
+      entity:
+        kind: EmbeddedEntity
+        definition:
+          kind: ClosedListEntity
+          items:
+            - id: Solicitud de documentos
+              displayName: Solicitud de documentos
+
+            - id: Solicitud de plantillas
+              displayName: Solicitud de plantillas
+
+            - id: Generar reporte
+              displayName: Generar reporte
+
+        displayName: EmbeddedEntity-cTSKVa
+
+    - kind: ConditionGroup
+      id: conditionGroup_yxOC0b
+      conditions:
+        - id: conditionItem_Ddyvl5
+          condition: =Topic.Var1 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_CiSkzM'.'Solicitud de documentos'
+          actions:
+            - kind: Question
+              id: question_URtWCZ
+              interruptionPolicy:
+                allowInterruption: true
+
+              variable: init:Topic.Var4
+              prompt: "De que unidad de negocio requieres tu documento "
+              entity:
+                kind: EmbeddedEntity
+                definition:
+                  kind: ClosedListEntity
+                  items:
+                    - id: CDH
+                      displayName: CDH
+
+                    - id: SAI
+                      displayName: SAI
+
+                    - id: INFRA
+                      displayName: INFRA
+
+                    - id: MS365
+                      displayName: MS365
+
+            - kind: ConditionGroup
+              id: conditionGroup_UtPHWt
+              conditions:
+                - id: conditionItem_fBumE9
+                  condition: =Topic.Var4 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_URtWCZ'.CDH
+                  actions:
+                    - kind: Question
+                      id: question_3P5ntW
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var5
+                      prompt: ¿Como deseas recibir el documento?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Solo el documento
+                              displayName: Solo el documento
+
+                            - id: Resumen y Documento
+                              displayName: Resumen y Documento
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_U1WvVn
+                      conditions:
+                        - id: conditionItem_eruvsr
+                          condition: =Topic.Var5 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_3P5ntW'.'Solo el documento'
+                          actions:
+                            - kind: Question
+                              id: question_vwmjUY
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var6
+                              prompt: Proporcioname el nombre del documento que requieres
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: MSnIuC
+                              autoSend: false
+                              variable: Topic.Var7
+                              userInput: =Topic.Var6
+                              moderationLevel: Medium
+                              additionalInstructions: |-
+                                Dame solo el documento que te solicite de esta base de conocimientos, no me des ningun resumen ni ninguna explicacion. Solo proporciona el documento solicitado
+                                Que tu respuesta no sea mayor a 100 caracteres.
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.CDH2025_ieNOFQmMAL7NKuuP1ylf6
+
+                              applyModelKnowledgeSetting: false
+                              responseCaptureType: FullResponse
+
+                            - kind: SendActivity
+                              id: sendActivity_ELSxpx
+                              activity: "{Topic.Var7.Text.MarkdownContent}"
+
+                        - id: conditionItem_8vRMop
+                          condition: =Topic.Var5 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_3P5ntW'.'Resumen y Documento'
+                          actions:
+                            - kind: Question
+                              id: question_UYIyg3
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var8
+                              prompt: Proporcioname el nombre del documento
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: aWJwBb
+                              autoSend: false
+                              variable: Topic.Var9
+                              userInput: =Topic.Var8
+                              additionalInstructions: |-
+                                Dame un resumen y el documento  que te solicite de esta base de conocimientos. Que el resumen sea un vistazo general de lo que trata el documento y que no sobrepase los 200 carcateres
+
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.CDH2025_ieNOFQmMAL7NKuuP1ylf6
+
+                              applyModelKnowledgeSetting: false
+                              responseCaptureType: TextOnly
+
+                            - kind: SendActivity
+                              id: sendActivity_Yz6MYQ
+                              activity: "{Topic.Var9}"
+
+                    - kind: Question
+                      id: question_BFOMxN
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var29
+                      prompt: ¿Necesitas que te ayude en algo mas?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Si
+                              displayName: Si
+
+                            - id: No
+                              displayName: No
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_veyemr
+                      conditions:
+                        - id: conditionItem_l2HIE0
+                          condition: =Topic.Var29 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_BFOMxN'.Si
+                          actions:
+                            - kind: BeginDialog
+                              id: zdPRS3
+                              dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                        - id: conditionItem_r7SjGB
+                          condition: =Topic.Var29 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_BFOMxN'.No
+                          actions:
+                            - kind: SendActivity
+                              id: sendActivity_UiWtwa
+                              activity: Gracias por tu consulta Compuqueño, aqui estare a la orden para apoyarte cuando lo necesites
+
+                            - kind: EndConversation
+                              id: ywAWkJ
+
+                - id: conditionItem_sc2leZ
+                  condition: =Topic.Var4 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_URtWCZ'.SAI
+                  actions:
+                    - kind: Question
+                      id: question_jRoD3C
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var10
+                      prompt: ¿Como deseas recibir el documento?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Solo el documento
+                              displayName: Solo el documento
+
+                            - id: Resumen y Documento
+                              displayName: Resumen y Documento
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_oRhfq2
+                      conditions:
+                        - id: conditionItem_kRagx5
+                          condition: =Topic.Var10 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_jRoD3C'.'Solo el documento'
+                          actions:
+                            - kind: Question
+                              id: question_64dPHI
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var11
+                              prompt: Proporcioname el nombre del documento
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: IYGYs1
+                              autoSend: false
+                              variable: Topic.Var12
+                              userInput: =Topic.Var11
+                              additionalInstructions: |-
+                                Dame solo el documento que te solicite de esta base de conocimientos, no me des ningun resumen ni ninguna explicacion. Solo proporciona el documento solicitado
+                                Que tu respuesta no sea mayor a 100 caracteres.
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.SAI2025_KBnenp7JNjU6aqI0zzUQj
+
+                              applyModelKnowledgeSetting: false
+                              responseCaptureType: FullResponse
+
+                            - kind: SendActivity
+                              id: sendActivity_zznChV
+                              activity: "{Topic.Var12.Text.MarkdownContent}"
+
+                        - id: conditionItem_GF2ki1
+                          condition: =Topic.Var10 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_jRoD3C'.'Resumen y Documento'
+                          actions:
+                            - kind: Question
+                              id: question_ueyC60
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var13
+                              prompt: Proporcioname el nombre del documento
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: 9bn2lH
+                              variable: Topic.Var14
+                              userInput: =Topic.Var13
+                              additionalInstructions: |-
+                                Dame un resumen y el documento  que te solicite de esta base de conocimientos. Que el resumen sea un vistazo general de lo que trata el documento y que no sobrepase los 200 carcateres
+
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.SAI2025_KBnenp7JNjU6aqI0zzUQj
+
+                              applyModelKnowledgeSetting: false
+
+                            - kind: SendActivity
+                              id: sendActivity_7FWnFa
+                              activity: "{Topic.Var14}"
+
+                    - kind: Question
+                      id: question_xHcNfY
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var30
+                      prompt: ¿Necesitas que te ayude en algo mas?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Si
+                              displayName: Si
+
+                            - id: No
+                              displayName: No
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_UYLYB7
+                      conditions:
+                        - id: conditionItem_OuvnPf
+                          condition: =Topic.Var30 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_xHcNfY'.Si
+                          actions:
+                            - kind: BeginDialog
+                              id: l3rxoK
+                              dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                        - id: conditionItem_xt2u2l
+                          condition: =Topic.Var30 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_xHcNfY'.No
+                          actions:
+                            - kind: SendActivity
+                              id: sendActivity_L17S9F
+                              activity: Gracias por tu consulta Compuqueño, aqui estare a la orden para apoyarte cuando lo necesites
+
+                            - kind: EndConversation
+                              id: X1NYhP
+
+                - id: conditionItem_aZhng7
+                  condition: =Topic.Var4 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_URtWCZ'.INFRA
+                  actions:
+                    - kind: Question
+                      id: question_MLqA4j
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var15
+                      prompt: ¿Como deseas recibir el documento?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Solo el documento
+                              displayName: Solo el documento
+
+                            - id: Resumen y Documento
+                              displayName: Resumen y Documento
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_pOUTQN
+                      conditions:
+                        - id: conditionItem_lYv2oX
+                          condition: =Topic.Var15 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_MLqA4j'.'Solo el documento'
+                          actions:
+                            - kind: Question
+                              id: question_FJwvBJ
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var16
+                              prompt: Proporcioname el nombre del documento
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: nyENfu
+                              autoSend: false
+                              variable: Topic.Var17
+                              userInput: =Topic.Var16
+                              additionalInstructions: |-
+                                Dame solo el documento que te solicite de esta base de conocimientos, no me des ningun resumen ni ninguna explicacion. Solo proporciona el documento solicitado
+                                Que tu respuesta no sea mayor a 100 caracteres.
+
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.INFRA2025_Jd3wjpUiqKAUjtgW_CZFQ
+
+                              applyModelKnowledgeSetting: false
+                              responseCaptureType: FullResponse
+
+                            - kind: SendActivity
+                              id: sendActivity_VBzHQy
+                              activity: "{Topic.Var17.Text.MarkdownContent}"
+
+                        - id: conditionItem_9HlReK
+                          condition: =Topic.Var15 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_MLqA4j'.'Resumen y Documento'
+                          actions:
+                            - kind: Question
+                              id: question_rhCavH
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var18
+                              prompt: "Proporcioname el nombre del documento "
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: zNXC2Q
+                              autoSend: false
+                              variable: Topic.Var19
+                              userInput: =Topic.Var18
+                              additionalInstructions: |-
+                                Dame un resumen y el documento  que te solicite de esta base de conocimientos. Que el resumen sea un vistazo general de lo que trata el documento y que no sobrepase los 200 carcateres.
+
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.INFRA2025_Jd3wjpUiqKAUjtgW_CZFQ
+
+                              applyModelKnowledgeSetting: false
+
+                            - kind: SendActivity
+                              id: sendActivity_LaHGjV
+                              activity: "{Topic.Var19}"
+
+                    - kind: Question
+                      id: question_LWAH9L
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var31
+                      prompt: ¿Necesitas que te ayude en algo mas?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Si
+                              displayName: Si
+
+                            - id: No
+                              displayName: No
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_ag5cPz
+                      conditions:
+                        - id: conditionItem_wmIS6n
+                          condition: =Topic.Var31 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_LWAH9L'.Si
+                          actions:
+                            - kind: BeginDialog
+                              id: BqFVIs
+                              dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                        - id: conditionItem_BZ3HAv
+                          condition: =Topic.Var31 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_LWAH9L'.No
+                          actions:
+                            - kind: EndConversation
+                              id: R2PBYt
+
+                - id: conditionItem_lhcK8H
+                  condition: =Topic.Var4 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_URtWCZ'.MS365
+                  actions:
+                    - kind: Question
+                      id: question_kQrWzh
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var20
+                      prompt: ¿Como deseas recibir el documento?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Solo el documento
+                              displayName: Solo el documento
+
+                            - id: Resumen y documento
+                              displayName: Resumen y documento
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_iD73Ea
+                      conditions:
+                        - id: conditionItem_kTKx6U
+                          condition: =Topic.Var20 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_kQrWzh'.'Solo el documento'
+                          actions:
+                            - kind: Question
+                              id: question_6lx8qd
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var21
+                              prompt: Proporcioname le nombre del documento
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: Df2kMp
+                              autoSend: false
+                              variable: Topic.Var22
+                              userInput: =Topic.Var21
+                              additionalInstructions: |-
+                                Dame solo el documento que te solicite de esta base de conocimientos, no me des ningun resumen ni ninguna explicacion. Solo proporciona el documento solicitado
+                                Que tu respuesta no sea mayor a 100 caracteres.
+
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.MS3652025_YkbYbXEgyXD_eM91vKXwE
+
+                              applyModelKnowledgeSetting: false
+                              responseCaptureType: FullResponse
+
+                            - kind: SendActivity
+                              id: sendActivity_qwQKwW
+                              activity: "{Topic.Var22.Text.MarkdownContent}"
+
+                        - id: conditionItem_PmnYSC
+                          condition: =Topic.Var20 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_kQrWzh'.'Resumen y documento'
+                          actions:
+                            - kind: Question
+                              id: question_QQd9z9
+                              interruptionPolicy:
+                                allowInterruption: true
+
+                              variable: init:Topic.Var23
+                              prompt: Proporcioname el nombre del documento
+                              entity: StringPrebuiltEntity
+
+                            - kind: SearchAndSummarizeContent
+                              id: x1FMqP
+                              autoSend: false
+                              variable: Topic.Var24
+                              userInput: =Topic.Var23
+                              additionalInstructions: |-
+                                Dame un resumen y el documento  que te solicite de esta base de conocimientos. Que el resumen sea un vistazo general de lo que trata el documento y que no sobrepase los 200 carcateres.
+
+                                entrega siempre la referencia del documento con una seccion:
+                                Referencias: [referencia]
+                              fileSearchDataSource:
+                                searchFilesMode:
+                                  kind: DoNotSearchFiles
+
+                              knowledgeSources:
+                                kind: SearchSpecificKnowledgeSources
+                                knowledgeSources:
+                                  - cr3a3_pMsitoTest2.topic.MS3652025_YkbYbXEgyXD_eM91vKXwE
+
+                              applyModelKnowledgeSetting: false
+
+                            - kind: SendActivity
+                              id: sendActivity_hK43NL
+                              activity: "{Topic.Var23}"
+
+                    - kind: Question
+                      id: question_fsbMQe
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var32
+                      prompt: ¿Necesitas que te ayude en algo mas?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Si
+                              displayName: Si
+
+                            - id: No
+                              displayName: No
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_H2CRFj
+                      conditions:
+                        - id: conditionItem_bBYASU
+                          condition: =Topic.Var32 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_fsbMQe'.Si
+                          actions:
+                            - kind: BeginDialog
+                              id: owyPEW
+                              dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                        - id: conditionItem_sT4a2m
+                          condition: =Topic.Var32 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_fsbMQe'.No
+                          actions:
+                            - kind: EndConversation
+                              id: TWsiEd
+
+        - id: conditionItem_SuyWXs
+          condition: =Topic.Var1 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_CiSkzM'.'Solicitud de plantillas'
+          actions:
+            - kind: Question
+              id: question_otoY8a
+              interruptionPolicy:
+                allowInterruption: true
+
+              variable: init:Topic.Var2
+              prompt: ¿Que plantilla Necesitas?
+              entity:
+                kind: EmbeddedEntity
+                definition:
+                  kind: ClosedListEntity
+                  items:
+                    - id: Plantilla Documento de Alcances
+                      displayName: Plantilla Documento de Alcances
+
+                    - id: Plantillas Memorias Técnicas
+                      displayName: Plantillas Memorias Técnicas
+
+                    - id: Plantilla Documento de Cierre
+                      displayName: Plantilla Documento de Cierre
+
+            - kind: ConditionGroup
+              id: conditionGroup_lQdiD8
+              conditions:
+                - id: conditionItem_lmCMfC
+                  condition: =Topic.Var2 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_otoY8a'.'Plantilla Documento de Alcances'
+                  actions:
+                    - kind: SendActivity
+                      id: sendActivity_Hi8lcI
+                      activity: |-
+                        Aqui tienes el link donde puedes descargar la plantilla
+                        [Doc_Alcance_Nuevo_Formato_v1_F.docx](https://compucad1.sharepoint.com/:w:/s/ccad/sp/DP%204/EaT5LZqS0g5LtjJmcbgaB1UB0Zds_l16FwPp2ChzKIkE2g?e=olX9F4)
+
+                        **NOTA: NO MODIFICAR LA PLANTILLA, SOLO DESCARGARLA**
+
+                    - kind: Question
+                      id: question_WvEg3J
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var25
+                      prompt: ¿Necesitas que te ayude en algo mas?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Si
+                              displayName: Si
+
+                            - id: No
+                              displayName: No
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_Pfrs40
+                      conditions:
+                        - id: conditionItem_spqBmC
+                          condition: =Topic.Var25 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_WvEg3J'.Si
+                          actions:
+                            - kind: BeginDialog
+                              id: CZpZmn
+                              dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                        - id: conditionItem_FfkudT
+                          condition: =Topic.Var25 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_WvEg3J'.No
+                          actions:
+                            - kind: SendActivity
+                              id: sendActivity_iEtR9g
+                              activity: Gracias por tu consulta Compuqueño, aqui estare a la orden para apoyarte cuando lo necesites
+
+                            - kind: EndConversation
+                              id: IILnHG
+
+                - id: conditionItem_64yHTe
+                  condition: =Topic.Var2 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_otoY8a'.'Plantilla Documento de Cierre'
+                  actions:
+                    - kind: SendActivity
+                      id: sendActivity_N3CgSG
+                      activity: |-
+                        Aqui tienes el link donde puedes descargar la plantilla: [Doc_Cierre_Nuevo_Formato_v1_F.docx](https://compucad1.sharepoint.com/:w:/r/sites/ccad/sp/DP%204/_layouts/15/Doc.aspx?sourcedoc=%7B9ACD0CA2-CA8C-41D5-A4B3-86323F78D278%7D&file=Doc_Cierre_Nuevo_Formato_v1_F.docx&action=default&mobileredirect=true)
+
+                        **NOTA: NO MODIFICAR EL DOCUMENTO, SOLO DESCARGARLO**
+
+                    - kind: Question
+                      id: question_VH45dM
+                      interruptionPolicy:
+                        allowInterruption: true
+
+                      variable: init:Topic.Var26
+                      prompt: ¿Necesitas que te ayude en algo mas?
+                      entity:
+                        kind: EmbeddedEntity
+                        definition:
+                          kind: ClosedListEntity
+                          items:
+                            - id: Si
+                              displayName: Si
+
+                            - id: No
+                              displayName: No
+
+                    - kind: ConditionGroup
+                      id: conditionGroup_joDIEj
+                      conditions:
+                        - id: conditionItem_89jg27
+                          condition: =Topic.Var26 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_VH45dM'.Si
+                          actions:
+                            - kind: BeginDialog
+                              id: oIRsiL
+                              dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                        - id: conditionItem_HycNqz
+                          condition: =Topic.Var26 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_VH45dM'.No
+                          actions:
+                            - kind: SendActivity
+                              id: sendActivity_Xnp6Fs
+                              activity: Gracias por tu consulta Compuqueño, aqui estare a la orden para apoyarte cuando lo necesites
+
+                            - kind: EndConversation
+                              id: pxMzum
+
+              elseActions:
+                - kind: ConditionGroup
+                  id: conditionGroup_kvLQuK
+                  conditions:
+                    - id: conditionItem_jD6fzD
+                      condition: =Topic.Var2 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_otoY8a'.'Plantillas Memorias Técnicas'
+                      actions:
+                        - kind: Question
+                          id: question_tgDvbX
+                          interruptionPolicy:
+                            allowInterruption: true
+
+                          variable: init:Topic.Var3
+                          prompt: ¿Que memoria tecnica requieres?
+                          entity:
+                            kind: EmbeddedEntity
+                            definition:
+                              kind: ClosedListEntity
+                              items:
+                                - id: CDH
+                                  displayName: CDH
+
+                                - id: SAI
+                                  displayName: SAI
+
+                        - kind: ConditionGroup
+                          id: conditionGroup_vzpHRJ
+                          conditions:
+                            - id: conditionItem_jUmCWJ
+                              condition: =Topic.Var3 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_tgDvbX'.CDH
+                              actions:
+                                - kind: SendActivity
+                                  id: sendActivity_eeCv5i
+                                  activity: |
+                                    Aqui tienes el link donde puedes descargar la plantilla: [M.Técnica_&_Doc_Cierre_Nuevo_Fromato_CDH__MOV-GDE_v1.vsdx](https://compucad1.sharepoint.com/:u:/r/sites/ccad/sp/DP%204/_layouts/15/Doc.aspx?sourcedoc=%7B0A71AAB7-27F5-4690-83CB-AC7005197819%7D&file=M.T%C3%A9cnica_%26_Doc_Cierre_Nuevo_Fromato_CDH__MOV-GDE_v1.vsdx&action=default&mobileredirect=true)
+
+                                    **NOTA: NO MODIFICAR LA PLANTILLA, SOLO DESCARGARLA**
+
+                                - kind: Question
+                                  id: question_JFpZNW
+                                  interruptionPolicy:
+                                    allowInterruption: true
+
+                                  variable: init:Topic.Var27
+                                  prompt: ¿Necestitas que te ayude en algo mas?
+                                  entity:
+                                    kind: EmbeddedEntity
+                                    definition:
+                                      kind: ClosedListEntity
+                                      items:
+                                        - id: Si
+                                          displayName: Si
+
+                                        - id: No
+                                          displayName: No
+
+                                - kind: ConditionGroup
+                                  id: conditionGroup_G8TiMf
+                                  conditions:
+                                    - id: conditionItem_ggNKRc
+                                      condition: =Topic.Var27 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_JFpZNW'.Si
+                                      actions:
+                                        - kind: BeginDialog
+                                          id: QZTKEi
+                                          dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                                    - id: conditionItem_fcGFuj
+                                      condition: =Topic.Var27 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_JFpZNW'.No
+                                      actions:
+                                        - kind: SendActivity
+                                          id: sendActivity_gr1nDu
+                                          activity: Gracias por tu consulta Compuqueño, aqui estare a la orden para apoyarte cuando lo necesites
+
+                                        - kind: EndConversation
+                                          id: hifCOO
+
+                            - id: conditionItem_0U0WIY
+                              condition: =Topic.Var3 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_tgDvbX'.SAI
+                              actions:
+                                - kind: SendActivity
+                                  id: sendActivity_nZH8vd
+                                  activity: |-
+                                    Aqui tienes el link donde puedes descargar la plantilla: [M.Técnica_&_Doc_Cierre_Nuevo_Formato_SAI_v1_F.vsdx](https://compucad1.sharepoint.com/:u:/r/sites/ccad/sp/DP%204/_layouts/15/Doc.aspx?sourcedoc=%7B1F5DB492-5600-4743-9EB4-94ACCF0BE580%7D&file=M.T%C3%A9cnica_%26_Doc_Cierre_Nuevo_Formato_SAI_v1_F.vsdx&action=default&mobileredirect=true)
+
+                                    **NOTA: NO MODIFICAR LA PLANTILLA, SOLO DESCARGARLA**
+
+                                - kind: Question
+                                  id: question_nEnvyd
+                                  interruptionPolicy:
+                                    allowInterruption: true
+
+                                  variable: init:Topic.Var28
+                                  prompt: ¿Necesitas que te ayude en algo mas?
+                                  entity:
+                                    kind: EmbeddedEntity
+                                    definition:
+                                      kind: ClosedListEntity
+                                      items:
+                                        - id: Si
+                                          displayName: Si
+
+                                        - id: No
+                                          displayName: No
+
+                                - kind: ConditionGroup
+                                  id: conditionGroup_s0SMGU
+                                  conditions:
+                                    - id: conditionItem_j37bKc
+                                      condition: =Topic.Var28 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_nEnvyd'.Si
+                                      actions:
+                                        - kind: BeginDialog
+                                          id: bVronh
+                                          dialog: cr3a3_pMsitoTest2.topic.Opcionespredefinidas
+
+                                    - id: conditionItem_K4PACq
+                                      condition: =Topic.Var28 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_nEnvyd'.No
+                                      actions:
+                                        - kind: SendActivity
+                                          id: sendActivity_Ez2NKv
+                                          activity: Gracias por tu consulta Compuqueño, aqui estare a la orden para apoyarte cuando lo necesites
+
+                                        - kind: EndConversation
+                                          id: RbdtJz
+
+        - id: conditionItem_56bJf0
+          condition: =Topic.Var1 = 'cr3a3_pMsitoTest2.topic.Opcionespredefinidas.main.question_CiSkzM'.'Generar reporte'
+          actions:
+            - kind: BeginDialog
+              id: lkhU7w
+              dialog: cr3a3_pMsitoTest2.topic.generarreportebeta
+
+inputType: {}
+outputType: {}

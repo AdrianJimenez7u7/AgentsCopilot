@@ -704,7 +704,7 @@ export class ContadoresController {
 
       for (const escaneo of escaneos) {
         try {
-          const { serie, impresiones } = escaneo;
+          const { serie, impresionesBn, impresionesColor } = escaneo;
 
           if (!serie) {
             omitidos++;
@@ -712,7 +712,8 @@ export class ContadoresController {
             continue;
           }
 
-          const impresionesNuevas = parseInt(impresiones) || 0;
+          const impresionesNuevasBn = parseInt(impresionesBn) || 0;
+          const impresionesNuevasColor = parseInt(impresionesColor) || 0;
           let serieInitial = String(serie).toUpperCase().trim();
           let todasLasVariantes = getVariations(serieInitial);
 
@@ -742,7 +743,7 @@ export class ContadoresController {
                 gte: inicioDia,
                 lt: finDia
               },
-              TotalImpresiones: impresionesNuevas
+              TotalImpresiones: impresionesNuevasBn + impresionesNuevasColor
             }
           });
 
@@ -757,9 +758,9 @@ export class ContadoresController {
             data: {
               Modelo: impresoraCliente.Modelo || null,
               Serie: impresoraCliente.Serie,
-              ImpresionesBN: impresionesNuevas,
-              ImpresionesColor: 0,
-              TotalImpresiones: impresionesNuevas,
+              ImpresionesBN: impresionesNuevasBn,
+              ImpresionesColor: impresionesNuevasColor,
+              TotalImpresiones: impresionesNuevasBn + impresionesNuevasColor,
               Cliente: impresoraCliente.Cliente,
               FechaCaptura: hoy,
               Estatus: null
@@ -768,17 +769,17 @@ export class ContadoresController {
           // Actualizar ContadoresInfoClientes (Totales actuales)
           const actualTotal = Number(impresoraCliente.ImpresionesActuales) || 0;
 
-          if (impresionesNuevas >= actualTotal) {
+          if (impresionesNuevasBn + impresionesNuevasColor >= actualTotal) {
             await prisma.contadoresInfoClientes.update({
               where: { id: impresoraCliente.id },
               data: {
-                ImpresionesActuales: impresionesNuevas,
-                BN: impresionesNuevas,
-                Color: 0
+                ImpresionesActuales: impresionesNuevasBn + impresionesNuevasColor,
+                BN: impresionesNuevasBn,
+                Color: impresionesNuevasColor
               }
             });
           } else {
-            logger.warn(`Intento de bajar contador por excel para ${impresoraCliente.Serie}. Actual: ${actualTotal}, Solicitado: ${impresionesNuevas}. Solo guardado en histórico.`);
+            logger.warn(`Intento de bajar contador por excel para ${impresoraCliente.Serie}. Actual: ${actualTotal}, Solicitado: ${impresionesNuevasBn + impresionesNuevasColor}. Solo guardado en histórico.`);
           }
 
           // Lógica de salto de Fecha Límite
@@ -816,4 +817,31 @@ export class ContadoresController {
       return errorResponse(res, error.message, 500);
     }
   }
+
+  /**
+   * 
+   * @param {*} req 
+   * @param {*} res 
+   * @returns 
+   */
+  static async obtenerNumeroHojas(req, res) {
+    try {
+      const file = req.files[0];
+      const pdfPath = file.path;
+      const originalName = file.originalname;
+
+      const pdfservice = new PdfService();
+      const numeroHojas = await pdfservice.getPdfPageCount(pdfPath);
+      // Limpiar archivo temporal
+      const fs = await import('fs');
+      if (fs.existsSync(pdfPath)) {
+        fs.unlinkSync(pdfPath);
+      }
+      return successResponse(res, { "numeroHojas": numeroHojas }, 'Número de hojas obtenido exitosamente');
+    } catch (error) {
+      logger.error('Error obteniendo número de hojas', error);
+      return errorResponse(res, error.message, 500);
+    }
+  }
+
 }
