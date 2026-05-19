@@ -467,7 +467,7 @@ export class AriaController {
         try {
 
             // A. CONFIGURACIÓN (reutilizamos las mismas credenciales)
-            const tenantId = process.env.TENANT_ID;
+            const tenantId = process.env.AZURE_TENANT_ID;
             const clientId = "6840a6b2-7154-4c5d-8081-003edd0da715";
             const clientSecret = process.env.DYNAMIC_SECRET;
             const scope = "https://ccad.api.crm.dynamics.com/.default";

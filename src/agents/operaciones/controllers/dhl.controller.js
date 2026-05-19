@@ -65,19 +65,29 @@ export class DHLcontroller {
         }
     }
 
-    /**
+/**
      * @request { originCountry, originCity, destCountry, destCity, weight, date } req.body
      * @returns {Object} Cotización simple
      */
     static async getRates(req, res) {
         try {
-            const { originCountry, originCity, destCountry, destCity, weight, date } = req.body;
+            let { originCountry, originCity, destCountry, destCity, weight, date } = req.body;
 
             if (!originCountry || !originCity || !destCountry || !destCity || !weight || !date) {
                 return res.status(400).json({ error: "Faltan parámetros de origen, destino, peso o fecha" });
             }
 
-            const result = await dhlService.getRates(originCountry, originCity, destCountry, destCity, weight, date);
+            // LIMPIEZA DE FECHA: Convierte "2026-05-14T00:00:00.000Z" a "2026-05-14"
+            const formattedDate = date.includes('T') ? date.split('T')[0] : date;
+
+            const result = await dhlService.getRates(
+                originCountry, 
+                originCity, 
+                destCountry, 
+                destCity, 
+                weight, 
+                formattedDate
+            );
             return res.status(200).json(result);
         } catch (error) {
             console.error(`[DHL] Error en getRates:`, error?.message ?? error);
@@ -125,20 +135,24 @@ export class DHLcontroller {
         }
     }
 
-    /**
-     * @request { trackingNumber, typeCode } req.body
+/**
+     * @request { trackingNumber, typeCode (opcional) } req.body
      * @returns {Object} Imagen codificada en Base64
      */
     static async getShipmentImage(req, res) {
         try {
             const { trackingNumber, typeCode } = req.body;
 
+            // Solo exigimos el número de guía
             if (!trackingNumber) {
                 return res.status(400).json({ error: "trackingNumber es requerido" });
             }
 
-            const result = await dhlService.getShipmentImage(trackingNumber, typeCode || 'INV');
+            // Le pasamos solo el trackingNumber y el typeCode (que puede venir vacío)
+            // Si typeCode viene vacío, el DhlService usará 'waybill' por defecto.
+            const result = await dhlService.getShipmentImage(trackingNumber, typeCode);
             return res.status(200).json(result);
+            
         } catch (error) {
             console.error(`[DHL] Error en getShipmentImage:`, error?.message ?? error);
             return res.status(500).json({ status: 500, message: "Error obteniendo imagen del envío", error: error?.message ?? String(error) });

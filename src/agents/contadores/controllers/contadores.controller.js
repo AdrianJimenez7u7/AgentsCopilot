@@ -844,4 +844,239 @@ export class ContadoresController {
     }
   }
 
+  static async analizarContadores(fileOrPath, name) {
+    try {
+      const file = typeof fileOrPath === 'object'
+        ? fileOrPath
+        : { path: fileOrPath, originalname: name };
+
+      if (!file?.path || !file?.originalname) {
+        throw new Error('Archivo PDF inválido');
+      }
+
+      const pdfPath = file.path;
+      const originalName = file.originalname;
+
+      // Determinar el cliente: usar el nombre recibido o el del archivo
+      const cliente = name || originalName.replace(/\.[^/.]+$/, '');
+
+      // 1. Dividir el PDF
+      const splitFiles = await PdfService.splitPdfByPages(pdfPath, originalName);
+
+      // 2. Analizar cada página con Azure
+      const azureService = new AzureService();
+      const results = [];
+      const resultadosCorrectos = [];
+      const resultadosIncorrectos = [];
+
+      for (let i = 0; i < splitFiles.length; i++) {
+        const splitFile = splitFiles[i];
+        const pageNumber = i + 1;
+        try {
+          const analysis = await azureService.analyzeDocument(splitFile.ruta);
+
+          // Extraer campos específicos
+          const extractedData = {};
+          const targetFields = ['Modelo', 'TipoImpresion', 'ip', 'Serie', 'Impresiones', 'ImpresionesColor', 'TipoImpresora'];
+
+          if (analysis.documents && analysis.documents.length > 0) {
+            const fields = analysis.documents[0].fields;
+
+            // Verificar si el campo "Impresiones" existe
+            if (fields['Impresiones'] && fields['Impresiones'].value) {
+              // Extraer todos los campos
+              for (const fieldName of targetFields) {
+                if (fields[fieldName] && fields[fieldName].value) {
+                  extractedData[fieldName] = fields[fieldName].value;
+                }
+              }
+              extractedData.encontrada = false;
+              try {
+                const impresionesBN = parseInt(extractedData.Impresiones) || 0;
+                const impresionesColor = parseInt(extractedData.ImpresionesColor) || 0;
+
+                let impresoraCliente = await prisma.contadoresInfoClientes.findFirst({
+                  where: { Serie: extractedData.Serie }
+                });
+
+
+                // 2. Lógica de validación con Prisma
+                let serieInitial = String(extractedData.Serie).toUpperCase();
+                let todasLasVariantes = getVariations(serieInitial);
+
+                // Buscamos si alguna de las variantes existe en la BD
+                let clienteEncontrado = await prisma.contadoresInfoClientes.findFirst({
+                  where: {
+                    Serie: {
+                      in: todasLasVariantes
+                    }
+                  }
+                });
+
+                if (clienteEncontrado) {
+                  extractedData.encontrada = true;
+                  impresoraCliente = clienteEncontrado;
+                } else {
+                  extractedData.encontrada = false;
+                }
+                //metodo busqueda fin
+
+                if (impresoraCliente != null && extractedData.Serie != null && extractedData.Serie !== '') {
+
+
+                  await prisma.contadores.create({
+                    data: {
+                      Modelo: impresoraCliente.Modelo || null,
+                      TipoImpresion: extractedData.TipoImpresion || null,
+                      Ip: impresoraCliente.Ip || null,
+                      Serie: impresoraCliente.Serie || null,
+                      ImpresionesBN: impresionesBN,
+                      ImpresionesColor: impresionesColor,
+                      TotalImpresiones: impresionesBN + impresionesColor,
+                      Cliente: impresoraCliente.Cliente,
+                      FechaCaptura: new Date(),
+                      TipoImpresora: extractedData.TipoImpresora || null,
+                    }
+                  });
+
+                  // --- AUTO-INCREMENT FECHA LIMITE REPORTE ---
+                  // Reutilizamos impresoraCliente que ya consultamos arriba
+                  if (impresoraCliente) {
+                    const impresoraInfo = impresoraCliente;
+
+
+                    if (impresoraInfo) {
+                      // 1. Actualizar Contadores Actuales en la tabla InfoClientes
+                      // SOLO SI ES MAYOR O IGUAL (Evitar downgrades por reportes viejos)
+                      const nuevoTotal = impresionesBN + impresionesColor;
+                      const actualTotal = Number(impresoraInfo.ImpresionesActuales) || 0;
+
+                      if (nuevoTotal >= actualTotal) {
+                        await prisma.contadoresInfoClientes.update({
+                          where: { id: impresoraInfo.id },
+                          data: {
+                            ImpresionesActuales: nuevoTotal,
+                            BN: impresionesBN,
+                            Color: impresionesColor
+                            // No actualizamos la fecha aqui, esa se actualiza con la logica de abajo si corresponde
+                          }
+                        });
+                      } else {
+                        console.warn(`[WARN] Intento de bajar contador para ${extractedData.Serie}. Actual: ${actualTotal}, Nuevo: ${nuevoTotal}. Ignorando update.`);
+                        const mensaje = `Intento de bajar contador para ${extractedData.Serie}. Actual: ${actualTotal}, Nuevo: ${nuevoTotal}. Ignorando update.`;
+                        resultadosIncorrectos.push({
+                          pagina: splitFile.nombre,
+                          datos: extractedData,
+                          error: mensaje
+                        });
+                      }
+
+                      // 2. Lógica Fecha Límite
+                      if (impresoraInfo.FechaLimiteReporte) {
+                        const currentDeadline = new Date(impresoraInfo.FechaLimiteReporte);
+                        const now = new Date();
+
+                        // Solo actualizar si la fecha limite es pasada o es el mes actual
+                        // (evitar doble incremento si se escanea varias veces el mismo mes)
+                        // Lógica: Target = Mes Actual + 1.
+                        // Si currentDeadline ya es > Fin de Mes Actual, asumimos que ya se actualizó.
+
+                        const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+                        if (currentDeadline < startOfNextMonth) {
+                          const originalDay = currentDeadline.getDate();
+                          // Calcular siguiente mes
+                          const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, originalDay);
+
+                          // Ajuste por si el dia no existe en el siguiente mes (ej. 31 Ene -> 28 Feb)
+                          if (nextDate.getDate() !== originalDay) {
+                            nextDate.setDate(0); // Ultimo dia del mes anterior (que es el correcto)
+                          }
+
+                          await prisma.contadoresInfoClientes.update({
+                            where: { id: impresoraInfo.id },
+                            data: { FechaLimiteReporte: nextDate }
+                          });
+
+                          resultadosCorrectos.push({
+                          pagina: splitFile.nombre,
+                          datos: extractedData
+                        });
+                        }
+                      }
+                    }
+                  }
+                  // -------------------------------------------
+
+
+                } else {
+                  resultadosIncorrectos.push({
+                    pagina: splitFile.nombre,
+                    datos: extractedData,
+                    error: 'No se encontro impresora cliente para la serie'
+                  });
+                }
+              } catch (dbError) {
+                console.error(dbError);
+                extractedData.encontrada = false;
+                resultadosIncorrectos.push({
+                  pagina: splitFile.nombre,
+                  datos: extractedData,
+                  error: dbError?.message || String(dbError)
+                });
+              }
+            } else {
+              extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
+              resultadosIncorrectos.push({
+                pagina: splitFile.nombre,
+                datos: extractedData,
+                error: extractedData.mensaje
+              });
+            }
+          } else {
+            extractedData.mensaje = `No estoy entrenado para esa variante de documento: ${splitFile.nombre}`;
+            resultadosIncorrectos.push({
+              pagina: splitFile.nombre,
+              datos: extractedData,
+              error: extractedData.mensaje
+            });
+          }
+
+          results.push({
+            pagina: splitFile.nombre,
+            datos: extractedData
+          });
+
+        } catch (error) {
+          results.push({
+            pagina: splitFile.nombre,
+            error: error.message
+          });
+          resultadosIncorrectos.push({
+            pagina: splitFile.nombre,
+            error: error.message
+          });
+        }
+      }
+      // 3. Limpiar carpeta de salida (SOLO archivos de este proceso para evitar colisiones)
+      const fsSync = await import('fs');
+      for (const splitFile of splitFiles) {
+        if (fsSync.existsSync(splitFile.ruta)) {
+          fsSync.unlinkSync(splitFile.ruta);
+        }
+      }
+      return {
+        cliente,
+        totalPaginas: splitFiles.length,
+        //resultados: results,
+        correctos: resultadosCorrectos,
+        incorrectos: resultadosIncorrectos
+      };
+
+    } catch (error) {
+      logger.error('Error procesando PDF', error);
+      throw error;
+    }
+  }
+
 }

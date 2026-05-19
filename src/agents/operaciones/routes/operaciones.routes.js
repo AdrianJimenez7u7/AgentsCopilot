@@ -1,7 +1,9 @@
 import express from 'express';
 import { ProductosController } from '../controllers/productos.controller.js';
 import { DHLcontroller } from '../controllers/dhl.controller.js';
+import { agentController } from '../controllers/agent.controller.js';
 const router = express.Router();
+const agent = new agentController();
 
 router.post('/search', ProductosController.extractProductData);
 router.post('/search/file', ProductosController.uploadXLSX, ProductosController.extractSKUfromXLSX);
@@ -38,5 +40,10 @@ router.post('/dhl/getProofOfDelivery', DHLcontroller.getProofOfDelivery);
 router.post('/dhl/getProducts', DHLcontroller.getProducts);
 router.post('/dhl/getIdentifiers', DHLcontroller.getIdentifiers);
 
+
+// ── ENDPOINTS AGENTE ──────────────
+router.post('/agent/sendMessage', agent.procesarMensaje.bind(agent));
+router.get('/agent/threads', agent.listThreads.bind(agent));
+router.get('/agent/threads/:threadId/messages', agent.getThreadMessages.bind(agent));
 
 export default router;

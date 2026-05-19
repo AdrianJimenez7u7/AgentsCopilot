@@ -372,18 +372,6 @@ function buildExecutedTasksXml(report) {
     parts.push(xmlGroupTitle(`${g.index}. ${g.grupo}`));
     parts.push(xmlTaskTable(started));
  
-    const completed = started.filter(t => t.estado === 'Completado');
-    if (completed.length > 0) {
-      parts.push(xmlSubTitle('Actividades Completadas'));
-      completed.forEach(t => parts.push(xmlBulletItem(`${t.tarea} — Completado`)));
-    }
- 
-    const inProgress = started.filter(t => t.estado === 'En proceso');
-    if (inProgress.length > 0) {
-      parts.push(xmlSubTitle('Actividades en Curso'));
-      inProgress.forEach(t => parts.push(xmlBulletItem(`${t.tarea} — ${t.porcentaje}%`)));
-    }
- 
     parts.push(xmlSpacer());
   });
  

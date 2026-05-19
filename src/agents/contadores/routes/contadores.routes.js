@@ -1,7 +1,9 @@
 import express from 'express';
 import { ContadoresController } from '../controllers/contadores.controller.js';
+import { agentController } from '../controllers/agent.controller.js';
 
 const router = express.Router();
+const agent = new agentController();
 
 // Endpoint para dividir PDF en páginas individuales
 router.post('/split-pdf', ContadoresController.uploadPdf, ContadoresController.splitPdf);
@@ -53,5 +55,7 @@ router.post('/clientes/bulk', ContadoresController.uploadCsv, ContadoresControll
 router.get('/tecnicos', ContadoresController.getTecnicos);
 
 router.post('/pdf/counter', ContadoresController.uploadPdf, ContadoresController.obtenerNumeroHojas);
+
+router.post('/root/chat', agentController.uploadPdf, agent.chat.bind(agent));
 
 export default router;

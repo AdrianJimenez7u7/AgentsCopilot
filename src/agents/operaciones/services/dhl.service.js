@@ -12,11 +12,9 @@ export class DhlService {
         this.username = process.env.DHL_USERNAME;
         this.password = process.env.DHL_PASSWORD;
         this.accountNumber = process.env.DHL_ACCOUNT_NUMBER;
-        
         // Entorno de pruebas por defecto, asegúrate de cambiar a producción cuando estés listo
-        this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi/test";
-        this.version = "3.2.2";
-    }
+        this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi";
+        this.version = "3.2.0";    }
 
     /**
      * Genera los encabezados obligatorios para las peticiones a la API.
@@ -47,7 +45,7 @@ export class DhlService {
      * @returns {Promise<Object>} JSON con la dirección confirmada o sugerencias.
      * @throws {Error} Si la validación falla o hay un error de red.
      */
-    async validateAddress(countryCode, postalCode, cityName, strictValidation = false) {
+    async validateAddress(countryCode, postalCode, cityName, strictValidation = true) {
         const params = new URLSearchParams({
             type: 'pickup',
             countryCode,
@@ -163,15 +161,44 @@ export class DhlService {
         return this._handleResponse(response);
     }
 
-    /**
+/**
      * Recupera imágenes de documentos de envío (ej. Etiqueta PDF o Factura Comercial).
+     * Hace una consulta previa al endpoint de rastreo para obtener el año y mes exacto del envío.
      * * @param {string} trackingNumber - El número de guía del cual se desea el documento.
      * @param {string} [typeCode='INV'] - Tipo de documento ('INV' para Factura, 'AWB' para Etiqueta/Waybill).
      * @returns {Promise<Object>} JSON que contiene el documento codificado en formato Base64.
-     * @throws {Error} Si el documento no existe o el envío no lo soporta.
      */
-    async getShipmentImage(trackingNumber, typeCode = 'INV') { 
-        const params = new URLSearchParams({ typeCode });
+    async getShipmentImage(trackingNumber, typeCode = 'waybill') { 
+        let pickupYearAndMonth;
+
+        try {
+            // 1. Consultamos el tracking para extraer la fecha real del envío
+            const trackingData = await this.trackSingleShipment(trackingNumber);
+            
+            // La API puede devolver la data en la raíz del array o dentro de un objeto "shipments"
+            const shipment = Array.isArray(trackingData) ? trackingData[0] : trackingData.shipments?.[0];
+            
+            if (shipment && shipment.shipmentTimestamp) {
+                // shipmentTimestamp viene como "2026-05-07T12:45:00"
+                // Cortamos los primeros 7 caracteres para obtener "YYYY-MM"
+                pickupYearAndMonth = shipment.shipmentTimestamp.substring(0, 7);
+            } else {
+                throw new Error("No se encontró el timestamp en el tracking");
+            }
+        } catch (error) {
+            console.warn(`[DHL] No se pudo obtener la fecha real para la guía ${trackingNumber}, usando mes actual. Error:`, error.message);
+            // Fallback de seguridad: usamos el mes actual si el tracking falla
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            pickupYearAndMonth = `${year}-${month}`;
+        }
+
+        // 2. Ahora sí, hacemos la petición de la imagen con el parámetro correcto
+        const params = new URLSearchParams({ 
+            typeCode,
+            pickupYearAndMonth 
+        });
         
         const response = await fetch(`${this.apiUrl}/shipments/${trackingNumber}/get-image?${params}`, {
             method: 'GET',

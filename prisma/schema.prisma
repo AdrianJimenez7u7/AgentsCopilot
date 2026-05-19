@@ -210,6 +210,7 @@ model Agentes {
   usos          UsesModels[]
   acciones      AgentActions[]
 
+  messages    Message[]
   @@index([nombre_logico], map: "IX_AI_Agentes_NombreLogico")
   @@index([idModelo], map: "IX_AI_Agentes_IdModelo")
   @@map("AI_Agentes")
@@ -272,4 +273,198 @@ model AgentActions {
   @@index([actionType], map: "IX_AI_AgentActions_ActionType")
   @@map("AI_AgentActions")
 }
+
+
+// paqueterias
+model Paqueterias {
+  id          Int            @id(map: "PK__paqueter__3213E83FBA1B9C8B") @default(autoincrement())
+  nombre      String         @db.NVarChar(100)
+  descripcion String?        @db.NVarChar(Max)
+  createdAt   DateTime       @default(now(), map: "DF__paqueter__creado__6FE99F9F")
+  updatedAt   DateTime       @default(now(), map: "DF__paqueter__actuali__70A8B9B2")
+  deleted     Boolean        @default(false, map: "DF__paqueter__delet__71D1E811")
+  deletedAt   DateTime?      @db.DateTime
+
+  // Relaciones
+  cotizaciones Cotizaciones[]
+  envios       Envios[]
+
+  @@map("paqueterias")
+}
+
+model Cotizaciones {
+  id             Int          @id(map: "PK__cotizacio__3213E83F1B9CDBF7") @default(autoincrement())
+  usuario        String       @db.NVarChar(100)
+  idPaqueteria   Int          @db.Int
+  peso           Decimal      @db.Decimal(10, 2)
+  ciudadOrigen   String       @db.NVarChar(100)
+  cpOrigen       String       @db.NVarChar(20)
+  ciudadDestino  String       @db.NVarChar(100)
+  cpDestino      String       @db.NVarChar(20)
+  costoEstimado  Decimal?     @db.Decimal(10, 2) // <-- NUEVO: Para comparar contra el costo real
+  fecha          DateTime     @default(now(), map: "DF__cotizacio__fecha__72C60C4A")
+  createdAt      DateTime     @default(now(), map: "DF__cotizacio__creado__73BA3080")
+  updatedAt      DateTime     @default(now(), map: "DF__cotizacio__actuali__74ABBAE5")
+  deleted        Boolean      @default(false, map: "DF__cotizacio__delet__75A278F6")
+  deletedAt      DateTime?    @db.DateTime
+
+  // Relaciones
+  paqueteria     Paqueterias  @relation(fields: [idPaqueteria], references: [id])
+  envios         Envios[]
+
+  @@map("cotizaciones")
+}
+
+model Envios {
+  id             Int          @id(map: "PK__envios__3213E83F2B9CDBF7") @default(autoincrement())
+  idCotizacion   Int?         @db.Int // Opcional, por si se crea un envío sin cotizar primero
+  idPaqueteria   Int          @db.Int
+  usuario        String       @db.NVarChar(100)
+  estado         String       @default("CREADO") @db.NVarChar(50) // <-- NUEVO: CREADO, TRANSITO, ENTREGADO
+  costoEnvio     Decimal      @db.Decimal(10, 2)
+  impuestos      Decimal      @db.Decimal(10, 2)
+  fechaEnvio     DateTime     @default(now(), map: "DF__envios__fecha__76A278F6")
+  createdAt      DateTime     @default(now(), map: "DF__envios__creado__77A278F6")
+  updatedAt      DateTime     @default(now(), map: "DF__envios__actuali__78A278F6")
+  deleted        Boolean      @default(false, map: "DF__envios__delet__79A278F6")
+  deletedAt      DateTime?    @db.DateTime
+
+// Relaciones (AQUÍ ESTÁ LA MAGIA)
+  cotizacion     Cotizaciones? @relation(fields: [idCotizacion], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  paqueteria     Paqueterias   @relation(fields: [idPaqueteria], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  guias          GuiasEnvio[]
+
+  @@map("envios")
+}
+
+model GuiasEnvio {
+  id             Int          @id(map: "PK__guias_env__3213E83F8B9CDBF7") @default(autoincrement())
+  idEnvio        Int          @db.Int // <-- Modificado para ligarlo a la cabecera del envío
+  numeroGuia     String       @unique @db.NVarChar(100) // <-- UNIQUE para buscar rápido con la API
+  estadoGuia     String?      @db.NVarChar(100) // <-- Por si una caja llega y otra no
+  fechaEnvio     DateTime     @default(now(), map: "DF__guias_env__fecha__76A278F6")
+  createdAt      DateTime     @default(now(), map: "DF__guias_env__creado__77A278F6")
+  updatedAt      DateTime     @default(now(), map: "DF__guias_env__actuali__78A278F6")
+  deleted        Boolean      @default(false, map: "DF__guias_env__delet__79A278F6")
+  deletedAt      DateTime?    @db.DateTime
+
+  // Relaciones
+  envio          Envios                  @relation(fields: [idEnvio], references: [id])
+  documentos     ExtraccionDocumentos[]
+  cargos         CargosPaqueteria[]
+
+  @@map("guias_envio")
+}
+
+model ExtraccionDocumentos {
+  id               Int          @id(map: "PK__extracc__3213E83F9B9CDBF7") @default(autoincrement())
+  idGuiaEnvio      Int          @db.Int
+  tipoDocumento    String       @db.NVarChar(100) // ej. "waybill", "commercial-invoice"
+  fechaExtraccion  DateTime     @default(now(), map: "DF__extracc__fecha__7A278F6")
+  createdAt        DateTime     @default(now(), map: "DF__extracc__creado__7B278F6")
+  updatedAt        DateTime     @default(now(), map: "DF__extracc__actuali__7C278F6")
+  deleted          Boolean      @default(false, map: "DF__extracc__delet__7D278F6")
+  deletedAt        DateTime?    @db.DateTime
+
+  // Relaciones
+  guia             GuiasEnvio   @relation(fields: [idGuiaEnvio], references: [id])
+
+  @@map("extraccion_documentos")
+}
+
+model CargosPaqueteria {
+  id             Int          @id(map: "PK__cargos_p__3213E83FBB9CDBF7") @default(autoincrement())
+  idGuiaEnvio    Int          @db.Int
+  descripcion    String       @db.NVarChar(200)
+  url_factura    String?      @db.NVarChar(200)
+  monto          Decimal      @db.Decimal(10, 2)
+  concepto       String       @db.NVarChar(100)
+  ejecutivo      String       @db.NVarChar(100)
+  fechaCargo     DateTime     @default(now(), map: "DF__cargos_p__fecha__7E278F6")
+  createdAt      DateTime     @default(now(), map: "DF__cargos_p__creado__7F278F6")
+  updatedAt      DateTime     @default(now(), map: "DF__cargos_p__actuali__80278F6")
+  deleted        Boolean      @default(false, map: "DF__cargos_p__delet__81278F6")
+  deletedAt      DateTime?    @db.DateTime
+
+  // Relaciones
+  guia           GuiasEnvio   @relation(fields: [idGuiaEnvio], references: [id])
+
+  @@map("cargos_paqueteria")
+}
+
+model ReportesGenerados {
+  id               Int          @id(map: "PK__reportes__3213E83FCD9CDBF7") @default(autoincrement())
+  tipoReporte      String       @db.NVarChar(100)
+  usuario          String       @db.NVarChar(100)
+  plataforma       String       @db.NVarChar(100)
+  fechaGeneracion  DateTime     @default(now(), map: "DF__reportes__fecha__82278F6")
+  createdAt        DateTime     @default(now(), map: "DF__reportes__creado__83278F6")
+  updatedAt        DateTime     @default(now(), map: "DF__reportes__actuali__84278F6")
+  deleted          Boolean      @default(false, map: "DF__reportes__delet__85278F6")
+  deletedAt        DateTime?    @db.DateTime
+
+  @@map("reportes_generados")
+}
+
+model Thread {
+  id              Int          @id(map: "PK__thread__3213E83FDD9CDBF7") @default(autoincrement())
+  titulo          String       @db.NVarChar(200)
+  usuario         String       @db.NVarChar(100)
+  plataforma      String       @db.NVarChar(100)
+  fechaCreacion   DateTime     @default(now(), map: "DF__thread__fecha__86278F6")
+  createdAt       DateTime     @default(now(), map: "DF__thread__creado__87278F6")
+  updatedAt       DateTime     @default(now(), map: "DF__thread__actuali__88278F6")
+  deleted         Boolean      @default(false, map: "DF__thread__delet__89278F6")
+  deletedAt       DateTime?    @db.DateTime
+
+  // Relaciones Inversas
+  messages        Message[]
+
+  @@map("threads")
+}
+
+model Message {
+  id              Int          @id(map: "PK__message__3213E83FEE9CDBF7") @default(autoincrement())
+  threadId        Int          @db.Int
+  agente_id       String?      @db.UniqueIdentifier
+  usuario         String?      @db.NVarChar(100)
+  role            String       @default("user") @db.NVarChar(50) // <-- NUEVO: "user", "assistant", "system"
+  contenido       String       @db.NVarChar(Max)
+  fechaCreacion   DateTime     @default(now(), map: "DF__message__fecha__8A278F6")
+  createdAt       DateTime     @default(now(), map: "DF__message__creado__8B278F6")
+  updatedAt       DateTime     @default(now(), map: "DF__message__actuali__8C278F6")
+  deleted         Boolean      @default(false, map: "DF__message__delet__8D278F6")
+  deletedAt       DateTime?    @db.DateTime
+
+  // Relaciones
+  thread          Thread       @relation(fields: [threadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agente          Agentes?     @relation(fields: [agente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  // Relación Inversa
+  feedbacks       Feedback[]
+
+  @@map("messages")
+}
+
+model Feedback {
+  id              Int          @id(map: "PK__feedback__3213E83FF9CDBF7") @default(autoincrement())
+  messageId       Int          @db.Int
+  usuario         String       @db.NVarChar(100)
+  calificacion    Int          @db.Int // Ej. 1-5 o 0-1 (Thumbs up/down)
+  comentario      String?      @db.NVarChar(Max)
+  fechaCreacion   DateTime     @default(now(), map: "DF__feedback__fecha__8E278F6")
+  createdAt       DateTime     @default(now(), map: "DF__feedback__creado__8F278F6")
+  updatedAt       DateTime     @default(now(), map: "DF__feedback__actuali__90278F6")
+  deleted         Boolean      @default(false, map: "DF__feedback__delet__91278F6")
+  deletedAt       DateTime?    @db.DateTime
+
+  // Relaciones
+  message         Message      @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("feedback")
+}
+
+
+
+
 

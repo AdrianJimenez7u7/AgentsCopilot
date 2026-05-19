@@ -1,0 +1,393 @@
+openapi: 3.0.3
+info:
+  title: Operaciones DHL API
+  description: API de paqueteria DHL para el agente de Operaciones.
+  version: 1.0.0
+servers:
+  - url: https://{host}/agente/operaciones
+    variables:
+      host:
+        default: ms12swqt-3000.usw3.devtunnels.ms
+        description: Host del servicio
+paths:
+  /dhl/validateAddress:
+    post:
+      summary: Validar direccion
+      operationId: validateAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateAddressRequest'
+      responses:
+        '200':
+          description: Resultado de validacion de direccion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/trackShipment:
+    post:
+      summary: Rastrear envio (eventos multiples)
+      operationId: trackShipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackShipmentRequest'
+      responses:
+        '200':
+          description: Eventos de rastreo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/trackSingleShipment:
+    post:
+      summary: Rastrear envio (evento unico)
+      operationId: trackSingleShipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackShipmentRequest'
+      responses:
+        '200':
+          description: Evento de rastreo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/getRates:
+    post:
+      summary: Cotizacion simple
+      operationId: getRates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetRatesRequest'
+      responses:
+        '200':
+          description: Cotizacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/getMultiPieceRates:
+    post:
+      summary: Cotizacion de multiples piezas
+      operationId: getMultiPieceRates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+      responses:
+        '200':
+          description: Cotizacion de multiples piezas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/getLandedCost:
+    post:
+      summary: Costos de aranceles e impuestos
+      operationId: getLandedCost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+      responses:
+        '200':
+          description: Resultado de landed cost
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/getShipmentImage:
+    post:
+      summary: Obtener imagen del envio
+      operationId: getShipmentImage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetShipmentImageRequest'
+      responses:
+        '200':
+          description: Imagen codificada en Base64
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/getProofOfDelivery:
+    post:
+      summary: Obtener comprobante electronico (ePOD)
+      operationId: getProofOfDelivery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackShipmentRequest'
+      responses:
+        '200':
+          description: Comprobante electronico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/getProducts:
+    post:
+      summary: Servicios disponibles para la ruta
+      operationId: getProducts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetRatesRequest'
+      responses:
+        '200':
+          description: Productos disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '400':
+          description: Error de validacion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+  /dhl/getIdentifiers:
+    post:
+      summary: Obtener numeros de guia reservados
+      operationId: getIdentifiers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetIdentifiersRequest'
+      responses:
+        '200':
+          description: Identificadores reservados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccess'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseDetailed'
+components:
+  schemas:
+    GenericSuccess:
+      type: object
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    ErrorResponseDetailed:
+      type: object
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        error:
+          type: string
+      required:
+        - status
+        - message
+        - error
+    ValidateAddressRequest:
+      type: object
+      properties:
+        countryCode:
+          type: string
+        postalCode:
+          type: string
+        cityName:
+          type: string
+        strictValidation:
+          type: boolean
+      required:
+        - countryCode
+        - postalCode
+        - cityName
+    TrackShipmentRequest:
+      type: object
+      properties:
+        trackingNumber:
+          type: string
+      required:
+        - trackingNumber
+    GetRatesRequest:
+      type: object
+      properties:
+        originCountry:
+          type: string
+        originCity:
+          type: string
+        destCountry:
+          type: string
+        destCity:
+          type: string
+        weight:
+          type: number
+        date:
+          type: string
+          description: Fecha en formato ISO 8601
+      required:
+        - originCountry
+        - originCity
+        - destCountry
+        - destCity
+        - weight
+        - date
+    GetShipmentImageRequest:
+      type: object
+      properties:
+        trackingNumber:
+          type: string
+        typeCode:
+          type: string
+      required:
+        - trackingNumber
+    GetIdentifiersRequest:
+      type: object
+      properties:
+        type:
+          type: string
+        size:
+          type: integer
+          minimum: 1
+    GenericPayload:
+      type: object
+      additionalProperties: true
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+security:
+  - ApiKeyAuth: []
