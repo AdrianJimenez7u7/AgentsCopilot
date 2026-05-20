@@ -30,11 +30,14 @@ async extraerIntenciones(requestData) {
         const systemPrompt = `Eres un extractor de intenciones para un chatbot de contadores.
             Analiza el mensaje y detecta TODAS las intenciones presentes, aunque sean varias en un solo mensaje.
             para la intencion de analisis_contadores, si el usuario adjunta un archivo, asume que la intencioon es "analisis_contadores" y es un pdf para poder extraer el numero de hojas, y marca datos_completos: true, aunque no puedas acceder al archivo, para que el agente ejecute el servicio correspondiente.
+            para la intencion  de estadisticas_usuarios, si el usuario no menciona nada relacionado con contadores pero si hace preguntas relacionadas con estadisticas de usuarios, interacciones o cualquier tema relacionado con el uso del agente, asume que la intencion es "estadisticas_usuarios" y marca datos_completos: true, para que el agente ejecute el servicio correspondiente.
+            para la intencion de contadores_faltantes, si el usuario menciona que quiere saber qué contadores faltan por capturar, asume que la intencion es "contadores_faltantes" y marca datos_completos: true, para que el agente ejecute el servicio correspondiente.
+            para la intencion de contadores_registrados, si el usuario menciona que quiere saber qué contadores han sido registrados, asume que la intencion es "contadores_registrados" y marca datos_completos: true, para que el agente ejecute el servicio correspondiente.
             Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
             {
               "intenciones": [
                 {
-                  "tipo": "analisis_contadores" | "conversacion",
+                  "tipo": "analisis_contadores" | "conversacion" | "estadisticas_usuarios | contadores_faltantes | contadores_registrados",
                   "datos_completos": true | false,
                   "datos": { ... },          // solo si datos_completos = true
                   "files": [ { "name": "string", "path": "string" } ], // solo si datos_completos = true y hay archivos
@@ -107,6 +110,19 @@ async extraerIntenciones(requestData) {
                     return { ...intencion, resultado };
                 }
 
+                if (intencion.tipo === "estadisticas_usuarios") {
+                    const resultado = await AgentService.getUsersCountInterracionesAgente('agentegsa');
+                    return { ...intencion, resultado };
+                }
+
+                if (intencion.tipo === "contadores_faltantes") {
+                    const resultado = await AgentService.getContadoresFalntantes('agentegsa');
+                    return { ...intencion, resultado };
+                }
+                if (intencion.tipo === "contadores_registrados") {
+                    const resultado = await AgentService.getContadoresRegistrados('agentegsa');
+                    return { ...intencion, resultado };
+                }
                 // Fallback por defecto si se añade otro tipo de intención en el futuro y no se maneja
                 return { ...intencion, resultado: null };
             })
@@ -144,7 +160,10 @@ async extraerIntenciones(requestData) {
         - Si en la intención se indica que falta información ("dato_faltante"), pídele al usuario exactamente lo que necesitas para continuar.
         - Mantén un tono conversacional. NO uses jerga de programación (no menciones "JSON", "intenciones", "servicios", "endpoints" ni "variables").
         - Responde directamente con el texto que leerá el usuario, sin estructuras JSON.
-        - No respondas preguntas o frases de cultura general o temas en especificio que no sea conteo de hojas, conteo de impresiones o cualquier tema que no este relacionado con impresoras`;
+        - No respondas preguntas o frases de cultura general o temas en especificio que no sea conteo de hojas, conteo de impresiones, uso del agente o cualquier tema que no este relacionado con impresoras
+        - en el caso del tema de contadores faltantes, siempre indica a que tecnico corresponde cada cliente, para que el usuario pueda contactar al tecnico correspondiente y resolver el problema de los contadores faltantes.
+        - en el caso de los contadores registrados, siempre indica a que tecnico corresponde cada cliente, para que el usuario pueda contactar al tecnico correspondiente y resolver cualquier duda relacionada con los contadores registrados, lo contadores en la respuesta solo corresponden al mes corriente.
+        - en el caso que soliciten soporte en temas del agente o dudas relacionadas con el uso del agente, comenta que pueden contactar a miguel.jimenez@compucad.com.mx para soporte técnico relacionado con el agente.`;
         
 
         const mensaje = `

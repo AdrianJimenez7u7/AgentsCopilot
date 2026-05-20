@@ -108,4 +108,107 @@ export class AgentService {
             }
         });
     }
+    
+    static async getUsersCountInterracionesAgente(agentNamel){
+
+        const fechaActual = new Date();
+        const fechaInicioMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1);
+        const fechaFinMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0, 23, 59, 59);
+        const agente = await prisma.Agentes.findFirst({
+            where: { nombre_logico: agentNamel }
+        });
+        if (!agente) {
+            return null;
+        }
+        const usuariosEmails = await prisma.Message.findMany({
+            where: {
+                agente_id: agente.id,
+                createdAt: {
+                    gte: fechaInicioMes,
+                    lte: fechaFinMes
+                }
+            },
+            select: {
+                usuario: true,
+            },
+            distinct: ['usuario'],
+        });
+        
+        const interaccionesPorUsuario = await Promise.all(usuariosEmails.map(async ({ usuario }) => {
+            const count = await prisma.Message.count({
+                where: {
+                    agente_id: agente.id,
+                    usuario: usuario,
+                    createdAt: {
+                        gte: fechaInicioMes,
+                        lte: fechaFinMes
+                    }
+                },
+            });
+            return { usuario, interacciones: count };
+        }));
+        return interaccionesPorUsuario;
+    }
+
+    static async getContadoresFalntantes(agentName){
+        const agente = await prisma.Agentes.findFirst({
+            where: { nombre_logico: agentName }
+        });
+        if (!agente) {
+            return null;
+        }
+        const fechaActual = new Date();
+        const fechaInicioMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1);
+        const fechaFinMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0, 23, 59, 59);
+
+        const pendientesPorCliente = await prisma.contadoresInfoClientes.groupBy({
+            by: ['Cliente', 'Tecnico'],
+            where: {
+                Cliente: { not: null },
+                FechaLimiteReporte: {
+                    lte: fechaFinMes
+                }
+            },
+            _count: {
+                _all: true
+            }
+        });
+
+        return pendientesPorCliente.map((item) => ({
+            cliente: item.Cliente,
+            tecnico: item.Tecnico ?? null,
+            pendientes: item._count._all
+        }));
+    }
+
+    static async getContadoresRegistrados(agentName){
+        const agente = await prisma.Agentes.findFirst({
+            where: { nombre_logico: agentName }
+        });
+        if (!agente) {
+            return null;
+        }
+        const fechaActual = new Date();
+        const fechaInicioMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1);
+        const fechaFinMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0, 23, 59, 59);
+
+        const contadoresPorCLiente = await prisma.contadores.groupBy({
+            by: ['Cliente', 'Responsable'],
+            where: {
+                Cliente: { not: null },
+                FechaCaptura: {
+                    gte: fechaInicioMes,
+                    lte: fechaFinMes
+                }
+            },
+            _count: {
+                _all: true
+            }
+        });
+        return contadoresPorCLiente.map((item) => ({
+            cliente: item.Cliente,
+            tecnico: item.Responsable ?? null,
+            contadores: item._count._all
+        }));
+    }
 }

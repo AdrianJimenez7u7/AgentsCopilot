@@ -892,6 +892,12 @@ export class ContadoresController {
               }
               extractedData.encontrada = false;
               try {
+                //evaluar si las impresiones tienen una coma como separador o si tienen punto redondear la cantidad a entero
+                if (extractedData.Impresiones && typeof extractedData.Impresiones === 'string') {
+                  extractedData.Impresiones = extractedData.Impresiones.replace(/,/g, '').split('.')[0];
+                }if (extractedData.ImpresionesColor && typeof extractedData.ImpresionesColor === 'string') {
+                  extractedData.ImpresionesColor = extractedData.ImpresionesColor.replace(/,/g, '').split('.')[0];
+                }
                 const impresionesBN = parseInt(extractedData.Impresiones) || 0;
                 const impresionesColor = parseInt(extractedData.ImpresionesColor) || 0;
 
@@ -936,6 +942,7 @@ export class ContadoresController {
                       Cliente: impresoraCliente.Cliente,
                       FechaCaptura: new Date(),
                       TipoImpresora: extractedData.TipoImpresora || null,
+                      Responsable: impresoraCliente.tecnico || null
                     }
                   });
 
