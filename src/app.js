@@ -119,12 +119,12 @@ app.get('/agente/computer-use/bridge/status', apiKeyAuth, (req, res) => {
 
 // Rutas Auth Entra (Bearer) para Copilot Studio
 app.use("/agente/copilot", entraJwtAuth, copilotRoutes);
-
+app.use("/agente/aria", ariaRoutes);
 // Aplicar autenticación a todas las rutas protegidas
 app.use(apiKeyAuth);
 
 // Rutas de agentes (protegidas)
-app.use("/agente/aria", ariaRoutes);
+
 app.use('/agente/cotizador', cotizadorRoutes);
 app.use('/agente/contadores', contadoresRoutes);
 app.use('/agente/operaciones', operacionesRoutes);
