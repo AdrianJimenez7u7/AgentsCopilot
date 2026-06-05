@@ -17,6 +17,7 @@ import computerUseRoutes from './agents/computerUse/routes/computerUse.routes.js
 import { isBridgeConnected, getConnectedBridges } from './agents/computerUse/computerUseBridge.service.js';
 import csfRoutes from './agents/csf/routes/csf.routes.js';
 import pruebasHudspotRoutes from './agents/Pruebas hudspot/routes/pruebasHudspot.routes.js';
+import connectForecastRoutes from './agents/connectForecast/routes/connectForecast.routes.js';
 
 import catalogoRoutes from './agents/catalogo/routes/index.js';
 
@@ -132,6 +133,7 @@ app.use("/agente/PMsito", PMsitoRoutes);
 app.use("/agente/copilot", copilotRoutes);
 app.use("/agente/computer-use", computerUseRoutes);
 app.use("/agente/catalogo", catalogoRoutes);
+app.use("/agente/connect-forecast", connectForecastRoutes);
 
 // Rutas de Predicciones (protegidas)
 app.use("/api/predicciones/inferencias", inferenciasRouter);
