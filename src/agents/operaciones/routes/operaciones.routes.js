@@ -2,6 +2,7 @@ import express from 'express';
 import { ProductosController } from '../controllers/productos.controller.js';
 import { DHLcontroller } from '../controllers/dhl.controller.js';
 import { agentController } from '../controllers/agent.controller.js';
+import { PaqueteriasController } from '../controllers/paqueterias.controller.js';
 const router = express.Router();
 const agent = new agentController();
 
@@ -46,4 +47,14 @@ router.post('/agent/sendMessage', agent.procesarMensaje.bind(agent));
 router.get('/agent/threads', agent.listThreads.bind(agent));
 router.get('/agent/threads/:threadId/messages', agent.getThreadMessages.bind(agent));
 
+// -- PAQUETERIAS ---
+router.get('/paqueterias', PaqueteriasController.getPaqueterias);
+router.post('/cotizar', PaqueteriasController.createCotizacion);
+router.get('/cotizaciones', PaqueteriasController.getCotizacionesByStatus);
+router.post('/cotizaciones/autorizar', PaqueteriasController.autorizarCotizacion);
+router.post('/cotizaciones/rechazar', PaqueteriasController.rechazarCotizacion);
+
+router.get('/envios', PaqueteriasController.getAllEnvios);
+router.put('/envios/:idEnvio', PaqueteriasController.updateEnvio);
+router.post('/envios/guia', PaqueteriasController.addGuiaToEnvio);
 export default router;

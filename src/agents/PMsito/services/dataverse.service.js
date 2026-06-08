@@ -99,6 +99,26 @@ export class DataverseService {
         }
         return response.json();
     }
+
+        async getOportunidades() {
+        const token = await this.getAccessToken();
+        const parameters = new URLSearchParams({
+            //"$select": "name"
+            //"$filter": `cad_area_servicio eq ${areaServicioValue}`
+        });
+        console.log('this')
+        const response = await fetch(`${this.webApiUrl}/opportunities?${parameters.toString()}`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"',
+            },
+        });
+        if (!response.ok) {
+            throw new Error(`Error fetching oportunidades: ${response.status} ${response.statusText} - ${await response.text()}`);
+        }
+        return response.json();
+    }
     
     async getComentariosCaso(casoId) {
         const token = await this.getAccessToken();

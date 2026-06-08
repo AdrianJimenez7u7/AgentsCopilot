@@ -13,8 +13,10 @@ export class DhlService {
         this.password = process.env.DHL_PASSWORD;
         this.accountNumber = process.env.DHL_ACCOUNT_NUMBER;
         // Entorno de pruebas por defecto, asegúrate de cambiar a producción cuando estés listo
-        this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi";
-        this.version = "3.2.0";    }
+        this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi/test";
+        //this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi";
+        this.version = "3.2.0";    
+    }
 
     /**
      * Genera los encabezados obligatorios para las peticiones a la API.
@@ -105,7 +107,8 @@ export class DhlService {
      * @returns {Promise<Object>} JSON con las diferentes opciones de tarifas y servicios.
      * @throws {Error} Si los parámetros no son válidos o la ruta no está cubierta.
      */
-    async getRates(originCountry, originCity, destCountry, destCity, weight, date) {
+    async getRates(originCountry, originCity, destCountry, destCity, weight, date, dimensionsCm = null) {
+        
         const params = new URLSearchParams({
             accountNumber: this.accountNumber,
             originCountryCode: originCountry,
@@ -113,9 +116,9 @@ export class DhlService {
             destinationCountryCode: destCountry,
             destinationCityName: destCity,
             weight: weight.toString(),
-            length: "10",
-            width: "10",
-            height: "10",
+            length: dimensionsCm?.length.toString() || "10",
+            width: dimensionsCm?.width.toString() || "10",
+            height: dimensionsCm?.height.toString() || "10",
             plannedShippingDate: date,
             isCustomsDeclarable: "false",
             unitOfMeasurement: "metric"

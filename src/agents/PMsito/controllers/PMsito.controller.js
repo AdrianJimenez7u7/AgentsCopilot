@@ -282,4 +282,15 @@ export class PMsitoController {
             return res.status(500).json({ error: error.message });
         }
     }
+
+    static async obtenerOportunidades(req, res) {
+        try {
+            const dataverseService = new DataverseService();
+            const oportunidades = await dataverseService.getOportunidades();
+            return res.status(200).json(oportunidades);
+        } catch (error) {
+            console.error('Error obteniendo oportunidades:', error);
+            return res.status(500).json({ error: error.message });
+        }
+    }
 }

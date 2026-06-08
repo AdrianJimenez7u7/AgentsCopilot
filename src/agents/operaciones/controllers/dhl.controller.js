@@ -71,7 +71,7 @@ export class DHLcontroller {
      */
     static async getRates(req, res) {
         try {
-            let { originCountry, originCity, destCountry, destCity, weight, date } = req.body;
+            let { originCountry, originCity, destCountry, destCity, weight, date, dimensionsCm } = req.body;
 
             if (!originCountry || !originCity || !destCountry || !destCity || !weight || !date) {
                 return res.status(400).json({ error: "Faltan parámetros de origen, destino, peso o fecha" });
@@ -86,7 +86,8 @@ export class DHLcontroller {
                 destCountry, 
                 destCity, 
                 weight, 
-                formattedDate
+                formattedDate,
+                dimensionsCm
             );
             return res.status(200).json(result);
         } catch (error) {

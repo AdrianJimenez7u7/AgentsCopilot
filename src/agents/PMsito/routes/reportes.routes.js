@@ -13,4 +13,7 @@ router.get('/casos-crm/tareas', PMsitoController.obtenerTareasCasosCRM);
 router.get('/casos-crm/tareas/:incidentId', PMsitoController.obtenerTareasCasosCRM);
 router.get('/planners', PMsitoController.obtenerPlanners);
 router.get('/casos-crm/extracciones', PMsitoController.obtenerInformacionCasoCRMByPlanner);
+router.get('/casos-crm/extracciones/:incidentId', PMsitoController.obtenerInformacionCasoCRMByPlanner);
+
+router.get('/oportunidades', PMsitoController.obtenerOportunidades);
 export default router;

@@ -65,8 +65,18 @@ export class agentController {
                 where: {
                     usuario: String(userEmail),
                     deleted: false,
+                    plataforma: "operaciones",
                 },
                 orderBy: { updatedAt: "desc" },
+                include: {
+                    messages: {
+                        where: {
+                            deleted: false,
+                            usuario: String(userEmail),
+                        },
+                        orderBy: { createdAt: "asc" },
+                    },
+                },
             });
             return res.status(200).json({ data: threads });
         }
