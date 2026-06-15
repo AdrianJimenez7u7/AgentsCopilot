@@ -1,0 +1,26 @@
+WITH ranked AS (
+  SELECT
+    c.id,
+    c.Serie,
+    c.ImpresionesBN,
+    c.ImpresionesColor,
+    c.TotalImpresiones,
+    c.FechaCaptura,
+    cic.Tecnico,
+    cic.Cliente,
+    cic.Modelo,
+    ROW_NUMBER() OVER (
+      PARTITION BY c.Serie
+      ORDER BY c.TotalImpresiones DESC, c.FechaCaptura DESC, c.id DESC
+    ) AS rn
+  FROM Contadores AS c
+  LEFT JOIN ContadoresInfoClientes AS cic
+    ON c.Serie = cic.Serie
+  WHERE c.FechaCaptura >= '2026-05-31'
+    AND c.FechaCaptura <  '2026-06-07'
+)
+SELECT
+  id, Serie, ImpresionesBN, ImpresionesColor, TotalImpresiones,
+  FechaCaptura, Tecnico, Cliente, Modelo
+FROM ranked
+WHERE rn = 1;

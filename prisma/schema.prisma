@@ -7,6 +7,7 @@ datasource db {
   provider          = "sqlserver"
   url               = env("DATABASE_URL")
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  schemas = ["Evaluaciones","dbo"]
 }
 
 model Contadores {
@@ -35,6 +36,7 @@ model Contadores {
   Adicional10      String?   @db.NVarChar(Max)
 
   @@map("Contadores")
+  @@schema("dbo")
 }
 
 model ContadoresInfoClientes {
@@ -55,6 +57,7 @@ model ContadoresInfoClientes {
   Ubicacion           String?   @db.VarChar(50)
 
   @@map("ContadoresInfoClientes")
+  @@schema("dbo")
 }
 
 model Predicciones_Archivos {
@@ -72,6 +75,7 @@ model Predicciones_Archivos {
   CreatedAt        DateTime @default(dbgenerated("sysdatetime()"), map: "DF__Prediccio__Creat__32AB8735")
 
   @@index([ModeloSlug, MesObjetivo, Tipo, CreatedAt(sort: Desc)], map: "IX_Predicciones_Archivos_ModeloMesTipo")
+  @@schema("dbo")
 }
 
 model Predicciones_Modelos {
@@ -86,6 +90,7 @@ model Predicciones_Modelos {
   UpdatedAt     DateTime @default(dbgenerated("sysdatetime()"), map: "DF__Prediccio__Updat__1EA48E88")
 
   @@index([Slug], map: "IX_Predicciones_Modelos_Slug")
+  @@schema("dbo")
 }
 
 model Predicciones_Requests {
@@ -102,6 +107,7 @@ model Predicciones_Requests {
 
   @@index([ModelSlug, MonthTarget], map: "IX_PredRequests_ModelMonth")
   @@index([Status, CreatedAt(sort: Desc)], map: "IX_PredRequests_StatusCreatedAt")
+  @@schema("dbo")
 }
 
 model ProductoPendienteValidation {
@@ -118,6 +124,7 @@ model ProductoPendienteValidation {
   createdAt                   DateTime @default(now())
 
   @@index([user_email, status], map: "IX_ProductoPendiente_UserStatus")
+  @@schema("dbo")
 }
 
 model catalogo_Aplicaciones {
@@ -134,6 +141,7 @@ model catalogo_Aplicaciones {
   metricas     catalogo_Metricas[]
 
   @@map("aplicaciones")
+  @@schema("dbo")
 }
 
 model catalogo_Configuraciones {
@@ -144,6 +152,7 @@ model catalogo_Configuraciones {
   metricas      catalogo_Metricas[]
 
   @@map("configuraciones")
+  @@schema("dbo")
 }
 
 model catalogo_Costos {
@@ -156,6 +165,7 @@ model catalogo_Costos {
   aplicaciones        catalogo_Aplicaciones  @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__costos__aplicaci__5F7E2DAC")
 
   @@map("costos")
+  @@schema("dbo")
 }
 
 model catalogo_Metricas {
@@ -173,6 +183,7 @@ model catalogo_Metricas {
 
   @@unique([aplicacion_id, periodo], map: "UQ__metricas__93D9ED41540EBEB4")
   @@map("metricas")
+  @@schema("dbo")
 }
 
 
@@ -194,6 +205,7 @@ model Models {
 
   @@index([name, version, proveedor], map: "IX_AI_Models_NameVersionProvider")
   @@map("AI_Models")
+  @@schema("dbo")
 }
 
 // Catalogo de agentes de IA de la plataforma para reutilizar trazabilidad en modulos futuros.
@@ -214,6 +226,7 @@ model Agentes {
   @@index([nombre_logico], map: "IX_AI_Agentes_NombreLogico")
   @@index([idModelo], map: "IX_AI_Agentes_IdModelo")
   @@map("AI_Agentes")
+  @@schema("dbo")
 }
 
 // Registro agregado de consumo de modelos por corrida (tokens, tiempos y costo estimado) para analitica transversal.
@@ -241,6 +254,7 @@ model UsesModels {
   @@index([sessionId], map: "IX_AI_UsesModels_SessionId")
   @@index([runId], map: "IX_AI_UsesModels_RunId")
   @@map("AI_UsesModels")
+  @@schema("dbo")
 }
 
 // Bitacora detallada por accion de cada corrida de agente (pasos, comandos, errores, estado final y consumo de tokens por accion LLM).
@@ -272,6 +286,7 @@ model AgentActions {
   @@index([project, module], map: "IX_AI_AgentActions_ProjectModule")
   @@index([actionType], map: "IX_AI_AgentActions_ActionType")
   @@map("AI_AgentActions")
+  @@schema("dbo")
 }
 
 
@@ -290,18 +305,26 @@ model Paqueterias {
   envios       Envios[]
 
   @@map("paqueterias")
+  @@schema("dbo")
 }
 
 model Cotizaciones {
   id             Int          @id(map: "PK__cotizacio__3213E83F1B9CDBF7") @default(autoincrement())
   usuario        String       @db.NVarChar(100)
   idPaqueteria   Int          @db.Int
+  dimensiones     String       @db.NVarChar(100) // ej. "30x20x10 cm"
+  unidadNegocio     String?      @db.NVarChar(100) // ej. "GSA", "Gestion de talento", etc.
   peso           Decimal      @db.Decimal(10, 2)
   ciudadOrigen   String       @db.NVarChar(100)
   cpOrigen       String       @db.NVarChar(20)
   ciudadDestino  String       @db.NVarChar(100)
   cpDestino      String       @db.NVarChar(20)
   costoEstimado  Decimal?     @db.Decimal(10, 2) // <-- NUEVO: Para comparar contra el costo real
+  status         String       @default("PENDIENTE") @db.NVarChar(20)
+  reviewedBy     String?      @db.NVarChar(100)
+  reviewedAt     DateTime?
+  motivoRechazo  String?      @db.NVarChar(300)
+  serviceType     String?      @db.NVarChar(100) // ej. "express", "standard"
   fecha          DateTime     @default(now(), map: "DF__cotizacio__fecha__72C60C4A")
   createdAt      DateTime     @default(now(), map: "DF__cotizacio__creado__73BA3080")
   updatedAt      DateTime     @default(now(), map: "DF__cotizacio__actuali__74ABBAE5")
@@ -313,14 +336,23 @@ model Cotizaciones {
   envios         Envios[]
 
   @@map("cotizaciones")
+  @@schema("dbo")
 }
 
 model Envios {
   id             Int          @id(map: "PK__envios__3213E83F2B9CDBF7") @default(autoincrement())
   idCotizacion   Int?         @db.Int // Opcional, por si se crea un envío sin cotizar primero
   idPaqueteria   Int          @db.Int
+  unidadNegocio     String?      @db.NVarChar(100) // ej. "GSA", "Gestion de talento", etc.
   usuario        String       @db.NVarChar(100)
   estado         String       @default("CREADO") @db.NVarChar(50) // <-- NUEVO: CREADO, TRANSITO, ENTREGADO
+  dimensiones     String       @db.NVarChar(100) // ej. "30x20x10 cm"
+  peso           Decimal      @db.Decimal(10, 2)
+  ciudadOrigen   String       @db.NVarChar(100)
+  cpOrigen       String       @db.NVarChar(20)
+  ciudadDestino  String       @db.NVarChar(100)
+  cpDestino      String       @db.NVarChar(20)
+  serviceType     String?      @db.NVarChar(100) // ej. "express", "standard"
   costoEnvio     Decimal      @db.Decimal(10, 2)
   impuestos      Decimal      @db.Decimal(10, 2)
   fechaEnvio     DateTime     @default(now(), map: "DF__envios__fecha__76A278F6")
@@ -328,6 +360,7 @@ model Envios {
   updatedAt      DateTime     @default(now(), map: "DF__envios__actuali__78A278F6")
   deleted        Boolean      @default(false, map: "DF__envios__delet__79A278F6")
   deletedAt      DateTime?    @db.DateTime
+  comentarios      String?      @db.NVarChar(Max) // Para que el usuario o el agente puedan agregar notas al envío
 
 // Relaciones (AQUÍ ESTÁ LA MAGIA)
   cotizacion     Cotizaciones? @relation(fields: [idCotizacion], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -335,6 +368,7 @@ model Envios {
   guias          GuiasEnvio[]
 
   @@map("envios")
+  @@schema("dbo")
 }
 
 model GuiasEnvio {
@@ -354,6 +388,7 @@ model GuiasEnvio {
   cargos         CargosPaqueteria[]
 
   @@map("guias_envio")
+  @@schema("dbo")
 }
 
 model ExtraccionDocumentos {
@@ -370,6 +405,7 @@ model ExtraccionDocumentos {
   guia             GuiasEnvio   @relation(fields: [idGuiaEnvio], references: [id])
 
   @@map("extraccion_documentos")
+  @@schema("dbo")
 }
 
 model CargosPaqueteria {
@@ -390,6 +426,7 @@ model CargosPaqueteria {
   guia           GuiasEnvio   @relation(fields: [idGuiaEnvio], references: [id])
 
   @@map("cargos_paqueteria")
+  @@schema("dbo")
 }
 
 model ReportesGenerados {
@@ -404,6 +441,7 @@ model ReportesGenerados {
   deletedAt        DateTime?    @db.DateTime
 
   @@map("reportes_generados")
+  @@schema("dbo")
 }
 
 model Thread {
@@ -421,6 +459,7 @@ model Thread {
   messages        Message[]
 
   @@map("threads")
+  @@schema("dbo")
 }
 
 model Message {
@@ -444,6 +483,7 @@ model Message {
   feedbacks       Feedback[]
 
   @@map("messages")
+  @@schema("dbo")
 }
 
 model Feedback {
@@ -462,9 +502,101 @@ model Feedback {
   message         Message      @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("feedback")
+  @@schema("dbo")
 }
 
+model EvaluacionesExamen {
+  id     Int    @id @default(autoincrement())
+  nombre String
 
+  @@map("examen") 
+  @@schema("Evaluaciones") 
+}
 
+model EvaluacionesIncisos {
+  idPregunta Int
+  letra      String
+  texto      String
+  puntos     Int?
+  idExamen   Int?
 
+  // Llave primaria compuesta
+  @@id([idPregunta, letra])
+  
+  // Mapeo exacto del nombre de la tabla en la base de datos
+  @@map("Incisos")
+  
+  // Asignación al esquema específico
+  @@schema("Evaluaciones")
+}
 
+model EvaluacionesPreguntas {
+  id            Int     @id @default(autoincrement())
+  pregunta      String
+  respuesta     String?
+  puntosMaximos Int?
+  idExamen      Int
+  nivel         String?
+  tipo          String?
+
+  @@map("preguntas")
+  @@schema("Evaluaciones")
+}
+
+model EvaluacionesRanking {
+  id                  Int       @id @default(autoincrement())
+  idColaborador       String
+  rango               String?
+  puntos              Int?
+  examenesRealizados  Int?
+  fechaInicio         DateTime?
+  ultimaActualizacion DateTime?
+
+  @@map("ranking")
+  @@schema("Evaluaciones")
+}
+
+model EvaluacionesRankingPorExamen {
+  id                  Int       @id @default(autoincrement())
+  idColaborador       String
+  idExamen            Int
+  rango               String?
+  puntos              Int?
+  fechaInicio         DateTime?
+  ultimaActualizacion DateTime?
+
+  @@map("RankingPorExamen")
+  @@schema("Evaluaciones")
+}
+
+model EvaluacionesRespuestas {
+  id            Int     @id @default(autoincrement())
+  tipo          String?
+  respuesta     String?
+  puntos        Int?
+  idPregunta    Int?
+  nivel         String?
+  idExamen      Int?
+  idColaborador String?
+  posicion      Int?
+
+  @@map("Respuestas")
+  @@schema("Evaluaciones")
+}
+
+model EvaluacionesResultadosPorExamen {
+  id                    Int     @id @default(autoincrement())
+  calificacion          Int?
+  rango                 String?
+  preguntasContestadas  Int?
+  ejerciciosContestados Int?
+  idColaborador         String
+  idExamen              Int
+
+  // Índices (Si en el futuro deseas descomentarlos para optimizar búsquedas)
+  // @@index([idColaborador])
+  // @@index([idExamen])
+
+  @@map("ResultadosPorExamen")
+  @@schema("Evaluaciones")
+}
