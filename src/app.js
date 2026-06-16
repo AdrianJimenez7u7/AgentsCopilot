@@ -17,9 +17,10 @@ import computerUseRoutes from './agents/computerUse/routes/computerUse.routes.js
 import { isBridgeConnected, getConnectedBridges } from './agents/computerUse/computerUseBridge.service.js';
 import csfRoutes from './agents/csf/routes/csf.routes.js';
 import pruebasHudspotRoutes from './agents/Pruebas hudspot/routes/pruebasHudspot.routes.js';
+import connectForecastRoutes from './agents/connectForecast/routes/connectForecast.routes.js';
 
 import catalogoRoutes from './agents/catalogo/routes/index.js';
-
+import evaluacionesRoutes from './agents/evaluaciones/routes/evaluaciones.routes.js';
 
 //Importar rutas de Predicciones
 import inferenciasRouter from "./agents/predicciones/routers/inferencias.routes.js";
@@ -43,7 +44,7 @@ app.use(helmet({
 app.use(cors());
 app.use('/csf', express.json({ limit: '25mb' }), csfRoutes);
 app.use('/agente/pruebas-hudspot', express.json({ limit: '2mb' }), pruebasHudspotRoutes);
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
@@ -132,6 +133,8 @@ app.use("/agente/PMsito", PMsitoRoutes);
 app.use("/agente/copilot", copilotRoutes);
 app.use("/agente/computer-use", computerUseRoutes);
 app.use("/agente/catalogo", catalogoRoutes);
+app.use("/agente/evaluaciones", evaluacionesRoutes);
+app.use("/agente/connect-forecast", connectForecastRoutes);
 
 // Rutas de Predicciones (protegidas)
 app.use("/api/predicciones/inferencias", inferenciasRouter);
