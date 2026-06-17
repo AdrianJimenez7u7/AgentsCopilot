@@ -375,7 +375,7 @@ export class ContadoresController {
       const result = await ReportService.generateReportFromDB({ cliente, mes, anio: year, estatus });
 
       const emailDestino = userEmail || 'miguel.jimenez@compucad.com.mx';
-      const ccEmails = ['miguel.jimenez@compucad.com.mx', 'liliana.martinez@compucad.com.mx'];
+      const ccEmails = ['miguel.jimenez@compucad.com.mx', 'josue.martinez@compucad.com.mx'];
 
       const fs = await import('fs');
 

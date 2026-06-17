@@ -1,5 +1,6 @@
 import { prisma } from "../../../../shared/prisma/client.js";
 import { SimpliaAgentsService } from "../../../../shared/services/simpliaAgents.service.js";
+import { SapService } from "../sap.service.js";
 
 export class EnviosService {
 
@@ -282,8 +283,8 @@ export class EnviosService {
 
     /**
      * en base al usuario, obtener el estatus de sus envíos y cotizaciones en los últimos 30 días
-     * @param {string} usuario 
-     * @returns 
+     * @param {string} usuario
+     * @returns
      */
     async getEstatusEnviosUsuario(usuario) {
         if (!usuario) {
@@ -340,96 +341,132 @@ export class EnviosService {
                 }
             },
             orderBy: { fechaEnvio: 'desc' },
-        }
-        );
+            include: {
+                guias: true
+            }
+        });
         console.log(`Envíos encontrados para guías ${guiaArray.join(", ")}:`, envios);
         return { ok: true, error: null, code: 200, data: envios };
     }
 
+    /**
+     * Extrae la lista de números de guía desde un archivo CSV, XLSX o XLS.
+     * Busca la columna "guia" / "guía" de forma insensible a tildes y mayúsculas.
+     * @param {string} filePath
+     * @returns {Promise<string[]>}
+     */
+    async _extraerGuiasDeExcel(filePath) {
+        if (!filePath) throw new Error("El campo 'filePath' es requerido");
 
-    async analizarExcelEnvios(filePath) {
-        if (!filePath) {
-            throw new Error("El campo 'filePath' es requerido");
-        }
-        console.log(`Analizando archivo de envíos: ${filePath}`);
-
-        // 1. Validar extensión de forma insensible a mayúsculas (.XLSX también pasa)
         const lowerPath = filePath.toLowerCase();
         if (!lowerPath.endsWith(".csv") && !lowerPath.endsWith(".xlsx") && !lowerPath.endsWith(".xls")) {
             throw new Error("El archivo debe ser de tipo CSV, XLSX o XLS");
         }
 
-        // 2. Validar existencia del archivo una sola vez
         const fs = await import("fs");
-        if (!fs.existsSync(filePath)) {
-            throw new Error("El archivo no existe en la ruta especificada");
-        }
+        if (!fs.existsSync(filePath)) throw new Error("El archivo no existe en la ruta especificada");
 
-        // Función auxiliar para buscar la propiedad "guia" de forma tolerante
         const obtenerValorGuia = (row) => {
-            // Busca cualquier llave que se llame 'guia', 'guía', 'GUIA', etc.
-            const key = Object.keys(row).find(k => k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === "guia");
+            const key = Object.keys(row).find(k =>
+                k.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") === "guia"
+            );
             const valor = key ? row[key] : null;
-            return valor && typeof valor === 'string' ? valor.trim() : valor;
+            return valor && typeof valor === "string" ? valor.trim() : valor;
         };
 
-        // 3. Procesar según el tipo de archivo
         if (lowerPath.endsWith(".csv")) {
             const csvParser = await import("csv-parser");
-            const guiasSet = new Set(); // Evita duplicados desde la extracción
-
+            const guiasSet = new Set();
             return new Promise((resolve, reject) => {
                 fs.createReadStream(filePath)
-                    // Se adapta a configuraciones ESM/CommonJS usando el parser directamente si default no existe
                     .pipe((csvParser.default || csvParser)())
-                    .on("data", (row) => {
-                        const guia = obtenerValorGuia(row);
-                        if (guia) guiasSet.add(guia);
-                    })
-                    .on("end", () => {
-                        const guias = Array.from(guiasSet);
-                        console.log(`Guías extraídas del CSV ${filePath}:`, guias);
-                        resolve(this.getEnviosByGuiaArray(guias));
-                    })
-                    .on("error", (error) => {
-                        console.error(`Error al leer el archivo ${filePath}:`, error);
-                        reject(new Error("Error al leer el archivo CSV"));
-                    });
+                    .on("data", (row) => { const g = obtenerValorGuia(row); if (g) guiasSet.add(g); })
+                    .on("end", () => resolve(Array.from(guiasSet)))
+                    .on("error", () => reject(new Error("Error al leer el archivo CSV")));
             });
         }
 
-        if (lowerPath.endsWith(".xlsx") || lowerPath.endsWith(".xls")) {
-            const xlsx = await import("xlsx");
-
-            const workbook = xlsx.readFile(filePath);
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const data = xlsx.utils.sheet_to_json(sheet);
-
-            // Mapea buscando la columna de forma segura
-            const guiasRaw = data.map(row => obtenerValorGuia(row)); // <-- Corregido aquí
-            const guias = Array.from(new Set(guiasRaw.filter(Boolean)));
-
-            console.log(`Guías extraídas del Excel ${filePath}:`, guias);
-            return this.getEnviosByGuiaArray(guias);
-        }
+        const xlsx = await import("xlsx");
+        const workbook = xlsx.readFile(filePath);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = xlsx.utils.sheet_to_json(sheet);
+        return Array.from(new Set(data.map(obtenerValorGuia).filter(Boolean)));
     }
 
-    async relacionarGuiasExcelConColaboradores(filePath) {
-        const guiasEnvio = await this.analizarExcelEnvios(filePath);
-        const resultados = [];
+    async analizarExcelEnvios(filePath) {
+        const guias = await this._extraerGuiasDeExcel(filePath);
+        console.log(`Guías extraídas del archivo ${filePath}:`, guias);
+        return this.getEnviosByGuiaArray(guias);
+    }
 
-        for (const envio of guiasEnvio.data) {
-            const colaborador = await SimpliaAgentsService.searchUser(envio.usuario);
-            resultados.push({
-                numeroGuia: envio.guias.map(g => g.numeroGuia).join(", "),
-                usuario: envio.usuario,
-                nombreColaborador: colaborador ? colaborador.user.NombreCompleto : "Colaborador no encontrado",
-                areaColaborador: colaborador ? colaborador.user.Area.Nombre : "Área no encontrada",
-                puestoColaborador: colaborador ? colaborador.user.Puesto : "Puesto no encontrado"
-            });
+    /**
+     * Para cada guía del Excel busca en la BD (envíos + Simplia Agents) y en SAP en paralelo,
+     * devolviendo un resultado unificado con la fuente de cada dato.
+     * @param {string} filePath
+     * @returns {Promise<Array>}
+     */
+    async relacionarGuiasExcelConColaboradores(filePath) {
+        const guiasExcel = await this._extraerGuiasDeExcel(filePath);
+
+        // BD y SAP en paralelo
+        const [enviosBD, infoSAP] = await Promise.all([
+            this.getEnviosByGuiaArray(guiasExcel),
+            SapService.getTrackingInfoBatch(guiasExcel).catch((err) => {
+                console.error("Error al consultar SAP en batch:", err.message);
+                return [];
+            })
+        ]);
+
+        // Índice guía → envío de BD
+        const mapBD = new Map();
+        for (const envio of enviosBD.data) {
+            for (const guia of envio.guias) {
+                mapBD.set(guia.numeroGuia, envio);
+            }
         }
-        return resultados;
-    } 
+
+        // Índice guía → resultado SAP
+        const mapSAP = new Map(infoSAP.map(r => [r.guia, r]));
+
+        // Enriquecer con Simplia Agents (una sola petición por usuario único)
+        const usuariosUnicos = [...new Set(
+            guiasExcel.map(g => mapBD.get(g)?.usuario).filter(Boolean)
+        )];
+        const mapColaboradores = new Map();
+        await Promise.all(
+            usuariosUnicos.map(async (usuario) => {
+                try {
+                    const info = await SimpliaAgentsService.searchUser(usuario);
+                    if (info) mapColaboradores.set(usuario, info.user);
+                } catch {
+                    // queda como no encontrado
+                }
+            })
+        );
+
+        // Resultado unificado por guía
+        return guiasExcel.map((guia) => {
+            const envio = mapBD.get(guia);
+            const sap = mapSAP.get(guia);
+            const colaborador = envio ? mapColaboradores.get(envio.usuario) : null;
+
+            return {
+                numeroGuia: guia,
+                encontradaEnBD: !!envio,
+                encontradaEnSAP: sap?.success === true,
+                // Datos BD
+                usuario: envio?.usuario ?? null,
+                nombreColaborador: colaborador?.NombreCompleto ?? (envio ? "Colaborador no encontrado" : null),
+                areaColaborador: colaborador?.Area?.Nombre ?? (envio ? "Área no encontrada" : null),
+                puestoColaborador: colaborador?.Puesto ?? (envio ? "Puesto no encontrado" : null),
+                // Datos SAP
+                clienteSAP: sap?.cliente ?? null,
+                paqueteriaSAP: sap?.paqueteria ?? null,
+                colaboradorSAP: sap?.colaborador ?? null,
+                folioEntregaSAP: sap?.folioEntrega ?? null,
+                idPickingSAP: sap?.idPicking ?? null,
+            };
+        });
+    }
 
 }

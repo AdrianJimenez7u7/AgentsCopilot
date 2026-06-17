@@ -3,6 +3,7 @@ import { ProductosController } from '../controllers/productos.controller.js';
 import { DHLcontroller } from '../controllers/dhl.controller.js';
 import { agentController } from '../controllers/agent.controller.js';
 import { PaqueteriasController } from '../controllers/paqueterias.controller.js';
+import { GuiasController } from '../controllers/guias.controller.js';
 const router = express.Router();
 const agent = new agentController();
 
@@ -46,6 +47,9 @@ router.post('/dhl/getIdentifiers', DHLcontroller.getIdentifiers);
 router.post('/agent/sendMessage', agent.procesarMensaje.bind(agent));
 router.get('/agent/threads', agent.listThreads.bind(agent));
 router.get('/agent/threads/:threadId/messages', agent.getThreadMessages.bind(agent));
+
+// ── GUIAS (CRUCE CON EXCEL) ──────────────
+router.post('/guias/cruce', GuiasController.uploadGuias, GuiasController.analizarCruce);
 
 // -- PAQUETERIAS ---
 router.get('/paqueterias', PaqueteriasController.getPaqueterias);
