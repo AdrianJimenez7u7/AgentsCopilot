@@ -1,5 +1,6 @@
 import axios from 'axios';
 import https from 'https';
+import { SimpliaAgentsService } from '../../../shared/services/simpliaAgents.service.js';
 
 // Ignorar errores de certificados autofirmados (común en SAP B1 Service Layer)
 const httpsAgent = new https.Agent({
@@ -76,14 +77,16 @@ export class SapService {
     // ==========================================
 
     static async ensureSQLQueryRastreoUniversal(session) {
-        // V8: parámetros nombrados ÚNICOS por rama (el Service Layer no permite reusar :guia)
-        const SQL_CODE = 'RastreoUniversalV8';
+        // V9: agrega UserSign (usuario que dio de alta el documento = solicitante/ejecutivo).
+        const SQL_CODE = 'RastreoUniversalV9';
 
         // Notas Service Layer:
         //  - Parámetros nombrados (:nombre), NO la sintaxis [%0] del Query Manager.
         //  - No admite derived tables (subconsulta en FROM): el UNION ALL va a nivel superior.
         //  - No permite reusar el mismo parámetro: cada rama usa su propio nombre (:guiaCompra / :guiaVenta).
-        const SQL_TEXT = `SELECT 'COMPRA' AS "Tipo", T0."DocNum", T0."CardName", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "OPOR" T0 INNER JOIN "POR1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaCompra UNION ALL SELECT 'VENTA' AS "Tipo", T0."DocNum", T0."CardName", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "ODLN" T0 INNER JOIN "DLN1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaVenta`;
+        //  - No se puede unir a OUSR (tabla de usuarios bloqueada); se trae UserSign y se resuelve
+        //    el nombre/correo aparte con el endpoint OData Users(UserSign).
+        const SQL_TEXT = `SELECT 'COMPRA' AS "Tipo", T0."DocNum", T0."CardName", T0."UserSign", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "OPOR" T0 INNER JOIN "POR1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaCompra UNION ALL SELECT 'VENTA' AS "Tipo", T0."DocNum", T0."CardName", T0."UserSign", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "ODLN" T0 INNER JOIN "DLN1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaVenta`;
 
         const headers = { 'Cookie': `B1SESSION=${session.SessionId}` };
 
@@ -101,13 +104,59 @@ export class SapService {
             try {
                 await axios.post(`${process.env.SAP_BASE_URL}SQLQueries`, {
                     SqlCode: SQL_CODE,
-                    SqlName: 'Buscar Guia Universal V8',
+                    SqlName: 'Buscar Guia Universal V9',
                     SqlText: SQL_TEXT
                 }, { headers, httpsAgent });
                 console.log(`SQL Query '${SQL_CODE}' creado con éxito en SAP.`);
             } catch (createErr) {
                 console.error(`Error al crear SQL Query '${SQL_CODE}':`, JSON.stringify(createErr.response?.data ?? createErr.message));
             }
+        }
+    }
+
+    // Caché de usuarios por UserSign para no repetir la llamada en consultas batch.
+    static _usuariosCache = new Map();
+
+    /**
+     * Resuelve el usuario (ejecutivo/solicitante) vinculado a un documento por su UserSign.
+     * OUSR no es accesible vía Service Layer, así que se usa el endpoint OData Users(UserSign).
+     * @returns {{codigo: string|null, nombre: string|null, email: string|null} | null}
+     */
+    static async _getUsuarioSAP(session, userSign) {
+        if (userSign == null) return null;
+        if (this._usuariosCache.has(userSign)) return this._usuariosCache.get(userSign);
+
+        try {
+            const { data } = await axios.get(`${process.env.SAP_BASE_URL}Users(${userSign})`, {
+                headers: { 'Cookie': `B1SESSION=${session.SessionId}` },
+                httpsAgent
+            });
+            const info = {
+                codigo: data.UserCode ?? null,
+                nombre: data.UserName ?? null,
+                email: data.eMail ?? null
+            };
+            this._usuariosCache.set(userSign, info);
+            return info;
+        } catch (error) {
+            const detalle = error.response?.data?.error?.message?.value ?? error.message;
+            console.error(`No se pudo resolver el usuario ${userSign} en SAP:`, detalle);
+            return null;
+        }
+    }
+
+    /**
+     * Unidad de negocio del solicitante a partir de su correo, vía Simplia (auth/users).
+     * Usa el mapa cacheado: una sola petición a Simplia sirve para todo el batch.
+     */
+    static async _getUnidadNegocio(email) {
+        if (!email) return null;
+        try {
+            const map = await SimpliaAgentsService.getUnidadNegocioPorCorreoMap();
+            return map.get(email.toLowerCase()) ?? null;
+        } catch (error) {
+            console.error('No se pudo resolver la unidad de negocio en Simplia:', error.message);
+            return null;
         }
     }
 
@@ -121,7 +170,7 @@ export class SapService {
             const valorLike = encodeURIComponent(`'%${trackingNumber}%'`);
 
             const response = await axios.post(
-                `${process.env.SAP_BASE_URL}SQLQueries('RastreoUniversalV8')/List`,
+                `${process.env.SAP_BASE_URL}SQLQueries('RastreoUniversalV9')/List`,
                 { ParamList: `guiaCompra=${valorLike}&guiaVenta=${valorLike}` },
                 {
                     headers: { 'Cookie': `B1SESSION=${session.SessionId}` },
@@ -139,12 +188,21 @@ export class SapService {
             const rastreo = data.value[0];
             console.log(`✅ Guía encontrada! Tipo: ${rastreo.Tipo} | Folio: ${rastreo.DocNum} | Estatus: ${rastreo.U_EstComprobante}`);
 
+            // Solicitante = usuario (ejecutivo) vinculado al documento, resuelto vía Users(UserSign).
+            const solicitante = await this._getUsuarioSAP(session, rastreo.UserSign);
+            // Unidad de negocio del solicitante, derivada de su correo en Simplia.
+            const unidadNegocio = await this._getUnidadNegocio(solicitante?.email);
+
             return {
                 success: true,
-                tipoOperacion: rastreo.Tipo, 
+                tipoOperacion: rastreo.Tipo,
                 guia: trackingNumber,
                 folioDocumento: rastreo.DocNum ?? null,
                 clienteOProveedor: rastreo.CardName ?? null,
+                solicitante: solicitante?.nombre ?? null,
+                solicitanteUsuario: solicitante?.codigo ?? null,
+                solicitanteEmail: solicitante?.email ?? null,
+                unidadNegocio: unidadNegocio ?? null,
                 paqueteria: rastreo.U_Via ?? null,
                 estatus: rastreo.U_EstComprobante ?? null,
                 comentariosRPA: rastreo.U_U_Coment_Log ?? null,

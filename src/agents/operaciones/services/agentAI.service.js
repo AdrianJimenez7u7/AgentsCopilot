@@ -22,7 +22,7 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
 {
   "intenciones": [
     {
-      "tipo": "validacion_direccion" | "rastreo_envio" | "cotizacion" | "conversacion" | "estado_envios_cotizaciones",
+      "tipo": "validacion_direccion" | "rastreo_envio" | "cotizacion" | "conversacion" | "estado_envios_cotizaciones" | "cruce_result",
       "datos_completos": true | false,
       "datos": { ... },           // solo si datos_completos = true
       "dato_faltante": "..."      // solo si datos_completos = false, describe qué falta
@@ -36,6 +36,11 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
 - "cotizacion":           { "origen": "...", "destino": "...", "peso_kg": 0, "largo_cm": 0, "ancho_cm": 0, "alto_cm": 0 }
 - "conversacion":         { "texto": "..." }
 - "estado_envios_cotizaciones": { "email": "..." }
+- "cruce_result":         { }   // El cruce se realiza sobre el archivo Excel adjunto (requestData.file)
+
+### Reglas Críticas para "cruce_result":
+1. Si el usuario adjuntó un archivo (ver bloque [SISTEMA]) y pide cruzar, comparar, conciliar o validar un listado de guías/envíos contra el sistema, la intención DEBE ser "cruce_result".
+2. Si hay archivo adjunto, marca "datos_completos": true. Si NO hay archivo, marca "datos_completos": false y en "dato_faltante" pon "archivo".
 
 ### Reglas Críticas para "estado_envios_cotizaciones":
 1. Si el usuario solicita información de sus envíos, historial, estatus o cotizaciones previas SIN proporcionar un número de guía explícito, la intención DEBE ser obligatoriamente "estado_envios_cotizaciones".
@@ -87,6 +92,11 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
                     case "estado_envios_cotizaciones":
                         console.log(`[AgentAIService] Ejecutando servicio para estado_envios_cotizaciones con datos:`, intencion.datos);
                         resultado = await this.#estadoEnviosCotizaciones(intencion.datos);
+                        break;
+                    case "cruce_result":
+                        // TODO: conectar el cruce aquí usando el archivo adjunto (requestData.file),
+                        // p.ej. this.enviosService.relacionarGuiasExcelConColaboradores(filePath).
+                        resultado = null;
                         break;
                     default:
                         resultado = null;

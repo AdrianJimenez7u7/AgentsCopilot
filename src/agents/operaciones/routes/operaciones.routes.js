@@ -44,7 +44,7 @@ router.post('/dhl/getIdentifiers', DHLcontroller.getIdentifiers);
 
 
 // ── ENDPOINTS AGENTE ──────────────
-router.post('/agent/sendMessage', agent.procesarMensaje.bind(agent));
+router.post('/agent/sendMessage', agentController.uploadFile, agent.procesarMensaje.bind(agent));
 router.get('/agent/threads', agent.listThreads.bind(agent));
 router.get('/agent/threads/:threadId/messages', agent.getThreadMessages.bind(agent));
 

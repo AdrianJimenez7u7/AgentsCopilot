@@ -83,11 +83,16 @@ export class GuiasController {
               solicitante: referencia2.toLowerCase() === dbUsuario.toLowerCase()
             },
             datosSAP: sap?.success ? {
-              cliente: sap.cliente,
-              colaborador: sap.colaborador,
-              paqueteria: sap.paqueteria,
-              folioEntrega: sap.folioEntrega,
-              idPicking: sap.idPicking
+              tipoOperacion: sap.tipoOperacion,
+              cliente: sap.clienteOProveedor ?? null,
+              solicitante: sap.solicitante ?? null,
+              solicitanteUsuario: sap.solicitanteUsuario ?? null,
+              solicitanteEmail: sap.solicitanteEmail ?? null,
+              unidadNegocio: sap.unidadNegocio ?? null,
+              paqueteria: sap.paqueteria ?? null,
+              folioDocumento: sap.folioDocumento ?? null,
+              estatus: sap.estatus ?? null,
+              comentariosRPA: sap.comentariosRPA ?? null
             } : null
           };
         }
@@ -100,16 +105,25 @@ export class GuiasController {
             encontrado: true,
             referencia1_excel: referencia1,
             referencia2_excel: referencia2,
-            unidadNegocio_db: null,
-            solicitante_db: sap.colaborador ?? null,
+            // Sin registro en BD: la unidad de negocio viene de SAP→Simplia (solicitanteEmail)
+            unidadNegocio_db: sap.unidadNegocio ?? null,
+            solicitante_db: sap.solicitante ?? null,
             paqueteria: sap.paqueteria ?? null,
-            coinciden: null,
+            coinciden: {
+              unidadNegocio: !!sap.unidadNegocio &&
+                referencia1.toLowerCase() === sap.unidadNegocio.toLowerCase()
+            },
             datosSAP: {
-              cliente: sap.cliente,
-              colaborador: sap.colaborador,
-              paqueteria: sap.paqueteria,
-              folioEntrega: sap.folioEntrega,
-              idPicking: sap.idPicking
+              tipoOperacion: sap.tipoOperacion,
+              cliente: sap.clienteOProveedor ?? null,
+              solicitante: sap.solicitante ?? null,
+              solicitanteUsuario: sap.solicitanteUsuario ?? null,
+              solicitanteEmail: sap.solicitanteEmail ?? null,
+              unidadNegocio: sap.unidadNegocio ?? null,
+              paqueteria: sap.paqueteria ?? null,
+              folioDocumento: sap.folioDocumento ?? null,
+              estatus: sap.estatus ?? null,
+              comentariosRPA: sap.comentariosRPA ?? null
             }
           };
         }

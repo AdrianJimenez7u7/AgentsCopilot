@@ -463,11 +463,14 @@ export class EnviosService {
                     areaColaborador: colaborador?.Area?.Nombre ?? "Área no encontrada",
                     puestoColaborador: colaborador?.Puesto ?? "Puesto no encontrado",
                     // Datos SAP como referencia adicional
-                    clienteSAP: sap?.cliente ?? null,
+                    tipoOperacionSAP: sap?.tipoOperacion ?? null,
+                    clienteSAP: sap?.clienteOProveedor ?? null,
                     paqueteriaSAP: sap?.paqueteria ?? null,
-                    colaboradorSAP: sap?.colaborador ?? null,
-                    folioEntregaSAP: sap?.folioEntrega ?? null,
-                    idPickingSAP: sap?.idPicking ?? null,
+                    solicitanteSAP: sap?.solicitante ?? null,
+                    solicitanteEmailSAP: sap?.solicitanteEmail ?? null,
+                    unidadNegocioSAP: sap?.unidadNegocio ?? null,
+                    folioDocumentoSAP: sap?.folioDocumento ?? null,
+                    estatusSAP: sap?.estatus ?? null,
                 };
             }
 
@@ -479,14 +482,17 @@ export class EnviosService {
                     encontradaEnBD: false,
                     encontradaEnSAP: true,
                     usuario: null,
-                    nombreColaborador: sap.colaborador ?? "Colaborador no encontrado en SAP",
+                    nombreColaborador: sap.solicitante ?? "Colaborador no encontrado en SAP",
                     areaColaborador: null,
                     puestoColaborador: null,
-                    clienteSAP: sap.cliente ?? null,
+                    tipoOperacionSAP: sap.tipoOperacion ?? null,
+                    clienteSAP: sap.clienteOProveedor ?? null,
                     paqueteriaSAP: sap.paqueteria ?? null,
-                    colaboradorSAP: sap.colaborador ?? null,
-                    folioEntregaSAP: sap.folioEntrega ?? null,
-                    idPickingSAP: sap.idPicking ?? null,
+                    solicitanteSAP: sap.solicitante ?? null,
+                    solicitanteEmailSAP: sap.solicitanteEmail ?? null,
+                    unidadNegocioSAP: sap.unidadNegocio ?? null,
+                    folioDocumentoSAP: sap.folioDocumento ?? null,
+                    estatusSAP: sap.estatus ?? null,
                 };
             }
 
@@ -500,11 +506,14 @@ export class EnviosService {
                 nombreColaborador: null,
                 areaColaborador: null,
                 puestoColaborador: null,
+                tipoOperacionSAP: null,
                 clienteSAP: null,
                 paqueteriaSAP: null,
-                colaboradorSAP: null,
-                folioEntregaSAP: null,
-                idPickingSAP: null,
+                solicitanteSAP: null,
+                solicitanteEmailSAP: null,
+                unidadNegocioSAP: null,
+                folioDocumentoSAP: null,
+                estatusSAP: null,
             };
         });
     }

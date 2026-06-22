@@ -1,13 +1,27 @@
+import multer from "multer";
 import { UserMessage } from "../models/chat.js";
 import { AgentAIService } from "../services/agentAI.service.js";
 import { prisma } from "../../../shared/prisma/client.js";
 
+// Multer para adjuntar un archivo opcional al agente (mismo destino que el cruce de guías).
+const upload = multer({
+    dest: 'src/agents/operaciones/data/',
+    limits: { fileSize: 5 * 1024 * 1024 }
+});
+
 export class agentController {
+
+    // Middleware para recibir un archivo opcional en /agent/sendMessage (campo "file").
+    static uploadFile = upload.single('file');
 
     async procesarMensaje(req, res) {
         try {
-            const { history, message, user, threadId } = req.body;
-            
+            let { history, message, user, threadId } = req.body;
+
+            // Con multipart/form-data (cuando se adjunta archivo) los campos llegan como string.
+            if (typeof history === 'string') { try { history = JSON.parse(history); } catch { history = []; } }
+            if (typeof user === 'string') { try { user = JSON.parse(user); } catch { user = undefined; } }
+
             if (!message || !user?.email) {
                 return res.status(400).json({ error: "message y user.email son requeridos" });
             }
@@ -27,7 +41,17 @@ export class agentController {
                 });
             }
 
-            const userMessage = new UserMessage(history, message, thread.id, user);
+            // Archivo adjunto (opcional). El cruce lo consume por su .path.
+            const file = req.file
+                ? {
+                    originalname: req.file.originalname,
+                    mimetype: req.file.mimetype,
+                    size: req.file.size,
+                    path: req.file.path
+                }
+                : null;
+
+            const userMessage = new UserMessage(history, message, thread.id, user, file);
             await prisma.message.create({
                 data: {
                     threadId: thread.id,
