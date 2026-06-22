@@ -1,6 +1,7 @@
 import express from 'express';
 import { ContadoresController } from '../controllers/contadores.controller.js';
 import { agentController } from '../controllers/agent.controller.js';
+import { SapController } from '../controllers/sap.controller.js';
 
 const router = express.Router();
 const agent = new agentController();
@@ -57,5 +58,13 @@ router.get('/tecnicos', ContadoresController.getTecnicos);
 router.post('/pdf/counter', ContadoresController.uploadPdf, ContadoresController.obtenerNumeroHojas);
 
 router.post('/root/chat', agentController.uploadPdf, agent.chat.bind(agent));
+
+// ── SAP ──────────────────────────────────────
+router.get('/sap/warehouses', SapController.getWarehouses);
+router.get('/sap/items', SapController.getItems);
+router.get('/sap/items/stock', SapController.getItemsStock);
+router.get('/sap/items/:itemCode', SapController.getItemByCode);
+router.get('/sap/inventory-transfer-requests', SapController.getInventoryTransferRequests);
+router.get('/sap/inventory-transfer-requests/:docEntry', SapController.getInventoryTransferRequestByDocEntry);
 
 export default router;

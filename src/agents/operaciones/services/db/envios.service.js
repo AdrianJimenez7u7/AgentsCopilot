@@ -444,27 +444,67 @@ export class EnviosService {
             })
         );
 
-        // Resultado unificado por guía
+        // Resultado unificado por guía — si no está en BD, los datos vienen de SAP
         return guiasExcel.map((guia) => {
             const envio = mapBD.get(guia);
             const sap = mapSAP.get(guia);
             const colaborador = envio ? mapColaboradores.get(envio.usuario) : null;
+            const sapEncontrada = sap?.success === true;
 
+            if (envio) {
+                // Encontrada en BD: datos completos de BD + Simplia Agents, SAP como complemento
+                return {
+                    numeroGuia: guia,
+                    fuente: "BD",
+                    encontradaEnBD: true,
+                    encontradaEnSAP: sapEncontrada,
+                    usuario: envio.usuario,
+                    nombreColaborador: colaborador?.NombreCompleto ?? "Colaborador no encontrado",
+                    areaColaborador: colaborador?.Area?.Nombre ?? "Área no encontrada",
+                    puestoColaborador: colaborador?.Puesto ?? "Puesto no encontrado",
+                    // Datos SAP como referencia adicional
+                    clienteSAP: sap?.cliente ?? null,
+                    paqueteriaSAP: sap?.paqueteria ?? null,
+                    colaboradorSAP: sap?.colaborador ?? null,
+                    folioEntregaSAP: sap?.folioEntrega ?? null,
+                    idPickingSAP: sap?.idPicking ?? null,
+                };
+            }
+
+            if (sapEncontrada) {
+                // No está en BD pero sí en SAP: usar datos de SAP como fuente principal
+                return {
+                    numeroGuia: guia,
+                    fuente: "SAP",
+                    encontradaEnBD: false,
+                    encontradaEnSAP: true,
+                    usuario: null,
+                    nombreColaborador: sap.colaborador ?? "Colaborador no encontrado en SAP",
+                    areaColaborador: null,
+                    puestoColaborador: null,
+                    clienteSAP: sap.cliente ?? null,
+                    paqueteriaSAP: sap.paqueteria ?? null,
+                    colaboradorSAP: sap.colaborador ?? null,
+                    folioEntregaSAP: sap.folioEntrega ?? null,
+                    idPickingSAP: sap.idPicking ?? null,
+                };
+            }
+
+            // No encontrada en ninguna fuente
             return {
                 numeroGuia: guia,
-                encontradaEnBD: !!envio,
-                encontradaEnSAP: sap?.success === true,
-                // Datos BD
-                usuario: envio?.usuario ?? null,
-                nombreColaborador: colaborador?.NombreCompleto ?? (envio ? "Colaborador no encontrado" : null),
-                areaColaborador: colaborador?.Area?.Nombre ?? (envio ? "Área no encontrada" : null),
-                puestoColaborador: colaborador?.Puesto ?? (envio ? "Puesto no encontrado" : null),
-                // Datos SAP
-                clienteSAP: sap?.cliente ?? null,
-                paqueteriaSAP: sap?.paqueteria ?? null,
-                colaboradorSAP: sap?.colaborador ?? null,
-                folioEntregaSAP: sap?.folioEntrega ?? null,
-                idPickingSAP: sap?.idPicking ?? null,
+                fuente: null,
+                encontradaEnBD: false,
+                encontradaEnSAP: false,
+                usuario: null,
+                nombreColaborador: null,
+                areaColaborador: null,
+                puestoColaborador: null,
+                clienteSAP: null,
+                paqueteriaSAP: null,
+                colaboradorSAP: null,
+                folioEntregaSAP: null,
+                idPickingSAP: null,
             };
         });
     }

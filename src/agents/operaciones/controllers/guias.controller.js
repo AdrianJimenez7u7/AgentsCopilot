@@ -1,6 +1,8 @@
 import multer from 'multer';
 import XLSX from 'xlsx';
 import { prisma } from '../../../shared/prisma/client.js';
+import { SapService } from '../services/sap.service.js';
+
 
 const upload = multer({
   dest: 'src/agents/operaciones/data/',
@@ -30,69 +32,112 @@ export class GuiasController {
         return res.status(400).json({ error: 'El archivo no contiene datos' });
       }
 
-      const resultados = [];
+      // Extraer filas válidas y guías únicas para búsquedas en batch
+      const filas = rows
+        .map(row => ({
+          guia: String(row.GUIA || '').trim(),
+          referencia1: String(row.REFERENCIA_1 || '').trim(),
+          referencia2: String(row.REFERENCIA_2 || '').trim(),
+          raw: row
+        }))
+        .filter(f => f.guia);
 
-      for (const row of rows) {
-        const guia = String(row.GUIA || '').trim();
-        if (!guia) continue;
+      const todasLasGuias = [...new Set(filas.map(f => f.guia))];
 
-        const referencia1 = String(row.REFERENCIA_1 || '').trim();
-        const referencia2 = String(row.REFERENCIA_2 || '').trim();
+      // Buscar en BD y SAP en paralelo para todas las guías
+      const [guiasEnBD, resultadosSAP] = await Promise.all([
+        prisma.guiasEnvio.findMany({
+          where: { numeroGuia: { in: todasLasGuias }, deleted: false },
+          include: { envio: { include: { paqueteria: true } } }
+        }),
+        SapService.getTrackingInfoBatch(todasLasGuias).catch(err => {
+          console.error('Error al consultar SAP:', err.message);
+          return [];
+        })
+      ]);
 
-        const guiaEnvio = await prisma.guiasEnvio.findFirst({
-          where: { numeroGuia: guia, deleted: false },
-          include: {
-            envio: {
-              include: {
-                paqueteria: true
-              }
-            }
-          }
-        });
+      const mapBD = new Map(guiasEnBD.map(g => [g.numeroGuia, g]));
+      const mapSAP = new Map(resultadosSAP.map(r => [r.guia, r]));
 
-        if (!guiaEnvio) {
-          resultados.push({
-            ...row,
-            encontrado: false,
+      // 3. Construir resultados fila por fila
+      const resultados = filas.map(({ guia, referencia1, referencia2, raw }) => {
+        const guiaEnvio = mapBD.get(guia);
+
+        if (guiaEnvio) {
+          const dbUnidadNegocio = (guiaEnvio.envio?.unidadNegocio || '').trim();
+          const dbUsuario = (guiaEnvio.envio?.usuario || '').trim();
+          const paqueteria = guiaEnvio.envio?.paqueteria?.nombre || null;
+          const sap = mapSAP.get(guia);
+
+          return {
+            ...raw,
+            fuente: 'BD',
+            encontrado: true,
+            referencia1_excel: referencia1,
+            referencia2_excel: referencia2,
+            unidadNegocio_db: dbUnidadNegocio,
+            solicitante_db: dbUsuario,
+            paqueteria,
+            coinciden: {
+              unidadNegocio: referencia1.toLowerCase() === dbUnidadNegocio.toLowerCase(),
+              solicitante: referencia2.toLowerCase() === dbUsuario.toLowerCase()
+            },
+            datosSAP: sap?.success ? {
+              cliente: sap.cliente,
+              colaborador: sap.colaborador,
+              paqueteria: sap.paqueteria,
+              folioEntrega: sap.folioEntrega,
+              idPicking: sap.idPicking
+            } : null
+          };
+        }
+
+        const sap = mapSAP.get(guia);
+        if (sap?.success) {
+          return {
+            ...raw,
+            fuente: 'SAP',
+            encontrado: true,
             referencia1_excel: referencia1,
             referencia2_excel: referencia2,
             unidadNegocio_db: null,
-            solicitante_db: null,
-            paqueteria: null,
-            coinciden: null
-          });
-          continue;
+            solicitante_db: sap.colaborador ?? null,
+            paqueteria: sap.paqueteria ?? null,
+            coinciden: null,
+            datosSAP: {
+              cliente: sap.cliente,
+              colaborador: sap.colaborador,
+              paqueteria: sap.paqueteria,
+              folioEntrega: sap.folioEntrega,
+              idPicking: sap.idPicking
+            }
+          };
         }
 
-        const dbUnidadNegocio = (guiaEnvio.envio?.unidadNegocio || '').trim();
-        const dbUsuario = (guiaEnvio.envio?.usuario || '').trim();
-        const paqueteria = guiaEnvio.envio?.paqueteria?.nombre || null;
-
-        resultados.push({
-          ...row,
-          encontrado: true,
+        return {
+          ...raw,
+          fuente: null,
+          encontrado: false,
           referencia1_excel: referencia1,
           referencia2_excel: referencia2,
-          unidadNegocio_db: dbUnidadNegocio,
-          solicitante_db: dbUsuario,
-          paqueteria,
-          coinciden: {
-            unidadNegocio: referencia1.toLowerCase() === dbUnidadNegocio.toLowerCase(),
-            solicitante: referencia2.toLowerCase() === dbUsuario.toLowerCase()
-          }
-        });
-      }
+          unidadNegocio_db: null,
+          solicitante_db: null,
+          paqueteria: null,
+          coinciden: null
+        };
+      });
 
-      const total = resultados.length;
       const conCoincidencia = resultados.filter(r => r.encontrado);
       const sinCoincidencia = resultados.filter(r => !r.encontrado);
       const unidadNegocioOk = conCoincidencia.filter(r => r.coinciden?.unidadNegocio).length;
       const solicitanteOk = conCoincidencia.filter(r => r.coinciden?.solicitante).length;
 
       return res.status(200).json({
-        totalGuias: total,
+        totalGuias: resultados.length,
         encontradas: conCoincidencia.length,
         noEncontradas: sinCoincidencia.length,
+        encontradasEnBD: resultados.filter(r => r.fuente === 'BD').length,
+        encontradasEnSAP: resultados.filter(r => r.fuente === 'SAP').length,
         coincidenUnidadNegocio: unidadNegocioOk,
         coincidenSolicitante: solicitanteOk,
         detalle: resultados
