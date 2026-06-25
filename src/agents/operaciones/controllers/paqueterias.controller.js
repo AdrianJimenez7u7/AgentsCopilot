@@ -1,5 +1,9 @@
 import { response } from "../models/response.js";
 import { EnviosService } from "../services/db/envios.service.js";
+import { EmailService } from "../services/email.service.js";
+import { DhlService } from "../services/dhl.service.js";
+
+const dhlService = new DhlService();
 
 export class PaqueteriasController {
     static async getPaqueterias(req, res) {
@@ -119,13 +123,39 @@ export class PaqueteriasController {
             if (!idEnvio || !updateData) {
                 return res.status(400).json(new response(400, "Los campos 'idEnvio' y 'updateData' son requeridos"));
             }
+
             const envio = await EnviosService.updateEnvio(idEnvio, updateData);
+
+            // Notificación de entrega (no bloquea la respuesta)
+            if (updateData.estado === 'ENTREGADO') {
+                PaqueteriasController.#enviarNotificacionEntrega(envio).catch(err =>
+                    console.error('[PaqueteriasController] Error al enviar notificación de entrega:', err?.message ?? err)
+                );
+            }
+
             return res.status(200).json(new response(200, "Envío actualizado correctamente", envio));
         }
         catch (error) {
             console.error(`[PaqueteriasController] Error al actualizar envío:`, error?.message ?? error);
             return res.status(500).json(new response(500, `Error al actualizar envío: ${error?.message ?? String(error)}`));
         }
+    }
+
+    static async #enviarNotificacionEntrega(envio) {
+        const paqueteria = (envio.paqueteria?.nombre ?? envio.cotizacion?.paqueteria?.nombre ?? '').toUpperCase();
+        const esDHL = paqueteria.includes('DHL');
+
+        let trackingData = null;
+        if (esDHL && envio.guias?.length) {
+            const guia = envio.guias[0].numeroGuia;
+            try {
+                trackingData = await dhlService.trackShipment(guia);
+            } catch (err) {
+                console.warn(`[PaqueteriasController] No se pudo obtener tracking DHL para guía ${guia}:`, err?.message);
+            }
+        }
+
+        await EmailService.notificarEntrega(envio, trackingData);
     }
 
 }

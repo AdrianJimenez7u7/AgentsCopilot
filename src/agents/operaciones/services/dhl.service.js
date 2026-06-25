@@ -13,8 +13,8 @@ export class DhlService {
         this.password = process.env.DHL_PASSWORD;
         this.accountNumber = process.env.DHL_ACCOUNT_NUMBER;
         // Entorno de pruebas por defecto, asegúrate de cambiar a producción cuando estés listo
-        this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi/test";
-        //this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi";
+        //this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi/test";
+        this.apiUrl = process.env.DHL_API_URL || "https://express.api.dhl.com/mydhlapi";
         this.version = "3.2.0";    
     }
 
@@ -47,7 +47,7 @@ export class DhlService {
      * @returns {Promise<Object>} JSON con la dirección confirmada o sugerencias.
      * @throws {Error} Si la validación falla o hay un error de red.
      */
-    async validateAddress(countryCode, postalCode, cityName, strictValidation = true) {
+    async validateAddress(countryCode, postalCode, cityName, strictValidation = false) {
         const params = new URLSearchParams({
             type: 'pickup',
             countryCode,

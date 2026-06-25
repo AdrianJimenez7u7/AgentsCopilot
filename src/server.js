@@ -3,6 +3,7 @@ import http from 'http';
 import app from './app.js';
 import { logger } from './shared/utils/logger.js';
 import { attachBridgeWS } from './agents/computerUse/routes/computerUse.routes.js';
+import { iniciarReporteDiario } from './shared/jobs/reporteDiario.job.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -17,4 +18,6 @@ server.listen(PORT, () => {
   logger.info(`📝 Entorno: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`🔗 URL: http://localhost:${PORT}`);
   logger.info(`🌉 Bridge WS: ws://localhost:${PORT}/agente/computer-use/bridge`);
+
+  iniciarReporteDiario();
 });

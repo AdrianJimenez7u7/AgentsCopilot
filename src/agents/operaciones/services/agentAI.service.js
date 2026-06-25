@@ -1,6 +1,11 @@
 import { AzureAIService } from "./azureAI.service.js";
 import { EnviosService } from "./db/envios.service.js";
 import { DhlService } from "./dhl.service.js";
+import { SearchService } from "./search.service.js";
+import { OpenAIService } from "./openAI.service.js";
+import { SapService } from "./sap.service.js";
+import { prisma } from "../../../shared/prisma/client.js";
+import { randomUUID } from "crypto";
 
 export class AgentAIService {
 
@@ -22,7 +27,7 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
 {
   "intenciones": [
     {
-      "tipo": "validacion_direccion" | "rastreo_envio" | "cotizacion" | "conversacion" | "estado_envios_cotizaciones" | "cruce_result",
+      "tipo": "validacion_direccion" | "rastreo_envio" | "cotizacion" | "conversacion" | "estado_envios_cotizaciones" | "cruce_result" | "clasificacion_sku",
       "datos_completos": true | false,
       "datos": { ... },           // solo si datos_completos = true
       "dato_faltante": "..."      // solo si datos_completos = false, describe qué falta
@@ -37,6 +42,11 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
 - "conversacion":         { "texto": "..." }
 - "estado_envios_cotizaciones": { "email": "..." }
 - "cruce_result":         { }   // El cruce se realiza sobre el archivo Excel adjunto (requestData.file)
+- "clasificacion_sku":    { "sku": "..." }
+
+### Reglas Críticas para "clasificacion_sku":
+1. Si el usuario proporciona un SKU, número de parte o código de producto y pide clasificarlo, buscarlo, o saber qué es ese producto, la intención DEBE ser "clasificacion_sku" con datos { "sku": "..." } y "datos_completos": true.
+2. Si pide clasificar/buscar un producto pero NO proporciona el código, marca "datos_completos": false y en "dato_faltante" pon "sku".
 
 ### Reglas Críticas para "cruce_result":
 1. Si el usuario adjuntó un archivo (ver bloque [SISTEMA]) y pide cruzar, comparar, conciliar o validar un listado de guías/envíos contra el sistema, la intención DEBE ser "cruce_result".
@@ -70,7 +80,8 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
     }
 
     // ─── 2. EJECUTA SERVICIOS EN PARALELO ────────────────────────────────────
-    async ejecutarServicios(intenciones) {
+    async ejecutarServicios(intenciones, requestData = {}) {
+        const emailUsuario = requestData.user?.email ?? null;
         return Promise.all(
             intenciones.map(async (intencion) => {
                 // Si faltan datos o es conversación, no llamamos a ningún servicio
@@ -84,7 +95,8 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
                         resultado = await this.#validarDireccion(intencion.datos);
                         break;
                     case "rastreo_envio":
-                        resultado = await this.#rastrearEnvio(intencion.datos);
+                        // El frontend maneja el rastreo; solo retornamos la intención con los datos
+                        resultado = null;
                         break;
                     case "cotizacion":
                         resultado = await this.#cotizar(intencion.datos);
@@ -97,6 +109,9 @@ Responde ÚNICAMENTE con un JSON válido, sin Markdown, con este esquema:
                         // TODO: conectar el cruce aquí usando el archivo adjunto (requestData.file),
                         // p.ej. this.enviosService.relacionarGuiasExcelConColaboradores(filePath).
                         resultado = null;
+                        break;
+                    case "clasificacion_sku":
+                        resultado = await this.#clasificarSku(intencion.datos, emailUsuario);
                         break;
                     default:
                         resultado = null;
@@ -129,6 +144,7 @@ Tu objetivo es redactar UNA SOLA respuesta clara y conversacional basándote en 
 REGLAS:
 - Si hay datos_completos: false, pide los datos faltantes de forma amable dentro de la misma respuesta.
 - Si hay un resultado de servicio, interpreta los datos técnicos y explícalos en lenguaje simple.
+- Para clasificación de productos (clasificacion_sku): si el SKU ya está registrado en SAP, infórmalo y aclara que no se envió a validación. Si fue enviado a validación, dile al usuario que en la vista de validación puede aprobarlo y desde ahí subir el artículo a SAP (eso es un paso aparte).
 - Si hay varias intenciones, atiéndelas todas en orden lógico en un solo párrafo o con saltos de línea naturales.
 - Llama al usuario por su nombre de pila si lo tienes.
 - No uses listas con viñetas a menos que sea imprescindible para claridad.
@@ -172,7 +188,7 @@ Mensaje actual del usuario: "${requestData.message}"
         });
 
         // 2. Ejecutar lógica de negocio (Ahora sí entrará al switch e imprimirá logs)
-        const interacciones = await this.ejecutarServicios(intenciones);
+        const interacciones = await this.ejecutarServicios(intenciones, requestData);
 
         // 3. Preparar datos para respuesta
         const datosParaRespuesta = {
@@ -201,11 +217,18 @@ Mensaje actual del usuario: "${requestData.message}"
 
     // ─── SERVICIOS PRIVADOS ───────────────────────────────────────────────────
     async #validarDireccion({ ciudad, codigo_postal }) {
+        // Intento 1: strictValidation=false para tolerar variantes de nombre de ciudad
         try {
-            const data = await this.dhlService.validateAddress("MX", codigo_postal, ciudad);
+            const data = await this.dhlService.validateAddress("MX", codigo_postal, ciudad, false);
             return { ok: true, data };
-        } catch (error) {
-            return this.#parsearErrorDHL(error);
+        } catch (e1) {
+            // Intento 2: sin nombre de ciudad, solo CP (DHL puede identificar la zona por CP)
+            try {
+                const data = await this.dhlService.validateAddress("MX", codigo_postal, "", false);
+                return { ok: true, data };
+            } catch (e2) {
+                return this.#parsearErrorDHL(e2);
+            }
         }
     }
 
@@ -224,6 +247,98 @@ Mensaje actual del usuario: "${requestData.message}"
             return { ok: true, data };
         } catch (error) {
             return this.#parsearErrorDHL(error);
+        }
+    }
+
+    // Búsqueda + clasificación de un producto por SKU individual y envío a validación.
+    async #clasificarSku({ sku } = {}, email = null) {
+        if (!sku) return { ok: false, error: "SKU es requerido" };
+
+        const userEmail = email || "bot@copilot.com";
+
+        // 1. ¿Ya está registrado como artículo en SAP? (no lo reprocesamos)
+        try {
+            const { existe, item } = await SapService.existeItemPorCodigo(sku);
+            if (existe) {
+                return {
+                    ok: true,
+                    sku,
+                    yaRegistrado: true,
+                    enValidacion: false,
+                    fuente: "SAP",
+                    item,
+                    nota: `El SKU ${sku} ya está registrado como artículo en SAP (${item?.itemName ?? ''}). No se envió a validación.`
+                };
+            }
+        } catch (e) {
+            // No bloqueamos el flujo si SAP no responde; seguimos con la clasificación.
+            console.error(`[clasificacion_sku] No se pudo verificar el item ${sku} en SAP:`, e?.message ?? e);
+        }
+
+        // 2. ¿Ya está en validación pendiente? (evita duplicados)
+        const yaPendiente = await prisma.productoPendienteValidation.findFirst({
+            where: { sku },
+            orderBy: { createdAt: 'desc' }
+        });
+        if (yaPendiente) {
+            return {
+                ok: true,
+                sku,
+                yaRegistrado: false,
+                enValidacion: true,
+                idValidacion: yaPendiente.id,
+                data: yaPendiente,
+                nota: `El SKU ${sku} ya estaba en validación (estatus: ${yaPendiente.status}). En la vista de validación puedes aprobarlo y subir el artículo a SAP.`
+            };
+        }
+
+        // 3. Buscar en web + clasificar con el modelo de razonamiento
+        const telemetry = { runId: randomUUID(), collaboratorId: email };
+        let producto;
+        try {
+            const rawResults = await SearchService.search(sku, 2, telemetry);
+            if (!rawResults?.results?.length) {
+                return { ok: false, sku, error: `No se encontró contexto web confiable para el SKU ${sku}.` };
+            }
+            producto = await OpenAIService.clasificarProductoRazonamiento(sku, JSON.stringify(rawResults), 3, telemetry);
+        } catch (error) {
+            return { ok: false, sku, error: error?.message ?? String(error) };
+        }
+
+        // 4. Enviar a validación (guardar como Pendiente)
+        try {
+            const nuevo = await prisma.productoPendienteValidation.create({
+                data: {
+                    sku: producto.numero_parte || sku,
+                    descripcion_comercial: producto.descripcion_comercial || "",
+                    clave_producto_servicio_sat: producto.clave_producto_servicio_sat || "",
+                    clave_unidad_sat: producto.clave_unidad_sat || "H87",
+                    marca: producto.marca || "",
+                    medidas_cm: producto.medidas_cm || "0 x 0 x 0",
+                    peso_kg: parseFloat(producto.peso_kg) || 0,
+                    user_email: userEmail,
+                    status: 'Pending'
+                }
+            });
+            return {
+                ok: true,
+                sku,
+                yaRegistrado: false,
+                enValidacion: true,
+                idValidacion: nuevo.id,
+                data: producto,
+                nota: `Producto analizado y enviado a validación. En la vista de validación puedes aprobarlo y subir el artículo a SAP.`
+            };
+        } catch (error) {
+            console.error(`[clasificacion_sku] Error al guardar pendiente:`, error?.message ?? error);
+            return {
+                ok: true,
+                sku,
+                yaRegistrado: false,
+                enValidacion: false,
+                data: producto,
+                nota: `Producto analizado, pero no se pudo enviar a validación: ${error?.message ?? error}`
+            };
         }
     }
 

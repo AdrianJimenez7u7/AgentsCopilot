@@ -2,6 +2,7 @@ import multer from 'multer';
 import XLSX from 'xlsx';
 import { prisma } from '../../../shared/prisma/client.js';
 import { SapService } from '../services/sap.service.js';
+import { SimpliaAgentsService } from '../../../shared/services/simpliaAgents.service.js';
 
 
 const upload = multer({
@@ -44,8 +45,8 @@ export class GuiasController {
 
       const todasLasGuias = [...new Set(filas.map(f => f.guia))];
 
-      // Buscar en BD y SAP en paralelo para todas las guías
-      const [guiasEnBD, resultadosSAP] = await Promise.all([
+      // Buscar en BD, SAP y usuarios de Simplia en paralelo para todas las guías
+      const [guiasEnBD, resultadosSAP, usuariosSimplia] = await Promise.all([
         prisma.guiasEnvio.findMany({
           where: { numeroGuia: { in: todasLasGuias }, deleted: false },
           include: { envio: { include: { paqueteria: true } } }
@@ -53,6 +54,10 @@ export class GuiasController {
         SapService.getTrackingInfoBatch(todasLasGuias).catch(err => {
           console.error('Error al consultar SAP:', err.message);
           return [];
+        }),
+        SimpliaAgentsService.getUsuariosPorCorreoMap().catch(err => {
+          console.error('Error al consultar usuarios de Simplia:', err.message);
+          return new Map();
         })
       ]);
 
@@ -69,6 +74,9 @@ export class GuiasController {
           const paqueteria = guiaEnvio.envio?.paqueteria?.nombre || null;
           const sap = mapSAP.get(guia);
 
+          // envio.usuario es el correo del solicitante; resolvemos su nombre en Simplia.
+          const infoSolicitante = dbUsuario ? usuariosSimplia.get(dbUsuario.toLowerCase()) : null;
+
           return {
             ...raw,
             fuente: 'BD',
@@ -77,6 +85,8 @@ export class GuiasController {
             referencia2_excel: referencia2,
             unidadNegocio_db: dbUnidadNegocio,
             solicitante_db: dbUsuario,
+            solicitante_nombre_db: infoSolicitante?.nombre ?? null,
+            solicitante_email_db: dbUsuario || null,
             paqueteria,
             coinciden: {
               unidadNegocio: referencia1.toLowerCase() === dbUnidadNegocio.toLowerCase(),
@@ -108,6 +118,8 @@ export class GuiasController {
             // Sin registro en BD: la unidad de negocio viene de SAP→Simplia (solicitanteEmail)
             unidadNegocio_db: sap.unidadNegocio ?? null,
             solicitante_db: sap.solicitante ?? null,
+            solicitante_nombre_db: null,
+            solicitante_email_db: null,
             paqueteria: sap.paqueteria ?? null,
             coinciden: {
               unidadNegocio: !!sap.unidadNegocio &&
@@ -136,6 +148,8 @@ export class GuiasController {
           referencia2_excel: referencia2,
           unidadNegocio_db: null,
           solicitante_db: null,
+          solicitante_nombre_db: null,
+          solicitante_email_db: null,
           paqueteria: null,
           coinciden: null
         };

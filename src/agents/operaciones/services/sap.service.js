@@ -73,20 +73,43 @@ export class SapService {
     }
 
     // ==========================================
+    // ITEMS (MAESTRO DE ARTÍCULOS)
+    // ==========================================
+
+    /**
+     * Verifica si un artículo ya está registrado en SAP por su ItemCode.
+     * 404 del Service Layer significa que no existe.
+     * @returns {Promise<{existe: boolean, item: {itemCode: string, itemName: string}|null}>}
+     */
+    static async existeItemPorCodigo(itemCode) {
+        const session = await this.login();
+        try {
+            const { data } = await axios.get(
+                `${process.env.SAP_BASE_URL}Items('${encodeURIComponent(itemCode)}')`,
+                { headers: { 'Cookie': `B1SESSION=${session.SessionId}` }, httpsAgent }
+            );
+            return { existe: true, item: { itemCode: data.ItemCode, itemName: data.ItemName } };
+        } catch (error) {
+            if (error.response?.status === 404) return { existe: false, item: null };
+            console.error(`Error al verificar item ${itemCode} en SAP:`, error.response?.data?.error?.message?.value ?? error.message);
+            throw error;
+        }
+    }
+
+    // ==========================================
     // RASTREO UNIVERSAL (COMPRAS Y VENTAS)
     // ==========================================
 
     static async ensureSQLQueryRastreoUniversal(session) {
-        // V9: agrega UserSign (usuario que dio de alta el documento = solicitante/ejecutivo).
-        const SQL_CODE = 'RastreoUniversalV9';
+        // V10: el responsable es SlpCode (empleado de ventas/comprador), NO UserSign (quien capturó).
+        const SQL_CODE = 'RastreoUniversalV10';
 
         // Notas Service Layer:
         //  - Parámetros nombrados (:nombre), NO la sintaxis [%0] del Query Manager.
         //  - No admite derived tables (subconsulta en FROM): el UNION ALL va a nivel superior.
         //  - No permite reusar el mismo parámetro: cada rama usa su propio nombre (:guiaCompra / :guiaVenta).
-        //  - No se puede unir a OUSR (tabla de usuarios bloqueada); se trae UserSign y se resuelve
-        //    el nombre/correo aparte con el endpoint OData Users(UserSign).
-        const SQL_TEXT = `SELECT 'COMPRA' AS "Tipo", T0."DocNum", T0."CardName", T0."UserSign", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "OPOR" T0 INNER JOIN "POR1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaCompra UNION ALL SELECT 'VENTA' AS "Tipo", T0."DocNum", T0."CardName", T0."UserSign", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "ODLN" T0 INNER JOIN "DLN1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaVenta`;
+        //  - El responsable real del documento es SlpCode; se resuelve nombre/correo con SalesPersons(SlpCode).
+        const SQL_TEXT = `SELECT 'COMPRA' AS "Tipo", T0."DocNum", T0."CardName", T0."SlpCode", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "OPOR" T0 INNER JOIN "POR1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaCompra UNION ALL SELECT 'VENTA' AS "Tipo", T0."DocNum", T0."CardName", T0."SlpCode", T1."U_Guia", T1."U_Via", T1."U_EstComprobante", T1."U_U_Coment_Log" FROM "ODLN" T0 INNER JOIN "DLN1" T1 ON T0."DocEntry" = T1."DocEntry" WHERE T1."U_Guia" LIKE :guiaVenta`;
 
         const headers = { 'Cookie': `B1SESSION=${session.SessionId}` };
 
@@ -104,7 +127,7 @@ export class SapService {
             try {
                 await axios.post(`${process.env.SAP_BASE_URL}SQLQueries`, {
                     SqlCode: SQL_CODE,
-                    SqlName: 'Buscar Guia Universal V9',
+                    SqlName: 'Buscar Guia Universal V10',
                     SqlText: SQL_TEXT
                 }, { headers, httpsAgent });
                 console.log(`SQL Query '${SQL_CODE}' creado con éxito en SAP.`);
@@ -114,33 +137,34 @@ export class SapService {
         }
     }
 
-    // Caché de usuarios por UserSign para no repetir la llamada en consultas batch.
-    static _usuariosCache = new Map();
+    // Caché de responsables por SlpCode para no repetir la llamada en consultas batch.
+    static _responsablesCache = new Map();
 
     /**
-     * Resuelve el usuario (ejecutivo/solicitante) vinculado a un documento por su UserSign.
-     * OUSR no es accesible vía Service Layer, así que se usa el endpoint OData Users(UserSign).
-     * @returns {{codigo: string|null, nombre: string|null, email: string|null} | null}
+     * Resuelve el responsable del documento (empleado de ventas en ventas, comprador en compras)
+     * a partir de su SlpCode, vía el endpoint OData SalesPersons(SlpCode).
+     * @returns {{codigo: number|null, nombre: string|null, email: string|null} | null}
      */
-    static async _getUsuarioSAP(session, userSign) {
-        if (userSign == null) return null;
-        if (this._usuariosCache.has(userSign)) return this._usuariosCache.get(userSign);
+    static async _getResponsableSAP(session, slpCode) {
+        // SlpCode -1 (o nulo) significa "sin empleado asignado".
+        if (slpCode == null || slpCode < 0) return null;
+        if (this._responsablesCache.has(slpCode)) return this._responsablesCache.get(slpCode);
 
         try {
-            const { data } = await axios.get(`${process.env.SAP_BASE_URL}Users(${userSign})`, {
+            const { data } = await axios.get(`${process.env.SAP_BASE_URL}SalesPersons(${slpCode})`, {
                 headers: { 'Cookie': `B1SESSION=${session.SessionId}` },
                 httpsAgent
             });
             const info = {
-                codigo: data.UserCode ?? null,
-                nombre: data.UserName ?? null,
-                email: data.eMail ?? null
+                codigo: data.SalesEmployeeCode ?? null,
+                nombre: data.SalesEmployeeName ?? null,
+                email: data.Email ?? null
             };
-            this._usuariosCache.set(userSign, info);
+            this._responsablesCache.set(slpCode, info);
             return info;
         } catch (error) {
             const detalle = error.response?.data?.error?.message?.value ?? error.message;
-            console.error(`No se pudo resolver el usuario ${userSign} en SAP:`, detalle);
+            console.error(`No se pudo resolver el responsable (SlpCode ${slpCode}) en SAP:`, detalle);
             return null;
         }
     }
@@ -170,7 +194,7 @@ export class SapService {
             const valorLike = encodeURIComponent(`'%${trackingNumber}%'`);
 
             const response = await axios.post(
-                `${process.env.SAP_BASE_URL}SQLQueries('RastreoUniversalV9')/List`,
+                `${process.env.SAP_BASE_URL}SQLQueries('RastreoUniversalV10')/List`,
                 { ParamList: `guiaCompra=${valorLike}&guiaVenta=${valorLike}` },
                 {
                     headers: { 'Cookie': `B1SESSION=${session.SessionId}` },
@@ -188,9 +212,9 @@ export class SapService {
             const rastreo = data.value[0];
             console.log(`✅ Guía encontrada! Tipo: ${rastreo.Tipo} | Folio: ${rastreo.DocNum} | Estatus: ${rastreo.U_EstComprobante}`);
 
-            // Solicitante = usuario (ejecutivo) vinculado al documento, resuelto vía Users(UserSign).
-            const solicitante = await this._getUsuarioSAP(session, rastreo.UserSign);
-            // Unidad de negocio del solicitante, derivada de su correo en Simplia.
+            // Responsable = empleado de ventas/comprador del documento, resuelto vía SalesPersons(SlpCode).
+            const solicitante = await this._getResponsableSAP(session, rastreo.SlpCode);
+            // Unidad de negocio del responsable, derivada de su correo en Simplia.
             const unidadNegocio = await this._getUnidadNegocio(solicitante?.email);
 
             return {

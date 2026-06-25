@@ -4,6 +4,7 @@ import { DHLcontroller } from '../controllers/dhl.controller.js';
 import { agentController } from '../controllers/agent.controller.js';
 import { PaqueteriasController } from '../controllers/paqueterias.controller.js';
 import { GuiasController } from '../controllers/guias.controller.js';
+import { ejecutarReporteDiario } from '../../../shared/jobs/reporteDiario.job.js';
 const router = express.Router();
 const agent = new agentController();
 
@@ -61,4 +62,15 @@ router.post('/cotizaciones/rechazar', PaqueteriasController.rechazarCotizacion);
 router.get('/envios', PaqueteriasController.getAllEnvios);
 router.put('/envios/:idEnvio', PaqueteriasController.updateEnvio);
 router.post('/envios/guia', PaqueteriasController.addGuiaToEnvio);
+
+// ── TEST: disparo manual del reporte diario ──────────────
+router.post('/reporte-diario/test', async (req, res) => {
+    try {
+        await ejecutarReporteDiario();
+        res.json({ ok: true, message: 'Reporte enviado correctamente' });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 export default router;

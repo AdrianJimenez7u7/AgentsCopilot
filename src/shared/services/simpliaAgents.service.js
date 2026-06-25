@@ -4,8 +4,8 @@ export class SimpliaAgentsService {
     // Identidad de sistema para autenticar la API key (igual que en evaluaciones).
     static _SYSTEM_EMAIL = 'transformacion.digital@compucad.com.mx';
 
-    // Caché en memoria del mapa correo -> unidad de negocio (se reconstruye al reiniciar).
-    static _unidadNegocioMapCache = null;
+    // Caché en memoria del mapa correo -> info de usuario (se reconstruye al reiniciar).
+    static _usuariosPorCorreoCache = null;
 
     /**
      * Trae TODOS los usuarios de Simplia en una sola petición (auth/users).
@@ -29,20 +29,38 @@ export class SimpliaAgentsService {
     }
 
     /**
-     * Mapa correo (en minúsculas) -> unidad de negocio (Area.Nombre), cacheado.
+     * Mapa correo (en minúsculas) -> { nombre, correo, unidadNegocio }, cacheado.
      * Una sola llamada a auth/users sirve para todas las guías de un batch.
      * @param {{force?: boolean}} [opts] - force:true reconstruye el caché
-     * @returns {Promise<Map<string, string|null>>}
+     * @returns {Promise<Map<string, {nombre: string|null, correo: string, unidadNegocio: string|null}>>}
      */
-    static async getUnidadNegocioPorCorreoMap({ force = false } = {}) {
-        if (this._unidadNegocioMapCache && !force) return this._unidadNegocioMapCache;
+    static async getUsuariosPorCorreoMap({ force = false } = {}) {
+        if (this._usuariosPorCorreoCache && !force) return this._usuariosPorCorreoCache;
 
         const users = await this.getAllUsers();
         const map = new Map();
         for (const u of users) {
-            if (u?.Correo) map.set(u.Correo.toLowerCase(), u.Area?.Nombre ?? null);
+            if (!u?.Correo) continue;
+            const nombre = [u.Nombre, u.Apellido_Paterno, u.Apellido_Materno].filter(Boolean).join(' ') || null;
+            map.set(u.Correo.toLowerCase(), {
+                nombre,
+                correo: u.Correo,
+                unidadNegocio: u.Area?.Nombre ?? null
+            });
         }
-        this._unidadNegocioMapCache = map;
+        this._usuariosPorCorreoCache = map;
+        return map;
+    }
+
+    /**
+     * Mapa correo (en minúsculas) -> unidad de negocio (Area.Nombre). Deriva del mapa cacheado.
+     * @param {{force?: boolean}} [opts]
+     * @returns {Promise<Map<string, string|null>>}
+     */
+    static async getUnidadNegocioPorCorreoMap({ force = false } = {}) {
+        const usuarios = await this.getUsuariosPorCorreoMap({ force });
+        const map = new Map();
+        for (const [correo, info] of usuarios) map.set(correo, info.unidadNegocio);
         return map;
     }
 
