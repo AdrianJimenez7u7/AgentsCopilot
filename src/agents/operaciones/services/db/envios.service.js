@@ -17,32 +17,55 @@ export class EnviosService {
     }
 
     static async createCotizacion(data) {
-        if (!data.usuario || !data.idPaqueteria || !data.peso || !data.ciudadOrigen || !data.cpOrigen || !data.ciudadDestino || !data.cpDestino || !data.costoEstimado) {
-            throw new Error("Faltan campos requeridos para crear cotización");
-        }
-        console.log("Creando cotización con datos:", data);
-        const userInfo = await SimpliaAgentsService.searchUser(data.usuario);
-        console.log("Respuesta de Simplia Agents al buscar usuario:", userInfo);
-        if (!userInfo || !userInfo.user.Correo) {
-            throw new Error("Usuario no encontrado en Simplia Agents");
-        }
-        console.log("Información del usuario obtenida de Simplia Agents:", userInfo);
+        const required = ['usuario', 'idPaqueteria', 'unidadNegocio', 'serviceType', 'peso', 'ciudadOrigen', 'cpOrigen', 'ciudadDestino', 'cpDestino'];
+        const missing = required.filter(f => !data[f]);
+        if (missing.length) throw new Error(`Faltan campos requeridos: ${missing.join(', ')}`);
+
         return prisma.cotizaciones.create({
             data: {
-                usuario: data.usuario,
-                unidadNegocio: userInfo.user.Area.Nombre,
-                idPaqueteria: data.idPaqueteria,
-                peso: data.peso,
-                ciudadOrigen: data.ciudadOrigen,
-                cpOrigen: data.cpOrigen,
-                ciudadDestino: data.ciudadDestino,
-                cpDestino: data.cpDestino,
-                costoEstimado: data.costoEstimado,
-                serviceType: data.serviceType,
-                dimensiones: "width:" + data.dimensiones.width + ", height:" + data.dimensiones.height + ", length:" + data.dimensiones.length,
-                status: "PENDIENTE",
-                fecha: data.fecha ? new Date(data.fecha) : new Date(),
-
+                // ── Identificación ──────────────────────────────────────────
+                usuario:               data.usuario,
+                unidadNegocio:         data.unidadNegocio,
+                idPaqueteria:          data.idPaqueteria,
+                serviceType:           data.serviceType,
+                status:                'PENDIENTE',
+                fecha:                 data.fecha ? new Date(data.fecha) : new Date(),
+                // ── Medidas ─────────────────────────────────────────────────
+                peso:                  data.peso,
+                dimensiones:           `width:${data.dimensiones?.width ?? 0}, height:${data.dimensiones?.height ?? 0}, length:${data.dimensiones?.length ?? 0}`,
+                costoEstimado:         data.costoEstimado ?? null,
+                // ── Origen ──────────────────────────────────────────────────
+                ciudadOrigen:          data.ciudadOrigen,
+                cpOrigen:              data.cpOrigen,
+                empresaOrigen:         data.empresaOrigen         ?? null,
+                calleOrigen:           data.calleOrigen           ?? null,
+                coloniaOrigen:         data.coloniaOrigen         ?? null,
+                numeroExteriorOrigen:  data.numeroExteriorOrigen  ?? null,
+                referenciasOrigen:     data.referenciasOrigen     ?? null,
+                telefonoOrigen:        data.telefonoOrigen        ?? null,
+                // ── Destino ─────────────────────────────────────────────────
+                ciudadDestino:         data.ciudadDestino,
+                cpDestino:             data.cpDestino,
+                empresaDestino:        data.empresaDestino        ?? null,
+                calleDestino:          data.calleDestino          ?? null,
+                coloniaDestino:        data.coloniaDestino         ?? null,
+                numeroExteriorDestino: data.numeroExteriorDestino ?? null,
+                referenciasDestino:    data.referenciasDestino    ?? null,
+                telefonoDestino:       data.telefonoDestino       ?? null,
+                correoReferencia:      data.correoReferencia      ?? null,
+                contactoDestinatario:  data.contactoDestinatario  ?? null,
+                estadoDestinatario:    data.estadoDestinatario    ?? null,
+                // ── Detalle del envío ────────────────────────────────────────
+                cantidadPaquetes:      data.cantidadPaquetes      ?? null,
+                tipoPaquete:           data.tipoPaquete           ?? null,
+                objetosTraslado:       data.objetosTraslado       ?? null,
+                solicitudTraslado:     data.solicitudTraslado     ?? null,
+                comentariosGenerales:  data.comentariosGenerales  ?? null,
+                // ── DaaS ────────────────────────────────────────────────────
+                isDaas:                data.isDaas                ?? false,
+                nombreProyectoDaas:    data.nombreProyectoDaas    ?? null,
+                // ── Gestión ─────────────────────────────────────────────────
+                ejecutivoSugeridoEmail: data.ejecutivoSugeridoEmail ?? null,
             }
         });
     }
@@ -118,8 +141,10 @@ export class EnviosService {
                     peso: cotizacion.peso,
                     ciudadOrigen: cotizacion.ciudadOrigen,
                     cpOrigen: cotizacion.cpOrigen,
+                    empresaOrigen: cotizacion.empresaOrigen,
                     ciudadDestino: cotizacion.ciudadDestino,
                     cpDestino: cotizacion.cpDestino,
+                    empresaDestino: cotizacion.empresaDestino,
                     estado: "CREADO",
                     serviceType: cotizacion.serviceType,
                     costoEnvio: 0,
@@ -148,6 +173,9 @@ export class EnviosService {
                 reviewedBy: userAutorizer,
                 reviewedAt: new Date(),
                 motivoRechazo: motivoRechazo
+            },
+            include: {
+                paqueteria: true
             }
         });
     }

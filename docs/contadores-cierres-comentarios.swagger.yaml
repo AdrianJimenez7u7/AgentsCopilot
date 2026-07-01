@@ -1,0 +1,624 @@
+openapi: 3.0.3
+info:
+  title: Contadores - Cierres API
+  version: 2.0.0
+  description: |
+    API para el módulo de cierres del sistema de Contadores.
+    Incluye: comentarios de cierre, cierre formal por cliente y notificación de facturación.
+servers:
+  - url: https://{host}
+    variables:
+      host:
+        default: localhost:3000
+        description: Host del servicio
+
+paths:
+  /agente/contadores/cierres-comentarios:
+    get:
+      summary: Listar comentarios de cierres
+      operationId: getCierresComentarios
+      tags:
+        - CierresComentarios
+      parameters:
+        - name: clienteNombre
+          in: query
+          required: false
+          description: Filtrar por nombre de cliente (búsqueda parcial)
+          schema:
+            type: string
+        - name: tecnico
+          in: query
+          required: false
+          description: Filtrar por técnico (búsqueda parcial)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de comentarios obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaComentariosResponse'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+    post:
+      summary: Crear comentario de cierre
+      operationId: createCierreComentario
+      tags:
+        - CierresComentarios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CierreComentarioInput'
+            example:
+              comentario: "Cierre de mayo completado. 12 impresoras reportadas."
+              ClienteNombre: "EMPRESA XYZ SA DE CV"
+              Tecnico: "Juan Pérez"
+      responses:
+        '201':
+          description: Comentario creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CierreComentarioResponse'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /agente/contadores/cierres/cliente:
+    post:
+      summary: Ejecutar cierre formal de un cliente
+      operationId: cierreFormal
+      tags:
+        - Cierres
+      description: |
+        Agrega el cierre formal de todas las impresoras pendientes del cliente.
+        - Calcula el delta de impresiones (actual vs escaneo anterior) por impresora.
+        - Agrupa por técnico y crea un registro `ContadoresCierres` por grupo.
+        - Marca todos los escaneos pendientes del cliente como "Reportado".
+        - Envía notificación por email a miguel.jimenez@compucad.com.mx.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CierreFormalInput'
+            example:
+              clienteNombre: "EMPRESA XYZ SA DE CV"
+              comentarioId: "a3f1c2d4-1234-5678-abcd-ef0123456789"
+      responses:
+        '200':
+          description: Cierre formal completado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CierresFormalResponse'
+        '400':
+          description: No hay escaneos pendientes o falta clienteNombre
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /agente/contadores/cierres:
+    get:
+      summary: Listar cierres formales
+      operationId: getCierres
+      tags:
+        - Cierres
+      parameters:
+        - name: clienteNombre
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tecnico
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de cierres
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaCierresResponse'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /agente/contadores/cierres/{id}:
+    get:
+      summary: Obtener cierre por ID
+      operationId: getCierreById
+      tags:
+        - Cierres
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Cierre encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CierreResponse'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+    delete:
+      summary: Eliminar cierre
+      operationId: deleteCierre
+      tags:
+        - Cierres
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Cierre eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /agente/contadores/cierres-facturacion:
+    get:
+      summary: Listar registros de facturación
+      operationId: getCierresFacturacion
+      tags:
+        - CierresFacturacion
+      parameters:
+        - name: clienteNombre
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tecnicoResponsable
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de facturaciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaFacturacionResponse'
+        '500':
+          $ref: '#/components/responses/Error500'
+    post:
+      summary: Registrar facturación completada y notificar al técnico
+      operationId: createCierreFacturacion
+      tags:
+        - CierresFacturacion
+      description: |
+        Registra que el área de facturación ya procesó a este cliente.
+        Envía un correo de notificación a miguel.jimenez@compucad.com.mx y,
+        si se proporciona `correoTecnico`, también al técnico responsable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CierreFacturacionInput'
+            example:
+              ClienteNombre: "EMPRESA XYZ SA DE CV"
+              TecnicoResponsable: "Juan Pérez"
+              correoTecnico: "juan.perez@compucad.com.mx"
+      responses:
+        '201':
+          description: Facturación registrada y técnico notificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacturacionResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /agente/contadores/cierres-facturacion/{id}:
+    get:
+      summary: Obtener facturación por ID
+      operationId: getCierreFacturacionById
+      tags:
+        - CierresFacturacion
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Registro encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacturacionResponse'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+    delete:
+      summary: Eliminar registro de facturación
+      operationId: deleteCierreFacturacion
+      tags:
+        - CierresFacturacion
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Registro eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /agente/contadores/cierres-comentarios/{id}:
+    get:
+      summary: Obtener comentario por ID
+      operationId: getCierreComentarioById
+      tags:
+        - CierresComentarios
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Comentario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CierreComentarioResponse'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+    put:
+      summary: Actualizar comentario de cierre
+      operationId: updateCierreComentario
+      tags:
+        - CierresComentarios
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CierreComentarioInput'
+            example:
+              comentario: "Comentario actualizado con corrección."
+              ClienteNombre: "EMPRESA XYZ SA DE CV"
+              Tecnico: "Juan Pérez"
+      responses:
+        '200':
+          description: Comentario actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CierreComentarioResponse'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+    delete:
+      summary: Eliminar comentario de cierre
+      operationId: deleteCierreComentario
+      tags:
+        - CierresComentarios
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Comentario eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      description: UUID del comentario (UniqueIdentifier de SQL Server)
+      schema:
+        type: string
+        format: uuid
+        example: "a3f1c2d4-1234-5678-abcd-ef0123456789"
+
+  schemas:
+    CierreFormalInput:
+      type: object
+      required:
+        - clienteNombre
+      properties:
+        clienteNombre:
+          type: string
+          description: Nombre exacto del cliente a cerrar
+          example: "EMPRESA XYZ SA DE CV"
+        comentarioId:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID de un ContadoresCierresComentarios a vincular (opcional)
+          example: "a3f1c2d4-1234-5678-abcd-ef0123456789"
+
+    ContadoresCierre:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ClienteNombre:
+          type: string
+          nullable: true
+        FechaCierre:
+          type: string
+          format: date-time
+          nullable: true
+        Tecnico:
+          type: string
+          nullable: true
+        ImpresionesBN:
+          type: integer
+          nullable: true
+        ImpresionesColor:
+          type: integer
+          nullable: true
+        TotalImpresiones:
+          type: integer
+          nullable: true
+        PrecioBN:
+          type: number
+          format: decimal
+          nullable: true
+        PrecioColor:
+          type: number
+          format: decimal
+          nullable: true
+        RentaFija:
+          type: number
+          format: decimal
+          nullable: true
+        CostoExtra:
+          type: number
+          format: decimal
+          nullable: true
+        ComentarioId:
+          type: string
+          format: uuid
+          nullable: true
+        comentario:
+          $ref: '#/components/schemas/CierreComentario'
+          nullable: true
+
+    CierreResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ContadoresCierre'
+
+    ListaCierresResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContadoresCierre'
+
+    CierresFormalResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          example: "Cierre formal completado: 2 técnico(s) procesado(s)"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContadoresCierre'
+
+    CierreFacturacionInput:
+      type: object
+      required:
+        - ClienteNombre
+      properties:
+        ClienteNombre:
+          type: string
+          example: "EMPRESA XYZ SA DE CV"
+        TecnicoResponsable:
+          type: string
+          nullable: true
+          example: "Juan Pérez"
+        correoTecnico:
+          type: string
+          format: email
+          nullable: true
+          description: Correo del técnico para notificación. No se almacena en BD.
+          example: "juan.perez@compucad.com.mx"
+
+    CotandoresCierreFacturacion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ClienteNombre:
+          type: string
+          nullable: true
+        TecnicoResponsable:
+          type: string
+          nullable: true
+        FechaCierreFacturacion:
+          type: string
+          format: date-time
+          nullable: true
+
+    FacturacionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/CotandoresCierreFacturacion'
+
+    ListaFacturacionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CotandoresCierreFacturacion'
+
+    CierreComentarioInput:
+      type: object
+      properties:
+        comentario:
+          type: string
+          nullable: true
+          description: Texto del comentario del cierre
+          example: "Cierre de mayo completado. 12 impresoras reportadas."
+        ClienteNombre:
+          type: string
+          nullable: true
+          description: Nombre del cliente al que aplica el comentario
+          example: "EMPRESA XYZ SA DE CV"
+        Tecnico:
+          type: string
+          nullable: true
+          description: Técnico responsable del cierre
+          example: "Juan Pérez"
+
+    CierreComentario:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único (UUID generado por SQL Server)
+          example: "a3f1c2d4-1234-5678-abcd-ef0123456789"
+        comentario:
+          type: string
+          nullable: true
+          example: "Cierre de mayo completado. 12 impresoras reportadas."
+        ClienteNombre:
+          type: string
+          nullable: true
+          example: "EMPRESA XYZ SA DE CV"
+        Tecnico:
+          type: string
+          nullable: true
+          example: "Juan Pérez"
+        FechaCreacion:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha de creación (autogenerada por la BD)
+          example: "2026-06-30T10:00:00.000Z"
+
+    CierreComentarioResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Comentario creado exitosamente"
+        data:
+          $ref: '#/components/schemas/CierreComentario'
+
+    ListaComentariosResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Comentarios obtenidos exitosamente"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CierreComentario'
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Comentario eliminado exitosamente"
+        data:
+          nullable: true
+          example: null
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Descripción del error"
+
+  responses:
+    Error400:
+      description: Parámetros inválidos o faltantes
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Debe proporcionar clienteNombre"
+    Error404:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Comentario no encontrado"
+    Error500:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Error interno del servidor"

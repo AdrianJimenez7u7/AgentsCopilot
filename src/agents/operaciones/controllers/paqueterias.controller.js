@@ -70,6 +70,12 @@ export class PaqueteriasController {
             }
 
             const cotizacion = await EnviosService.rechazarCotizacion(id, userAutorizer, motivoRechazo);
+
+            // Notificación de rechazo al solicitante (no bloquea la respuesta)
+            EmailService.notificarRechazoCotizacion(cotizacion).catch(err =>
+                console.error('[PaqueteriasController] Error al enviar notificación de rechazo:', err?.message ?? err)
+            );
+
             return res.status(200).json(new response(200, "Cotización rechazada correctamente", cotizacion));
         }
         catch (error) {

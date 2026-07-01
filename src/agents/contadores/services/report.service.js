@@ -21,13 +21,13 @@ export class ReportService {
         if (currentHasStatus && !existingHasStatus) {
           map.set(r.Serie, r);
         } else if (!currentHasStatus && !existingHasStatus) {
-          // Both null, take higher ImpresionesBN
-          if ((r.ImpresionesBN || 0) > (existing.ImpresionesBN || 0)) {
+          // Both null, take higher id (most recent)
+          if ((r.id || 0) > (existing.id || 0)) {
             map.set(r.Serie, r);
           }
         } else if (currentHasStatus && existingHasStatus) {
-          // Both have status, take higher ImpresionesBN
-          if ((r.ImpresionesBN || 0) > (existing.ImpresionesBN || 0)) {
+          // Both have status, take higher id (most recent)
+          if ((r.id || 0) > (existing.id || 0)) {
             map.set(r.Serie, r);
           }
         }
@@ -82,8 +82,10 @@ export class ReportService {
         { key: 'ip', width: 14 },
         { key: 'Serie', width: 20 },
         { key: 'Ubicacion', width: 18 },
-        { key: 'Inicio', width: 18 },
-        { key: 'Fin', width: 18 },
+        { key: 'FechaInicio', width: 16 },
+        { key: 'Inicio', width: 16 },
+        { key: 'FechaFin', width: 16 },
+        { key: 'Fin', width: 16 },
         { key: 'Hojas', width: 16 }
       ];
 
@@ -113,17 +115,17 @@ export class ReportService {
       ws.getCell('C2').alignment = { vertical: 'middle', horizontal: 'left' };
       ws.getCell('C2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
 
-      ws.mergeCells('E2:G2');
+      ws.mergeCells('E2:H2');
       ws.getCell('E2').value = `Periodo: ${headerData.inicio || ''} - ${headerData.fin || ''}`;
       ws.getCell('E2').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
       ws.getCell('E2').alignment = { vertical: 'middle', horizontal: 'center' };
       ws.getCell('E2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
 
-      ws.mergeCells('H2:H2');
-      ws.getCell('H2').value = `Mes: ${headerData.mes || ''}`;
-      ws.getCell('H2').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
-      ws.getCell('H2').alignment = { vertical: 'middle', horizontal: 'center' };
-      ws.getCell('H2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
+      ws.mergeCells('I2:J2');
+      ws.getCell('I2').value = `Mes: ${headerData.mes || ''}`;
+      ws.getCell('I2').font = { bold: true, size: 11, color: { argb: 'FF000000' } };
+      ws.getCell('I2').alignment = { vertical: 'middle', horizontal: 'center' };
+      ws.getCell('I2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7E6E6' } };
 
       // Aplicar bordes
       const headerBorder = {
@@ -134,11 +136,11 @@ export class ReportService {
       };
       ws.getCell('C2').border = headerBorder;
       ws.getCell('E2').border = headerBorder;
-      ws.getCell('H2').border = headerBorder;
+      ws.getCell('I2').border = headerBorder;
 
       // Título principal
       let cursorRow = 4;
-      ws.mergeCells(`A${cursorRow}:H${cursorRow}`);
+      ws.mergeCells(`A${cursorRow}:J${cursorRow}`);
       const titleCell = ws.getCell(`A${cursorRow}`);
       titleCell.value = 'REPORTE DE IMPRESIONES';
       titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -147,8 +149,17 @@ export class ReportService {
       ws.getRow(cursorRow).height = 30;
       cursorRow++;
 
+      const formatDate = (d) => {
+        if (!d) return '';
+        const date = new Date(d);
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yyyy = date.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      };
+
       const renderSection = (title, data = []) => {
-        ws.mergeCells(`A${cursorRow}:H${cursorRow}`);
+        ws.mergeCells(`A${cursorRow}:J${cursorRow}`);
         const secCell = ws.getCell(`A${cursorRow}`);
         secCell.value = title;
         secCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
@@ -156,10 +167,8 @@ export class ReportService {
         secCell.alignment = { horizontal: 'left', vertical: 'middle' };
         cursorRow++;
 
-        // Header row simple
         const headerRow = ws.getRow(cursorRow);
 
-        // Determinar qué valores mostrar según la categoría
         const esBN = title.includes('BLANCO Y NEGRO');
         const esColor = title.includes('COLOR') && !title.includes('BLANCO');
 
@@ -169,7 +178,9 @@ export class ReportService {
           'IP',
           'Número de Serie',
           'Ubicación',
+          'Fecha Inicio',
           esBN ? 'Inicio BN' : 'Inicio Color',
+          'Fecha Fin',
           esBN ? 'Fin BN' : 'Fin Color',
           esBN ? 'Impresiones BN' : 'Impresiones Color'
         ];
@@ -191,15 +202,17 @@ export class ReportService {
             row.getCell(3).value = item.ip || item.Ip || '';
             row.getCell(4).value = item.Serie || '';
             row.getCell(5).value = item.Ubicacion || '';
+            row.getCell(6).value = formatDate(item.FechaInicio);
+            row.getCell(8).value = formatDate(item.FechaFin);
 
             if (esBN) {
-              row.getCell(6).value = Number(item.InicioBN) || 0;
-              row.getCell(7).value = Number(item.FinBN) || 0;
-              row.getCell(8).value = Number(item.Impresiones) || 0;
+              row.getCell(7).value = Number(item.InicioBN) || 0;
+              row.getCell(9).value = Number(item.FinBN) || 0;
+              row.getCell(10).value = Number(item.Impresiones) || 0;
             } else if (esColor) {
-              row.getCell(6).value = Number(item.InicioColor) || 0;
-              row.getCell(7).value = Number(item.FinColor) || 0;
-              row.getCell(8).value = Number(item.ImpresionesColor) || 0;
+              row.getCell(7).value = Number(item.InicioColor) || 0;
+              row.getCell(9).value = Number(item.FinColor) || 0;
+              row.getCell(10).value = Number(item.ImpresionesColor) || 0;
             }
 
             cursorRow++;
@@ -208,14 +221,14 @@ export class ReportService {
 
         // Total row
         const totalRow = ws.getRow(cursorRow);
-        ws.mergeCells(cursorRow, 1, cursorRow, 7);
+        ws.mergeCells(cursorRow, 1, cursorRow, 9);
         totalRow.getCell(1).value = `TOTAL DE IMPRESIONES ${title.toUpperCase()}`;
         totalRow.getCell(1).font = { bold: true };
         totalRow.getCell(1).alignment = { horizontal: 'right' };
 
         const total = esBN ? this.sumField(data || [], 'Impresiones') : this.sumField(data || [], 'ImpresionesColor');
-        totalRow.getCell(8).value = total;
-        totalRow.getCell(8).font = { bold: true };
+        totalRow.getCell(10).value = total;
+        totalRow.getCell(10).font = { bold: true };
         cursorRow += 2;
       };
 
@@ -224,7 +237,7 @@ export class ReportService {
       renderSection('EQUIPO COLOR IMPRESIONES COLOR', colorColor);
 
       // Totales finales
-      ws.mergeCells(`A${cursorRow}:C${cursorRow}`);
+      ws.mergeCells(`A${cursorRow}:J${cursorRow}`);
       ws.getCell(`A${cursorRow}`).value = 'Totales';
       ws.getCell(`A${cursorRow}`).font = { bold: true };
       cursorRow++;
@@ -357,7 +370,7 @@ export class ReportService {
 
       if (params.estatus === 'null') {
         const clientes = await prisma.contadores.findMany({
-          where: { Estatus: null ? Estatus : '' ? Estatus : ' ' },
+          where: { Estatus: null },
           select: { Cliente: true },
           distinct: ['Cliente']
         });
@@ -376,36 +389,19 @@ export class ReportService {
 
           if (registros.length > 0) {
             const extractedData = await Promise.all(registros.map(async (r) => {
-              // Estrategia de búsqueda robusta:
-              // 1. Intentar coincidencia exacta: Cliente + Serie + Modelo
-              let registroAnterior = null;
-
-              if (r.Modelo) {
-                registroAnterior = await prisma.contadoresInfoClientes.findFirst({
-                  where: {
-                    Cliente: c.Cliente,
-                    Serie: r.Serie,
-                    Modelo: r.Modelo
-                  },
-                  orderBy: { id: 'desc' }
-                });
-              }
-
-              // 2. Si no se encuentra, intentar coincidencia por Cliente + Serie (tomando el último)
-              if (!registroAnterior) {
-                registroAnterior = await prisma.contadoresInfoClientes.findFirst({
-                  where: {
-                    Cliente: c.Cliente,
-                    Serie: r.Serie
-                  },
-                  orderBy: { id: 'desc' }
-                });
-              }
+              // Buscar el escaneo inmediatamente anterior para calcular el delta del periodo
+              const registroAnterior = await prisma.contadores.findFirst({
+                where: {
+                  Serie: r.Serie,
+                  id: { lt: r.id }
+                },
+                orderBy: { id: 'desc' }
+              });
 
               const bnActual = r.ImpresionesBN || 0;
               const colorActual = r.ImpresionesColor || 0;
-              const bnAnterior = registroAnterior?.BN || 0;
-              const colorAnterior = registroAnterior?.Color || 0;
+              const bnAnterior = registroAnterior?.ImpresionesBN || 0;
+              const colorAnterior = registroAnterior?.ImpresionesColor || 0;
 
               const diferenciasBN = Math.max(0, bnActual - bnAnterior);
               const diferenciasColor = Math.max(0, colorActual - colorAnterior);
@@ -429,7 +425,9 @@ export class ReportService {
                   InicioColor: colorAnterior,
                   FinColor: colorActual,
                   ImpresionesColor: diferenciasColor,
-                  TipoImpresora: r.TipoImpresora
+                  TipoImpresora: r.TipoImpresora,
+                  FechaInicio: registroAnterior?.FechaCaptura || null,
+                  FechaFin: r.FechaCaptura || null
                 }
               };
             }));
@@ -458,6 +456,14 @@ export class ReportService {
       } else {
         const where = {};
         if (params.cliente) where.Cliente = params.cliente;
+        if (params.mes && params.anio) {
+          const month = parseInt(params.mes);
+          const year = parseInt(params.anio);
+          where.FechaCaptura = {
+            gte: new Date(year, month - 1, 1),
+            lt: new Date(year, month, 1)
+          };
+        }
 
         let registros = await prisma.contadores.findMany({ where });
 
@@ -465,36 +471,19 @@ export class ReportService {
         registros = this.filterUniqueSerieByMaxId(registros);
 
         const extractedData = await Promise.all(registros.map(async (r) => {
-          // Estrategia de búsqueda robusta:
-          // 1. Intentar coincidencia exacta: Cliente + Serie + Modelo
-          let registroAnterior = null;
-
-          if (r.Modelo) {
-            registroAnterior = await prisma.contadoresInfoClientes.findFirst({
-              where: {
-                Cliente: r.Cliente,
-                Serie: r.Serie,
-                Modelo: r.Modelo
-              },
-              orderBy: { id: 'desc' }
-            });
-          }
-
-          // 2. Si no se encuentra, intentar coincidencia por Cliente + Serie (tomando el último)
-          if (!registroAnterior) {
-            registroAnterior = await prisma.contadoresInfoClientes.findFirst({
-              where: {
-                Cliente: r.Cliente,
-                Serie: r.Serie
-              },
-              orderBy: { id: 'desc' }
-            });
-          }
+          // Buscar el escaneo inmediatamente anterior para calcular el delta del periodo
+          const registroAnterior = await prisma.contadores.findFirst({
+            where: {
+              Serie: r.Serie,
+              id: { lt: r.id }
+            },
+            orderBy: { id: 'desc' }
+          });
 
           const bnActual = r.ImpresionesBN || 0;
           const colorActual = r.ImpresionesColor || 0;
-          const bnAnterior = registroAnterior?.BN || 0;
-          const colorAnterior = registroAnterior?.Color || 0;
+          const bnAnterior = registroAnterior?.ImpresionesBN || 0;
+          const colorAnterior = registroAnterior?.ImpresionesColor || 0;
 
           const diferenciasBN = Math.max(0, bnActual - bnAnterior);
           const diferenciasColor = Math.max(0, colorActual - colorAnterior);
@@ -518,7 +507,9 @@ export class ReportService {
               InicioColor: colorAnterior,
               FinColor: colorActual,
               ImpresionesColor: diferenciasColor,
-              TipoImpresora: r.TipoImpresora
+              TipoImpresora: r.TipoImpresora,
+              FechaInicio: registroAnterior?.FechaCaptura || null,
+              FechaFin: r.FechaCaptura || null
             }
           };
         }));

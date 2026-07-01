@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import { errorHandler } from "./shared/middleware/error.middleware.js";
 import { apiKeyAuth } from "./shared/middleware/auth.middleware.js";
 import { entraJwtAuth } from "./shared/middleware/entraJwtAuth.middleware.js";
+import { logger } from "./shared/utils/logger.js";
 
 // Importar rutas de agentes
 import cotizadorRoutes from './agents/cotizador/routes/cotizacion.routes.js';
@@ -36,6 +37,15 @@ const app = express();
 
 // Mover trust proxy aquí (antes de middlewares que usan req.ip)
 app.set("trust proxy", 1);
+
+// Log de solicitudes entrantes: endpoint consultado, IP de origen y código de estado.
+// Se registra en 'finish' para conocer el statusCode una vez resuelta la respuesta.
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    logger.info(`${req.method} ${req.originalUrl} | IP: ${req.ip} | ${res.statusCode}`);
+  });
+  next();
+});
 
 // Middlewares globales
 app.use(helmet({

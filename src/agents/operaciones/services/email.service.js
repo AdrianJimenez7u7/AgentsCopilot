@@ -6,6 +6,7 @@ const C = {
     azul:      '#003567',
     profundo:  '#0C1C33',
     verde:     '#4E901F',
+    rojo:      '#EE2737',
     gris:      '#47484D',
     blanco:    '#FBFBFF',
     fondo:     '#F5F7FA',
@@ -72,7 +73,9 @@ function buildEntregaHtml(envio, trackingData) {
         ['Folio de envío',        `#${envio.id}`],
         ['Solicitante',           envio.usuario],
         ['Paquetería',            paqueteria],
+        ...(envio.empresaOrigen ? [['Empresa origen', envio.empresaOrigen]] : []),
         ['Origen',                `${envio.ciudadOrigen ?? '—'} (${envio.cpOrigen ?? ''})`],
+        ...(envio.empresaDestino ? [['Empresa destino', envio.empresaDestino]] : []),
         ['Destino',               `${envio.ciudadDestino ?? '—'} (${envio.cpDestino ?? ''})`],
         ['Costo',                 formatMoney(envio.costoEnvio)],
         ['Fecha de envío',        formatDate(envio.fechaEnvio)],
@@ -142,6 +145,94 @@ function buildEntregaHtml(envio, trackingData) {
 </html>`;
 }
 
+// ─── HTML del correo de rechazo de cotización ─────────────────────────────────
+function buildRechazoHtml(cotizacion) {
+    const paqueteria = cotizacion.paqueteria?.nombre ?? '—';
+    const motivo = cotizacion.motivoRechazo ?? 'No se especificó un motivo.';
+
+    const detalle = [
+        ['Folio de cotización',   `#${cotizacion.id}`],
+        ['Solicitante',           cotizacion.usuario],
+        ['Unidad de negocio',     cotizacion.unidadNegocio ?? '—'],
+        ['Paquetería',            paqueteria],
+        ['Tipo de servicio',      cotizacion.serviceType ?? '—'],
+        ...(cotizacion.empresaOrigen ? [['Empresa origen', cotizacion.empresaOrigen]] : []),
+        ['Origen',                `${cotizacion.ciudadOrigen ?? '—'} (${cotizacion.cpOrigen ?? ''})`],
+        ...(cotizacion.empresaDestino ? [['Empresa destino', cotizacion.empresaDestino]] : []),
+        ['Destino',               `${cotizacion.ciudadDestino ?? '—'} (${cotizacion.cpDestino ?? ''})`],
+        ['Peso',                  cotizacion.peso != null ? `${cotizacion.peso} kg` : '—'],
+        ['Costo estimado',        formatMoney(cotizacion.costoEstimado)],
+        ['Fecha de creación',     formatDate(cotizacion.createdAt ?? cotizacion.fecha)],
+        ...(cotizacion.reviewedBy ? [['Rechazada por', cotizacion.reviewedBy]] : []),
+        ['Fecha de rechazo',      formatDate(cotizacion.reviewedAt)],
+    ].map(([label, value], i) => `
+        <tr style="background:${i % 2 === 1 ? C.zebra : 'transparent'};">
+          <td style="padding:8px 12px;font-size:11px;font-weight:600;color:${C.gris};
+              text-transform:uppercase;letter-spacing:0.05em;width:38%;
+              border-bottom:1px solid ${C.bordeSutil};">${label}</td>
+          <td style="padding:8px 12px;font-size:12px;color:${C.profundo};
+              border-bottom:1px solid ${C.bordeSutil};">${value}</td>
+        </tr>`).join('');
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Tu cotización fue rechazada</title></head>
+<body style="margin:0;padding:0;background:${C.fondo};
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:${C.fondo};">
+<tr><td align="center" style="padding:32px 16px;">
+<table width="580" cellpadding="0" cellspacing="0" style="max-width:580px;width:100%;">
+
+  <!-- Header rojo: rechazada -->
+  <tr><td style="background:${C.rojo};border-radius:16px 16px 0 0;padding:28px 32px;">
+    <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);
+        text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">
+      Compucad · Operaciones</div>
+    <div style="font-size:24px;font-weight:700;color:#fff;line-height:1.2;">
+      Tu cotización fue rechazada</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:6px;">
+      ${formatDate(cotizacion.reviewedAt ?? new Date())}</div>
+  </td></tr>
+
+  <!-- Body -->
+  <tr><td style="background:${C.blanco};padding:28px 32px;border-radius:0 0 16px 16px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+    <p style="font-size:14px;color:${C.profundo};line-height:1.55;margin:0 0 20px;">
+      Tu solicitud de cotización de envío fue <strong>rechazada</strong>.
+      A continuación encontrarás el motivo y el detalle del registro.</p>
+
+    <!-- Motivo destacado -->
+    <div style="background:rgba(238,39,55,0.06);border-left:4px solid ${C.rojo};
+        border-radius:8px;padding:14px 16px;margin-bottom:24px;">
+      <div style="font-size:11px;font-weight:700;color:${C.rojo};
+          text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+        Motivo del rechazo</div>
+      <div style="font-size:13px;color:${C.profundo};line-height:1.5;">${motivo}</div>
+    </div>
+
+    <!-- Tabla de detalle -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;
+        border-radius:10px;overflow:hidden;border:1px solid ${C.bordeSutil};margin-bottom:4px;">
+      <tbody>${detalle}</tbody>
+    </table>
+
+    <!-- Footer -->
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid ${C.bordeSutil};
+        text-align:center;font-size:11px;color:${C.gris};">
+      Este correo es generado automáticamente por el sistema de Operaciones Compucad.
+    </div>
+
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 // ─── API pública ──────────────────────────────────────────────────────────────
 export class EmailService {
 
@@ -168,5 +259,29 @@ export class EmailService {
         });
 
         logger.info(`[EmailService] Notificación de entrega enviada a ${destinatario} (envío #${envio.id})`);
+    }
+
+    /**
+     * Notifica al solicitante que su cotización fue rechazada, incluyendo el motivo
+     * y los datos de la cotización con su fecha de creación.
+     * @param {object} cotizacion - Cotización rechazada (con motivoRechazo, reviewedBy, reviewedAt y paqueteria).
+     */
+    static async notificarRechazoCotizacion(cotizacion) {
+        const destinatario = cotizacion.usuario;
+        if (!destinatario) {
+            logger.warn('[EmailService] No se pudo enviar notificación de rechazo: cotizacion.usuario está vacío');
+            return;
+        }
+
+        const html = buildRechazoHtml(cotizacion);
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER || 'transformacion.digital@compucad.com.mx',
+            to: destinatario,
+            subject: `Tu cotización #${cotizacion.id} fue rechazada`,
+            html,
+        });
+
+        logger.info(`[EmailService] Notificación de rechazo enviada a ${destinatario} (cotización #${cotizacion.id})`);
     }
 }

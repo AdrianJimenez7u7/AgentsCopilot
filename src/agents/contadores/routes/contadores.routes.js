@@ -2,6 +2,9 @@ import express from 'express';
 import { ContadoresController } from '../controllers/contadores.controller.js';
 import { agentController } from '../controllers/agent.controller.js';
 import { SapController } from '../controllers/sap.controller.js';
+import { CierresComentariosController } from '../controllers/cierresComentarios.controller.js';
+import { CierresController } from '../controllers/cierres.controller.js';
+import { CierreFacturacionController } from '../controllers/cierreFacturacion.controller.js';
 
 const router = express.Router();
 const agent = new agentController();
@@ -58,6 +61,25 @@ router.get('/tecnicos', ContadoresController.getTecnicos);
 router.post('/pdf/counter', ContadoresController.uploadPdf, ContadoresController.obtenerNumeroHojas);
 
 router.post('/root/chat', agentController.uploadPdf, agent.chat.bind(agent));
+
+// ── Cierres ──────────────────────────────────
+router.get('/cierres', CierresController.getAll);
+router.get('/cierres/:id', CierresController.getById);
+router.post('/cierres/cliente', CierresController.cierreFormal);
+router.delete('/cierres/:id', CierresController.remove);
+
+// ── Cierres Facturación ───────────────────────
+router.get('/cierres-facturacion', CierreFacturacionController.getAll);
+router.get('/cierres-facturacion/:id', CierreFacturacionController.getById);
+router.post('/cierres-facturacion', CierreFacturacionController.create);
+router.delete('/cierres-facturacion/:id', CierreFacturacionController.remove);
+
+// ── Cierres Comentarios ──────────────────────
+router.get('/cierres-comentarios', CierresComentariosController.getAll);
+router.get('/cierres-comentarios/:id', CierresComentariosController.getById);
+router.post('/cierres-comentarios', CierresComentariosController.create);
+router.put('/cierres-comentarios/:id', CierresComentariosController.update);
+router.delete('/cierres-comentarios/:id', CierresComentariosController.remove);
 
 // ── SAP ──────────────────────────────────────
 router.get('/sap/warehouses', SapController.getWarehouses);

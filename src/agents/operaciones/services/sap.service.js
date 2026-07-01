@@ -7,6 +7,29 @@ const httpsAgent = new https.Agent({
     rejectUnauthorized: false
 });
 
+// Normaliza para comparación permisiva: minúsculas, sin acentos y sin espacios extra.
+function normalizar(texto) {
+    return (texto ?? '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+// Unidades de negocio (en MAYÚSCULA) y las áreas que pertenecen a cada una.
+// El cruce con guías reclasifica el área del colaborador a su unidad de negocio.
+const UNIDADES_NEGOCIO = {
+    'ADMINISTRACIÓN':     ['Tesoreria', 'Cobranza', 'Ti', 'Facturación', 'Nominas', 'mercadotecnia'],
+    'GESTION DE TALENTO': ['recepccion', 'seguridad', 'mantenimiento'],
+};
+
+// Mapa derivado: área normalizada -> unidad de negocio.
+const AREA_A_UNIDAD = new Map();
+for (const [unidad, areas] of Object.entries(UNIDADES_NEGOCIO)) {
+    for (const area of areas) AREA_A_UNIDAD.set(normalizar(area), unidad);
+}
+
 class Sesion {
     constructor(odataMetadata, sessionId, version, sessionTimeout) {
         this["@odata.metadata"] = odataMetadata;
@@ -177,7 +200,11 @@ export class SapService {
         if (!email) return null;
         try {
             const map = await SimpliaAgentsService.getUnidadNegocioPorCorreoMap();
-            return map.get(email.toLowerCase()) ?? null;
+            const area = map.get(email.toLowerCase()) ?? null;
+            if (!area) return null;
+            // Si el área pertenece a una unidad de negocio definida, devolver la unidad;
+            // de lo contrario conservar el valor original del área.
+            return AREA_A_UNIDAD.get(normalizar(area)) ?? area;
         } catch (error) {
             console.error('No se pudo resolver la unidad de negocio en Simplia:', error.message);
             return null;

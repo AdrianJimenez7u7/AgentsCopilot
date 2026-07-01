@@ -7,7 +7,7 @@ datasource db {
   provider          = "sqlserver"
   url               = env("DATABASE_URL")
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
-  schemas = ["Evaluaciones","dbo"]
+  schemas           = ["Evaluaciones", "dbo"]
 }
 
 model Contadores {
@@ -57,6 +57,44 @@ model ContadoresInfoClientes {
   Ubicacion           String?   @db.VarChar(50)
 
   @@map("ContadoresInfoClientes")
+  @@schema("dbo")
+}
+
+model ContadoresCierresComentarios{
+  id String @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  comentario String? @db.NVarChar(Max)
+  ClienteNombre String? @db.NVarChar(Max)
+  Tecnico String? @db.NVarChar(Max)
+  FechaCreacion DateTime? @default(now(), map: "DF__ContadoresCierresComentarios__FechaCreacion__7B5B524B")
+  cierres ContadoresCierres[]
+  @@map("ContadoresCierresComentarios")
+  @@schema("dbo")
+}
+
+model ContadoresCierres {
+  id String @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  ClienteNombre String? @db.NVarChar(Max)
+  FechaCierre DateTime? @default(now(), map: "DF__ContadoresCierres__FechaCierre__7A5B524B")
+  Tecnico String? @db.NVarChar(Max)
+  RentaFija Decimal? @db.Decimal(10, 2)
+  CostoExtra Decimal? @db.Decimal(10, 2)
+  ImpresionesBN Int? 
+  ImpresionesColor Int?
+  TotalImpresiones Int?
+  PrecioBN Decimal? @db.Decimal(10, 2)
+  PrecioColor Decimal? @db.Decimal(10, 2)
+  ComentarioId String? @db.UniqueIdentifier
+  comentario ContadoresCierresComentarios? @relation(fields: [ComentarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("ContadoresCierres")
+  @@schema("dbo")
+}
+
+model CotandoresCierreFacturacion{
+  id String @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  FechaCierreFacturacion DateTime? @default(now(), map: "DF__CotandoresCierreFacturacion__FechaCierre__7A5B524B")
+  TecnicoResponsable String? @db.NVarChar(Max)
+  ClienteNombre String? @db.NVarChar(Max)
+  @@map("CotandoresCierreFacturacion")
   @@schema("dbo")
 }
 
@@ -128,15 +166,15 @@ model ProductoPendienteValidation {
 }
 
 model catalogo_Aplicaciones {
-  id           Int                      @id(map: "PK__aplicaci__3213E83F617A4352") @default(autoincrement())
-  nombre       String                   @db.NVarChar(120)
-  descripcion  String?                  @db.NVarChar(Max)
-  tipo         String                   @default("agente", map: "DF__aplicacion__tipo__531856C7") @db.NVarChar(50)
-  area         String?                  @db.NVarChar(80)
-  icono        String?                  @default("??", map: "DF__aplicacio__icono__540C7B00") @db.NVarChar(10)
-  estado       String                   @default("piloto", map: "DF__aplicacio__estad__55009F39") @db.NVarChar(20)
-  fecha_inicio DateTime                 @db.Date
-  creado_en    DateTime                 @default(now(), map: "DF__aplicacio__cread__55F4C372")
+  id           Int                 @id(map: "PK__aplicaci__3213E83F617A4352") @default(autoincrement())
+  nombre       String              @db.NVarChar(120)
+  descripcion  String?             @db.NVarChar(Max)
+  tipo         String              @default("agente", map: "DF__aplicacion__tipo__531856C7") @db.NVarChar(50)
+  area         String?             @db.NVarChar(80)
+  icono        String?             @default("??", map: "DF__aplicacio__icono__540C7B00") @db.NVarChar(10)
+  estado       String              @default("piloto", map: "DF__aplicacio__estad__55009F39") @db.NVarChar(20)
+  fecha_inicio DateTime            @db.Date
+  creado_en    DateTime            @default(now(), map: "DF__aplicacio__cread__55F4C372")
   costos       catalogo_Costos[]
   metricas     catalogo_Metricas[]
 
@@ -145,10 +183,10 @@ model catalogo_Aplicaciones {
 }
 
 model catalogo_Configuraciones {
-  id            Int                  @id(map: "PK__configur__3213E83F755E0D93") @default(autoincrement())
-  costo_hora    Decimal              @db.Decimal(8, 2)
-  vigente_desde DateTime             @default(now(), map: "DF__configura__vigen__4F47C5E3") @db.Date
-  creado_en     DateTime             @default(now(), map: "DF__configura__cread__503BEA1C")
+  id            Int                 @id(map: "PK__configur__3213E83F755E0D93") @default(autoincrement())
+  costo_hora    Decimal             @db.Decimal(8, 2)
+  vigente_desde DateTime            @default(now(), map: "DF__configura__vigen__4F47C5E3") @db.Date
+  creado_en     DateTime            @default(now(), map: "DF__configura__cread__503BEA1C")
   metricas      catalogo_Metricas[]
 
   @@map("configuraciones")
@@ -156,29 +194,29 @@ model catalogo_Configuraciones {
 }
 
 model catalogo_Costos {
-  id                  Int                    @id(map: "PK__costos__3213E83FAC430E27") @default(autoincrement())
-  aplicacion_id       Int
-  concepto            String                 @db.NVarChar(120)
-  monto               Decimal                @db.Decimal(10, 2)
-  fecha               DateTime               @default(now(), map: "DF__costos__fecha__607251E5") @db.Date
-  creado_en           DateTime               @default(now(), map: "DF__costos__creado_e__6166761E")
-  aplicaciones        catalogo_Aplicaciones  @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__costos__aplicaci__5F7E2DAC")
+  id            Int                   @id(map: "PK__costos__3213E83FAC430E27") @default(autoincrement())
+  aplicacion_id Int
+  concepto      String                @db.NVarChar(120)
+  monto         Decimal               @db.Decimal(10, 2)
+  fecha         DateTime              @default(now(), map: "DF__costos__fecha__607251E5") @db.Date
+  creado_en     DateTime              @default(now(), map: "DF__costos__creado_e__6166761E")
+  aplicaciones  catalogo_Aplicaciones @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__costos__aplicaci__5F7E2DAC")
 
   @@map("costos")
   @@schema("dbo")
 }
 
 model catalogo_Metricas {
-  id                  Int                    @id(map: "PK__metricas__3213E83F244C2BD6") @default(autoincrement())
+  id                  Int                      @id(map: "PK__metricas__3213E83F244C2BD6") @default(autoincrement())
   aplicacion_id       Int
   configuracion_id    Int
-  periodo             DateTime               @db.Date
-  tiempo_antes_min    Decimal                @db.Decimal(8, 2)
-  tiempo_ahora_min    Decimal                @db.Decimal(8, 2)
-  ejecuciones_por_dia Int                    @default(1, map: "DF__metricas__ejecuc__5BAD9CC8")
-  usuarios_activos    Int                    @default(0, map: "DF__metricas__usuari__5CA1C101")
-  hito                String?                @db.NVarChar(Max)
-  aplicaciones        catalogo_Aplicaciones  @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__metricas__aplica__59C55456")
+  periodo             DateTime                 @db.Date
+  tiempo_antes_min    Decimal                  @db.Decimal(8, 2)
+  tiempo_ahora_min    Decimal                  @db.Decimal(8, 2)
+  ejecuciones_por_dia Int                      @default(1, map: "DF__metricas__ejecuc__5BAD9CC8")
+  usuarios_activos    Int                      @default(0, map: "DF__metricas__usuari__5CA1C101")
+  hito                String?                  @db.NVarChar(Max)
+  aplicaciones        catalogo_Aplicaciones    @relation(fields: [aplicacion_id], references: [id], onUpdate: NoAction, map: "FK__metricas__aplica__59C55456")
   configuraciones     catalogo_Configuraciones @relation(fields: [configuracion_id], references: [id], onUpdate: NoAction, map: "FK__metricas__config__5AB9788F")
 
   @@unique([aplicacion_id, periodo], map: "UQ__metricas__93D9ED41540EBEB4")
@@ -186,19 +224,18 @@ model catalogo_Metricas {
   @@schema("dbo")
 }
 
-
 // Catalogo central de modelos de IA usados por los agentes, con proveedor y costos separados de input/output.
 model Models {
-  id                        Int       @id @default(autoincrement())
-  name                      String    @db.NVarChar(100)
-  version                   String?   @db.NVarChar(100)
-  suscripcionID             String?   @db.NVarChar(100)
-  status                    String?   @db.NVarChar(100)
-  proveedor                 String    @db.NVarChar(100)
-  inputTokenCostPerMillion  Decimal?  @db.Decimal(18, 6)
-  outputTokenCostPerMillion Decimal?  @db.Decimal(18, 6)
-  createdAt                 DateTime  @default(now()) @db.DateTime
-  updatedAt                 DateTime  @updatedAt @db.DateTime
+  id                        Int            @id @default(autoincrement())
+  name                      String         @db.NVarChar(100)
+  version                   String?        @db.NVarChar(100)
+  suscripcionID             String?        @db.NVarChar(100)
+  status                    String?        @db.NVarChar(100)
+  proveedor                 String         @db.NVarChar(100)
+  inputTokenCostPerMillion  Decimal?       @db.Decimal(18, 6)
+  outputTokenCostPerMillion Decimal?       @db.Decimal(18, 6)
+  createdAt                 DateTime       @default(now()) @db.DateTime
+  updatedAt                 DateTime       @updatedAt @db.DateTime
   agentes                   Agentes[]
   usos                      UsesModels[]
   acciones                  AgentActions[]
@@ -210,19 +247,20 @@ model Models {
 
 // Catalogo de agentes de IA de la plataforma para reutilizar trazabilidad en modulos futuros.
 model Agentes {
-  id            String         @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
-  nombre_logico String         @db.NVarChar(120)
-  nombre_publico String?       @db.NVarChar(120)
-  idModelo      Int?
-  plataforma    String?        @db.NVarChar(100)
-  estatus       String?        @db.NVarChar(40)
-  createdAt     DateTime       @default(now()) @db.DateTime
-  updatedAt     DateTime       @updatedAt @db.DateTime
-  modelo        Models?        @relation(fields: [idModelo], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  usos          UsesModels[]
-  acciones      AgentActions[]
+  id             String         @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  nombre_logico  String         @db.NVarChar(120)
+  nombre_publico String?        @db.NVarChar(120)
+  idModelo       Int?
+  plataforma     String?        @db.NVarChar(100)
+  estatus        String?        @db.NVarChar(40)
+  createdAt      DateTime       @default(now()) @db.DateTime
+  updatedAt      DateTime       @updatedAt @db.DateTime
+  modelo         Models?        @relation(fields: [idModelo], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usos           UsesModels[]
+  acciones       AgentActions[]
 
-  messages    Message[]
+  messages Message[]
+
   @@index([nombre_logico], map: "IX_AI_Agentes_NombreLogico")
   @@index([idModelo], map: "IX_AI_Agentes_IdModelo")
   @@map("AI_Agentes")
@@ -231,23 +269,23 @@ model Agentes {
 
 // Registro agregado de consumo de modelos por corrida (tokens, tiempos y costo estimado) para analitica transversal.
 model UsesModels {
-  id                             BigInt    @id @default(autoincrement())
+  id                             BigInt   @id @default(autoincrement())
   idModel                        Int
-  colaboradorID                  String?   @db.NVarChar(200)
-  project                        String?   @db.NVarChar(100)
-  module                         String?   @db.NVarChar(100)
+  colaboradorID                  String?  @db.NVarChar(200)
+  project                        String?  @db.NVarChar(100)
+  module                         String?  @db.NVarChar(100)
   timeEjecucionSec               Float?
   averageTimeHumaneJecutationSec Float?
   tokensInput                    Int?
   tokensOutput                   Int?
   tokensTotal                    Int?
-  costAverage                    Decimal?  @db.Decimal(18, 6)
-  agentId                        String?   @db.UniqueIdentifier
-  sessionId                      String?   @db.NVarChar(120)
-  runId                          String?   @db.NVarChar(120)
-  createdAt                      DateTime  @default(now()) @db.DateTime
-  model                          Models    @relation(fields: [idModel], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  agent                          Agentes?  @relation(fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  costAverage                    Decimal? @db.Decimal(18, 6)
+  agentId                        String?  @db.UniqueIdentifier
+  sessionId                      String?  @db.NVarChar(120)
+  runId                          String?  @db.NVarChar(120)
+  createdAt                      DateTime @default(now()) @db.DateTime
+  model                          Models   @relation(fields: [idModel], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agent                          Agentes? @relation(fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([idModel, createdAt], map: "IX_AI_UsesModels_ModelCreatedAt")
   @@index([project, module], map: "IX_AI_UsesModels_ProjectModule")
@@ -259,27 +297,27 @@ model UsesModels {
 
 // Bitacora detallada por accion de cada corrida de agente (pasos, comandos, errores, estado final y consumo de tokens por accion LLM).
 model AgentActions {
-  id           BigInt    @id @default(autoincrement())
-  runId        String    @db.NVarChar(120)
-  sessionId    String?   @db.NVarChar(120)
-  agentId      String?   @db.UniqueIdentifier
+  id           BigInt   @id @default(autoincrement())
+  runId        String   @db.NVarChar(120)
+  sessionId    String?  @db.NVarChar(120)
+  agentId      String?  @db.UniqueIdentifier
   modelId      Int?
-  project      String?   @db.NVarChar(100)
-  module       String?   @db.NVarChar(100)
-  actionType   String    @db.NVarChar(60)
-  stepId       String?   @db.NVarChar(120)
-  description  String?   @db.NVarChar(Max)
-  status       String?   @db.NVarChar(40)
+  project      String?  @db.NVarChar(100)
+  module       String?  @db.NVarChar(100)
+  actionType   String   @db.NVarChar(60)
+  stepId       String?  @db.NVarChar(120)
+  description  String?  @db.NVarChar(Max)
+  status       String?  @db.NVarChar(40)
   tokensInput  Int?
   tokensOutput Int?
   tokensTotal  Int?
-  costAverage  Decimal?  @db.Decimal(18, 6)
+  costAverage  Decimal? @db.Decimal(18, 6)
   durationMs   Int?
-  payloadJson  String?   @db.NVarChar(Max)
-  errorMessage String?   @db.NVarChar(Max)
-  createdAt    DateTime  @default(now()) @db.DateTime
-  agent        Agentes?  @relation(fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  model        Models?   @relation(fields: [modelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payloadJson  String?  @db.NVarChar(Max)
+  errorMessage String?  @db.NVarChar(Max)
+  createdAt    DateTime @default(now()) @db.DateTime
+  agent        Agentes? @relation(fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  model        Models?  @relation(fields: [modelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([runId, createdAt], map: "IX_AI_AgentActions_RunCreatedAt")
   @@index([sessionId], map: "IX_AI_AgentActions_SessionId")
@@ -289,16 +327,15 @@ model AgentActions {
   @@schema("dbo")
 }
 
-
 // paqueterias
 model Paqueterias {
-  id          Int            @id(map: "PK__paqueter__3213E83FBA1B9C8B") @default(autoincrement())
-  nombre      String         @db.NVarChar(100)
-  descripcion String?        @db.NVarChar(Max)
-  createdAt   DateTime       @default(now(), map: "DF__paqueter__creado__6FE99F9F")
-  updatedAt   DateTime       @default(now(), map: "DF__paqueter__actuali__70A8B9B2")
-  deleted     Boolean        @default(false, map: "DF__paqueter__delet__71D1E811")
-  deletedAt   DateTime?      @db.DateTime
+  id          Int       @id(map: "PK__paqueter__3213E83FBA1B9C8B") @default(autoincrement())
+  nombre      String    @db.NVarChar(100)
+  descripcion String?   @db.NVarChar(Max)
+  createdAt   DateTime  @default(now(), map: "DF__paqueter__creado__6FE99F9F")
+  updatedAt   DateTime  @default(now(), map: "DF__paqueter__actuali__70A8B9B2")
+  deleted     Boolean   @default(false, map: "DF__paqueter__delet__71D1E811")
+  deletedAt   DateTime? @db.DateTime
 
   // Relaciones
   cotizaciones Cotizaciones[]
@@ -309,197 +346,228 @@ model Paqueterias {
 }
 
 model Cotizaciones {
-  id             Int          @id(map: "PK__cotizacio__3213E83F1B9CDBF7") @default(autoincrement())
-  usuario        String       @db.NVarChar(100)
-  idPaqueteria   Int          @db.Int
-  dimensiones     String       @db.NVarChar(100) // ej. "30x20x10 cm"
-  unidadNegocio     String?      @db.NVarChar(100) // ej. "GSA", "Gestion de talento", etc.
-  peso           Decimal      @db.Decimal(10, 2)
-  ciudadOrigen   String       @db.NVarChar(100)
-  cpOrigen       String       @db.NVarChar(20)
-  ciudadDestino  String       @db.NVarChar(100)
-  cpDestino      String       @db.NVarChar(20)
-  costoEstimado  Decimal?     @db.Decimal(10, 2) // <-- NUEVO: Para comparar contra el costo real
-  status         String       @default("PENDIENTE") @db.NVarChar(20)
-  reviewedBy     String?      @db.NVarChar(100)
-  reviewedAt     DateTime?
-  motivoRechazo  String?      @db.NVarChar(300)
-  serviceType     String?      @db.NVarChar(100) // ej. "express", "standard"
-  fecha          DateTime     @default(now(), map: "DF__cotizacio__fecha__72C60C4A")
-  createdAt      DateTime     @default(now(), map: "DF__cotizacio__creado__73BA3080")
-  updatedAt      DateTime     @default(now(), map: "DF__cotizacio__actuali__74ABBAE5")
-  deleted        Boolean      @default(false, map: "DF__cotizacio__delet__75A278F6")
-  deletedAt      DateTime?    @db.DateTime
+  id                     Int      @id(map: "PK__cotizacio__3213E83F1B9CDBF7") @default(autoincrement())
+  usuario                String   @db.NVarChar(100)
+  idPaqueteria           Int      @db.Int
+  dimensiones            String   @db.NVarChar(100) // ej. "30x20x10 cm"
+  unidadNegocio          String?  @db.NVarChar(100) // ej. "GSA", "Gestion de talento", etc., ahora ingresado por el usuario en la cotización
+  peso                   Decimal  @db.Decimal(10, 2)
+  ciudadOrigen           String   @db.NVarChar(100)
+  cpOrigen               String   @db.NVarChar(20)
+  ciudadDestino          String   @db.NVarChar(100)
+  cpDestino              String   @db.NVarChar(20)
+  costoEstimado          Decimal? @db.Decimal(10, 2)
+  // ── Dirección destino ──────────────────────────────────────────────────────
+  empresaDestino         String?  @db.NVarChar(200) // Empresa / razón social del destino
+  calleDestino           String?  @db.NVarChar(200)
+  coloniaDestino         String?  @db.NVarChar(100)
+  numeroExteriorDestino  String?  @db.NVarChar(20)
+  referenciasDestino     String?  @db.NVarChar(Max)
+  contactoDestinatario   String?  @db.NVarChar(150)
+  estadoDestinatario     String?  @db.NVarChar(100)
+  telefonoDestino        String?  @db.NVarChar(20)
+  correoReferencia       String?  @db.NVarChar(100)
+  // ── Dirección origen ───────────────────────────────────────────────────────
+  empresaOrigen          String?  @db.NVarChar(200) // Empresa / razón social del origen
+  calleOrigen            String?  @db.NVarChar(200)
+  coloniaOrigen          String?  @db.NVarChar(100)
+  numeroExteriorOrigen   String?  @db.NVarChar(20)
+  referenciasOrigen      String?  @db.NVarChar(Max)
+  telefonoOrigen         String?  @db.NVarChar(20)
+  // ── Detalle del envío ──────────────────────────────────────────────────────
+  cantidadPaquetes       Int?
+  tipoPaquete            String?  @db.NVarChar(100) // ej. "documentos", "paquete", "sobres", "caja"
+  objetosTraslado        String?  @db.NVarChar(Max)
+  solicitudTraslado      String?  @db.NVarChar(Max)
+  comentariosGenerales   String?  @db.NVarChar(Max)
+  // ── DaaS ───────────────────────────────────────────────────────────────────
+  isDaas                 Boolean  @default(false)
+  nombreProyectoDaas     String?  @db.NVarChar(200)
+  // ── Gestión ────────────────────────────────────────────────────────────────
+  ejecutivoSugeridoEmail String?  @db.NVarChar(100)
+
+  status        String    @default("PENDIENTE") @db.NVarChar(20)
+  reviewedBy    String?   @db.NVarChar(100)
+  reviewedAt    DateTime?
+  motivoRechazo String?   @db.NVarChar(300)
+  serviceType   String?   @db.NVarChar(100) // ej. "express", "standard", "Recoleccion", "Envio"
+  fecha         DateTime  @default(now(), map: "DF__cotizacio__fecha__72C60C4A")
+  createdAt     DateTime  @default(now(), map: "DF__cotizacio__creado__73BA3080")
+  updatedAt     DateTime  @default(now(), map: "DF__cotizacio__actuali__74ABBAE5")
+  deleted       Boolean   @default(false, map: "DF__cotizacio__delet__75A278F6")
+  deletedAt     DateTime? @db.DateTime
 
   // Relaciones
-  paqueteria     Paqueterias  @relation(fields: [idPaqueteria], references: [id])
-  envios         Envios[]
+  paqueteria Paqueterias @relation(fields: [idPaqueteria], references: [id])
+  envios     Envios[]
 
   @@map("cotizaciones")
   @@schema("dbo")
 }
 
 model Envios {
-  id             Int          @id(map: "PK__envios__3213E83F2B9CDBF7") @default(autoincrement())
-  idCotizacion   Int?         @db.Int // Opcional, por si se crea un envío sin cotizar primero
-  idPaqueteria   Int          @db.Int
-  unidadNegocio     String?      @db.NVarChar(100) // ej. "GSA", "Gestion de talento", etc.
-  usuario        String       @db.NVarChar(100)
-  estado         String       @default("CREADO") @db.NVarChar(50) // <-- NUEVO: CREADO, TRANSITO, ENTREGADO
-  dimensiones     String       @db.NVarChar(100) // ej. "30x20x10 cm"
-  peso           Decimal      @db.Decimal(10, 2)
-  ciudadOrigen   String       @db.NVarChar(100)
-  cpOrigen       String       @db.NVarChar(20)
-  ciudadDestino  String       @db.NVarChar(100)
-  cpDestino      String       @db.NVarChar(20)
-  serviceType     String?      @db.NVarChar(100) // ej. "express", "standard"
-  costoEnvio     Decimal      @db.Decimal(10, 2)
-  impuestos      Decimal      @db.Decimal(10, 2)
-  fechaEnvio     DateTime     @default(now(), map: "DF__envios__fecha__76A278F6")
-  createdAt      DateTime     @default(now(), map: "DF__envios__creado__77A278F6")
-  updatedAt      DateTime     @default(now(), map: "DF__envios__actuali__78A278F6")
-  deleted        Boolean      @default(false, map: "DF__envios__delet__79A278F6")
-  deletedAt      DateTime?    @db.DateTime
-  comentarios      String?      @db.NVarChar(Max) // Para que el usuario o el agente puedan agregar notas al envío
+  id             Int       @id(map: "PK__envios__3213E83F2B9CDBF7") @default(autoincrement())
+  idCotizacion   Int?      @db.Int // Opcional, por si se crea un envío sin cotizar primero
+  idPaqueteria   Int       @db.Int
+  unidadNegocio  String?   @db.NVarChar(100) // ej. "GSA", "Gestion de talento", etc.
+  usuario        String    @db.NVarChar(100)
+  estado         String    @default("CREADO") @db.NVarChar(50) // <-- NUEVO: CREADO, TRANSITO, ENTREGADO
+  dimensiones    String    @db.NVarChar(100) // ej. "30x20x10 cm"
+  peso           Decimal   @db.Decimal(10, 2)
+  ciudadOrigen   String    @db.NVarChar(100)
+  cpOrigen       String    @db.NVarChar(20)
+  empresaOrigen  String?   @db.NVarChar(200) // Empresa / razón social del origen
+  ciudadDestino  String    @db.NVarChar(100)
+  cpDestino      String    @db.NVarChar(20)
+  empresaDestino String?   @db.NVarChar(200) // Empresa / razón social del destino
+  serviceType    String?   @db.NVarChar(100) // ej. "express", "standard"
+  costoEnvio     Decimal   @db.Decimal(10, 2)
+  impuestos      Decimal   @db.Decimal(10, 2)
+  fechaEnvio     DateTime  @default(now(), map: "DF__envios__fecha__76A278F6")
+  createdAt      DateTime  @default(now(), map: "DF__envios__creado__77A278F6")
+  updatedAt      DateTime  @default(now(), map: "DF__envios__actuali__78A278F6")
+  deleted        Boolean   @default(false, map: "DF__envios__delet__79A278F6")
+  deletedAt      DateTime? @db.DateTime
+  comentarios    String?   @db.NVarChar(Max) // Para que el usuario o el agente puedan agregar notas al envío
 
-// Relaciones (AQUÍ ESTÁ LA MAGIA)
-  cotizacion     Cotizaciones? @relation(fields: [idCotizacion], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  paqueteria     Paqueterias   @relation(fields: [idPaqueteria], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  guias          GuiasEnvio[]
+  // Relaciones (AQUÍ ESTÁ LA MAGIA)
+  cotizacion Cotizaciones? @relation(fields: [idCotizacion], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  paqueteria Paqueterias   @relation(fields: [idPaqueteria], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  guias      GuiasEnvio[]
 
   @@map("envios")
   @@schema("dbo")
 }
 
 model GuiasEnvio {
-  id             Int          @id(map: "PK__guias_env__3213E83F8B9CDBF7") @default(autoincrement())
-  idEnvio        Int          @db.Int // <-- Modificado para ligarlo a la cabecera del envío
-  numeroGuia     String       @unique @db.NVarChar(100) // <-- UNIQUE para buscar rápido con la API
-  estadoGuia     String?      @db.NVarChar(100) // <-- Por si una caja llega y otra no
-  fechaEnvio     DateTime     @default(now(), map: "DF__guias_env__fecha__76A278F6")
-  createdAt      DateTime     @default(now(), map: "DF__guias_env__creado__77A278F6")
-  updatedAt      DateTime     @default(now(), map: "DF__guias_env__actuali__78A278F6")
-  deleted        Boolean      @default(false, map: "DF__guias_env__delet__79A278F6")
-  deletedAt      DateTime?    @db.DateTime
+  id         Int       @id(map: "PK__guias_env__3213E83F8B9CDBF7") @default(autoincrement())
+  idEnvio    Int       @db.Int // <-- Modificado para ligarlo a la cabecera del envío
+  numeroGuia String    @unique @db.NVarChar(100) // <-- UNIQUE para buscar rápido con la API
+  estadoGuia String?   @db.NVarChar(100) // <-- Por si una caja llega y otra no
+  fechaEnvio DateTime  @default(now(), map: "DF__guias_env__fecha__76A278F6")
+  createdAt  DateTime  @default(now(), map: "DF__guias_env__creado__77A278F6")
+  updatedAt  DateTime  @default(now(), map: "DF__guias_env__actuali__78A278F6")
+  deleted    Boolean   @default(false, map: "DF__guias_env__delet__79A278F6")
+  deletedAt  DateTime? @db.DateTime
 
   // Relaciones
-  envio          Envios                  @relation(fields: [idEnvio], references: [id])
-  documentos     ExtraccionDocumentos[]
-  cargos         CargosPaqueteria[]
+  envio      Envios                 @relation(fields: [idEnvio], references: [id])
+  documentos ExtraccionDocumentos[]
+  cargos     CargosPaqueteria[]
 
   @@map("guias_envio")
   @@schema("dbo")
 }
 
 model ExtraccionDocumentos {
-  id               Int          @id(map: "PK__extracc__3213E83F9B9CDBF7") @default(autoincrement())
-  idGuiaEnvio      Int          @db.Int
-  tipoDocumento    String       @db.NVarChar(100) // ej. "waybill", "commercial-invoice"
-  fechaExtraccion  DateTime     @default(now(), map: "DF__extracc__fecha__7A278F6")
-  createdAt        DateTime     @default(now(), map: "DF__extracc__creado__7B278F6")
-  updatedAt        DateTime     @default(now(), map: "DF__extracc__actuali__7C278F6")
-  deleted          Boolean      @default(false, map: "DF__extracc__delet__7D278F6")
-  deletedAt        DateTime?    @db.DateTime
+  id              Int       @id(map: "PK__extracc__3213E83F9B9CDBF7") @default(autoincrement())
+  idGuiaEnvio     Int       @db.Int
+  tipoDocumento   String    @db.NVarChar(100) // ej. "waybill", "commercial-invoice"
+  fechaExtraccion DateTime  @default(now(), map: "DF__extracc__fecha__7A278F6")
+  createdAt       DateTime  @default(now(), map: "DF__extracc__creado__7B278F6")
+  updatedAt       DateTime  @default(now(), map: "DF__extracc__actuali__7C278F6")
+  deleted         Boolean   @default(false, map: "DF__extracc__delet__7D278F6")
+  deletedAt       DateTime? @db.DateTime
 
   // Relaciones
-  guia             GuiasEnvio   @relation(fields: [idGuiaEnvio], references: [id])
+  guia GuiasEnvio @relation(fields: [idGuiaEnvio], references: [id])
 
   @@map("extraccion_documentos")
   @@schema("dbo")
 }
 
 model CargosPaqueteria {
-  id             Int          @id(map: "PK__cargos_p__3213E83FBB9CDBF7") @default(autoincrement())
-  idGuiaEnvio    Int          @db.Int
-  descripcion    String       @db.NVarChar(200)
-  url_factura    String?      @db.NVarChar(200)
-  monto          Decimal      @db.Decimal(10, 2)
-  concepto       String       @db.NVarChar(100)
-  ejecutivo      String       @db.NVarChar(100)
-  fechaCargo     DateTime     @default(now(), map: "DF__cargos_p__fecha__7E278F6")
-  createdAt      DateTime     @default(now(), map: "DF__cargos_p__creado__7F278F6")
-  updatedAt      DateTime     @default(now(), map: "DF__cargos_p__actuali__80278F6")
-  deleted        Boolean      @default(false, map: "DF__cargos_p__delet__81278F6")
-  deletedAt      DateTime?    @db.DateTime
+  id          Int       @id(map: "PK__cargos_p__3213E83FBB9CDBF7") @default(autoincrement())
+  idGuiaEnvio Int       @db.Int
+  descripcion String    @db.NVarChar(200)
+  url_factura String?   @db.NVarChar(200)
+  monto       Decimal   @db.Decimal(10, 2)
+  concepto    String    @db.NVarChar(100)
+  ejecutivo   String    @db.NVarChar(100)
+  fechaCargo  DateTime  @default(now(), map: "DF__cargos_p__fecha__7E278F6")
+  createdAt   DateTime  @default(now(), map: "DF__cargos_p__creado__7F278F6")
+  updatedAt   DateTime  @default(now(), map: "DF__cargos_p__actuali__80278F6")
+  deleted     Boolean   @default(false, map: "DF__cargos_p__delet__81278F6")
+  deletedAt   DateTime? @db.DateTime
 
   // Relaciones
-  guia           GuiasEnvio   @relation(fields: [idGuiaEnvio], references: [id])
+  guia GuiasEnvio @relation(fields: [idGuiaEnvio], references: [id])
 
   @@map("cargos_paqueteria")
   @@schema("dbo")
 }
 
 model ReportesGenerados {
-  id               Int          @id(map: "PK__reportes__3213E83FCD9CDBF7") @default(autoincrement())
-  tipoReporte      String       @db.NVarChar(100)
-  usuario          String       @db.NVarChar(100)
-  plataforma       String       @db.NVarChar(100)
-  fechaGeneracion  DateTime     @default(now(), map: "DF__reportes__fecha__82278F6")
-  createdAt        DateTime     @default(now(), map: "DF__reportes__creado__83278F6")
-  updatedAt        DateTime     @default(now(), map: "DF__reportes__actuali__84278F6")
-  deleted          Boolean      @default(false, map: "DF__reportes__delet__85278F6")
-  deletedAt        DateTime?    @db.DateTime
+  id              Int       @id(map: "PK__reportes__3213E83FCD9CDBF7") @default(autoincrement())
+  tipoReporte     String    @db.NVarChar(100)
+  usuario         String    @db.NVarChar(100)
+  plataforma      String    @db.NVarChar(100)
+  fechaGeneracion DateTime  @default(now(), map: "DF__reportes__fecha__82278F6")
+  createdAt       DateTime  @default(now(), map: "DF__reportes__creado__83278F6")
+  updatedAt       DateTime  @default(now(), map: "DF__reportes__actuali__84278F6")
+  deleted         Boolean   @default(false, map: "DF__reportes__delet__85278F6")
+  deletedAt       DateTime? @db.DateTime
 
   @@map("reportes_generados")
   @@schema("dbo")
 }
 
 model Thread {
-  id              Int          @id(map: "PK__thread__3213E83FDD9CDBF7") @default(autoincrement())
-  titulo          String       @db.NVarChar(200)
-  usuario         String       @db.NVarChar(100)
-  plataforma      String       @db.NVarChar(100)
-  fechaCreacion   DateTime     @default(now(), map: "DF__thread__fecha__86278F6")
-  createdAt       DateTime     @default(now(), map: "DF__thread__creado__87278F6")
-  updatedAt       DateTime     @default(now(), map: "DF__thread__actuali__88278F6")
-  deleted         Boolean      @default(false, map: "DF__thread__delet__89278F6")
-  deletedAt       DateTime?    @db.DateTime
+  id            Int       @id(map: "PK__thread__3213E83FDD9CDBF7") @default(autoincrement())
+  titulo        String    @db.NVarChar(200)
+  usuario       String    @db.NVarChar(100)
+  plataforma    String    @db.NVarChar(100)
+  fechaCreacion DateTime  @default(now(), map: "DF__thread__fecha__86278F6")
+  createdAt     DateTime  @default(now(), map: "DF__thread__creado__87278F6")
+  updatedAt     DateTime  @default(now(), map: "DF__thread__actuali__88278F6")
+  deleted       Boolean   @default(false, map: "DF__thread__delet__89278F6")
+  deletedAt     DateTime? @db.DateTime
 
   // Relaciones Inversas
-  messages        Message[]
+  messages Message[]
 
   @@map("threads")
   @@schema("dbo")
 }
 
 model Message {
-  id              Int          @id(map: "PK__message__3213E83FEE9CDBF7") @default(autoincrement())
-  threadId        Int          @db.Int
-  agente_id       String?      @db.UniqueIdentifier
-  usuario         String?      @db.NVarChar(100)
-  role            String       @default("user") @db.NVarChar(50) // <-- NUEVO: "user", "assistant", "system"
-  contenido       String       @db.NVarChar(Max)
-  fechaCreacion   DateTime     @default(now(), map: "DF__message__fecha__8A278F6")
-  createdAt       DateTime     @default(now(), map: "DF__message__creado__8B278F6")
-  updatedAt       DateTime     @default(now(), map: "DF__message__actuali__8C278F6")
-  deleted         Boolean      @default(false, map: "DF__message__delet__8D278F6")
-  deletedAt       DateTime?    @db.DateTime
+  id            Int       @id(map: "PK__message__3213E83FEE9CDBF7") @default(autoincrement())
+  threadId      Int       @db.Int
+  agente_id     String?   @db.UniqueIdentifier
+  usuario       String?   @db.NVarChar(100)
+  role          String    @default("user") @db.NVarChar(50) // <-- NUEVO: "user", "assistant", "system"
+  contenido     String    @db.NVarChar(Max)
+  fechaCreacion DateTime  @default(now(), map: "DF__message__fecha__8A278F6")
+  createdAt     DateTime  @default(now(), map: "DF__message__creado__8B278F6")
+  updatedAt     DateTime  @default(now(), map: "DF__message__actuali__8C278F6")
+  deleted       Boolean   @default(false, map: "DF__message__delet__8D278F6")
+  deletedAt     DateTime? @db.DateTime
 
   // Relaciones
-  thread          Thread       @relation(fields: [threadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  agente          Agentes?     @relation(fields: [agente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  
+  thread Thread   @relation(fields: [threadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agente Agentes? @relation(fields: [agente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   // Relación Inversa
-  feedbacks       Feedback[]
+  feedbacks Feedback[]
 
   @@map("messages")
   @@schema("dbo")
 }
 
 model Feedback {
-  id              Int          @id(map: "PK__feedback__3213E83FF9CDBF7") @default(autoincrement())
-  messageId       Int          @db.Int
-  usuario         String       @db.NVarChar(100)
-  calificacion    Int          @db.Int // Ej. 1-5 o 0-1 (Thumbs up/down)
-  comentario      String?      @db.NVarChar(Max)
-  fechaCreacion   DateTime     @default(now(), map: "DF__feedback__fecha__8E278F6")
-  createdAt       DateTime     @default(now(), map: "DF__feedback__creado__8F278F6")
-  updatedAt       DateTime     @default(now(), map: "DF__feedback__actuali__90278F6")
-  deleted         Boolean      @default(false, map: "DF__feedback__delet__91278F6")
-  deletedAt       DateTime?    @db.DateTime
+  id            Int       @id(map: "PK__feedback__3213E83FF9CDBF7") @default(autoincrement())
+  messageId     Int       @db.Int
+  usuario       String    @db.NVarChar(100)
+  calificacion  Int       @db.Int // Ej. 1-5 o 0-1 (Thumbs up/down)
+  comentario    String?   @db.NVarChar(Max)
+  fechaCreacion DateTime  @default(now(), map: "DF__feedback__fecha__8E278F6")
+  createdAt     DateTime  @default(now(), map: "DF__feedback__creado__8F278F6")
+  updatedAt     DateTime  @default(now(), map: "DF__feedback__actuali__90278F6")
+  deleted       Boolean   @default(false, map: "DF__feedback__delet__91278F6")
+  deletedAt     DateTime? @db.DateTime
 
   // Relaciones
-  message         Message      @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  message Message @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("feedback")
   @@schema("dbo")
@@ -509,8 +577,8 @@ model EvaluacionesExamen {
   id     Int    @id @default(autoincrement())
   nombre String
 
-  @@map("examen") 
-  @@schema("Evaluaciones") 
+  @@map("examen")
+  @@schema("Evaluaciones")
 }
 
 model EvaluacionesIncisos {
@@ -522,10 +590,8 @@ model EvaluacionesIncisos {
 
   // Llave primaria compuesta
   @@id([idPregunta, letra])
-  
   // Mapeo exacto del nombre de la tabla en la base de datos
   @@map("Incisos")
-  
   // Asignación al esquema específico
   @@schema("Evaluaciones")
 }
@@ -599,4 +665,119 @@ model EvaluacionesResultadosPorExamen {
 
   @@map("ResultadosPorExamen")
   @@schema("Evaluaciones")
+}
+
+model ClienteSap {
+  idCliente           Int      @id @default(autoincrement()) @map("id_cliente")
+  cardCode            String   @map("card_code") @db.NVarChar(50)
+  cardName            String   @map("card_name") @db.NVarChar(255)
+  cardNameNormalizado String?  @map("card_name_normalizado") @db.NVarChar(255)
+  activo              Boolean  @default(true) @map("activo") @db.Bit
+  fechaCreacion       DateTime @default(dbgenerated("SYSDATETIME()")) @map("fecha_creacion") @db.DateTime2
+  fechaActualizacion  DateTime @default(dbgenerated("SYSDATETIME()")) @map("fecha_actualizacion") @db.DateTime2
+
+  aliases ClienteSapAlias[]
+
+  @@unique([cardCode], map: "UQ_clientes_sap_card_code")
+  @@index([cardCode], map: "IX_clientes_sap_card_code")
+  @@index([cardName], map: "IX_clientes_sap_card_name")
+  @@index([cardNameNormalizado], map: "IX_clientes_sap_card_name_normalizado")
+  @@index([activo, cardNameNormalizado], map: "IX_clientes_sap_activo_nombre_normalizado")
+  @@map("clientes_sap")
+  @@schema("dbo")
+}
+
+model ClienteSapAlias {
+  idAlias          Int      @id @default(autoincrement()) @map("id_alias")
+  idCliente        Int      @map("id_cliente")
+  alias            String   @map("alias") @db.NVarChar(255)
+  aliasNormalizado String?  @map("alias_normalizado") @db.NVarChar(255)
+  activo           Boolean  @default(true) @map("activo") @db.Bit
+  fechaCreacion    DateTime @default(dbgenerated("SYSDATETIME()")) @map("fecha_creacion") @db.DateTime2
+
+  cliente ClienteSap @relation(fields: [idCliente], references: [idCliente], map: "FK_clientes_sap_aliases_clientes")
+
+  @@index([alias], map: "IX_clientes_sap_aliases_alias")
+  @@index([aliasNormalizado], map: "IX_clientes_sap_aliases_alias_normalizado")
+  @@index([idCliente], map: "IX_clientes_sap_aliases_id_cliente")
+  @@index([activo, aliasNormalizado], map: "IX_clientes_sap_aliases_activo_alias_normalizado")
+  @@map("clientes_sap_aliases")
+  @@schema("dbo")
+}
+
+model PrediccionScoring {
+  idScoring           BigInt    @id(map: "PK__predicci__53641C4682D1991D") @default(autoincrement()) @map("id_scoring")
+  idCliente           Int       @map("id_cliente")
+  cardCode            String    @map("card_code") @db.NVarChar(50)
+  cardName            String?   @map("card_name") @db.NVarChar(255)
+  mes                 Int       @map("mes")
+  anio                Int       @map("anio")
+  periodo             String?   @map("periodo") @db.VarChar(7)
+  idCorrida           String    @default(dbgenerated("newid()"), map: "DF__prediccio__id_co__7AF13DF7") @map("id_corrida") @db.UniqueIdentifier
+  fechaCorte          DateTime? @map("fecha_corte") @db.Date
+  modeloVersion       String?   @map("modelo_version") @db.NVarChar(100)
+  totalRegistros      Int       @default(0, map: "DF__prediccio__total__7BE56230") @map("total_registros")
+  montoTotalPendiente Decimal?  @map("monto_total_pendiente") @db.Decimal(18, 2)
+  resultadoJson       String    @map("resultado_json") @db.NVarChar(Max)
+  requestJson         String?   @map("request_json") @db.NVarChar(Max)
+  fechaInferencia     DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__prediccio__fecha__7CD98669") @map("fecha_inferencia")
+  vecesInferida       Int       @default(1, map: "DF__prediccio__veces__7DCDAAA2") @map("veces_inferida")
+
+  @@unique([idCliente, anio, mes], map: "UQ_predicciones_scoring_cliente_periodo")
+  @@index([cardCode], map: "IX_predicciones_scoring_card_code")
+  @@index([idCorrida], map: "IX_predicciones_scoring_id_corrida")
+  @@index([fechaInferencia], map: "IX_predicciones_scoring_fecha_inferencia")
+  @@map("predicciones_scoring")
+  @@schema("dbo")
+}
+
+model PrediccionDesviacion {
+  idDesviacion        BigInt    @id(map: "PK__predicci__493BE4014B6374B6") @default(autoincrement()) @map("id_desviacion")
+  idCliente           Int       @map("id_cliente")
+  cardCode            String    @map("card_code") @db.NVarChar(50)
+  cardName            String?   @map("card_name") @db.NVarChar(255)
+  mes                 Int       @map("mes")
+  anio                Int       @map("anio")
+  periodo             String?   @map("periodo") @db.VarChar(7)
+  idCorrida           String    @default(dbgenerated("newid()"), map: "DF__prediccio__id_co__038683F8") @map("id_corrida") @db.UniqueIdentifier
+  fechaCorte          DateTime? @map("fecha_corte") @db.Date
+  modeloVersion       String?   @map("modelo_version") @db.NVarChar(100)
+  totalRegistros      Int       @default(0, map: "DF__prediccio__total__047AA831") @map("total_registros")
+  montoTotalPendiente Decimal?  @map("monto_total_pendiente") @db.Decimal(18, 2)
+  resultadoJson       String    @map("resultado_json") @db.NVarChar(Max)
+  requestJson         String?   @map("request_json") @db.NVarChar(Max)
+  fechaInferencia     DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__prediccio__fecha__056ECC6A") @map("fecha_inferencia")
+  vecesInferida       Int       @default(1, map: "DF__prediccio__veces__0662F0A3") @map("veces_inferida")
+
+  @@unique([idCliente, anio, mes], map: "UQ_predicciones_desviacion_cliente_periodo")
+  @@index([cardCode], map: "IX_predicciones_desviacion_card_code")
+  @@index([idCorrida], map: "IX_predicciones_desviacion_id_corrida")
+  @@index([fechaInferencia], map: "IX_predicciones_desviacion_fecha_inferencia")
+  @@map("predicciones_desviacion")
+  @@schema("dbo")
+}
+
+model EvaluacionCliente {
+  idEvaluacion        BigInt   @id @default(autoincrement()) @map("id_evaluacion")
+  idCliente           Int      @map("id_cliente")
+  cardCode            String   @map("card_code") @db.NVarChar(50)
+  cardName            String?  @map("card_name") @db.NVarChar(255)
+  mes                 Int      @map("mes")
+  anio                Int      @map("anio")
+  periodo             String?  @map("periodo") @db.VarChar(7)
+  idCorrida           String   @map("id_corrida") @db.UniqueIdentifier
+  scorePerfil         Decimal? @map("score_perfil") @db.Decimal(5, 2)
+  semaforo            String?  @map("semaforo") @db.NVarChar(20)
+  montoTotalPendiente Decimal? @map("monto_total_pendiente") @db.Decimal(18, 2)
+  resultadoJson       String   @map("resultado_json") @db.NVarChar(Max)
+  requestJson         String?  @map("request_json") @db.NVarChar(Max)
+  fechaInferencia     DateTime @map("fecha_inferencia")
+  vecesInferida       Int      @map("veces_inferida")
+
+  @@unique([idCliente, anio, mes], map: "UQ_evaluaciones_cliente_periodo")
+  @@index([cardCode], map: "IX_evaluaciones_cliente_card_code")
+  @@index([semaforo], map: "IX_evaluaciones_cliente_semaforo")
+  @@index([fechaInferencia], map: "IX_evaluaciones_cliente_fecha_inferencia")
+  @@map("evaluaciones_cliente")
+  @@schema("dbo")
 }

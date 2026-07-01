@@ -1,0 +1,712 @@
+openapi: 3.0.3
+info:
+  title: Operaciones — Paqueterías & Envíos
+  description: |
+    Endpoints para gestionar cotizaciones, envíos y paqueterías del módulo de Operaciones (HUBINN).
+    Base URL de producción: `https://hubinn.compucad.com.mx/agente/operaciones`
+  version: "2.0.0"
+
+servers:
+  - url: http://localhost:3000/agente/operaciones
+    description: Local
+  - url: https://hubinn.compucad.com.mx/agente/operaciones
+    description: Producción
+
+security:
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+  schemas:
+
+    Paqueteria:
+      type: object
+      properties:
+        id:          { type: integer, example: 1 }
+        nombre:      { type: string,  example: "DHL" }
+        descripcion: { type: string,  nullable: true }
+        createdAt:   { type: string, format: date-time }
+        updatedAt:   { type: string, format: date-time }
+        deleted:     { type: boolean, example: false }
+
+    Dimensiones:
+      type: object
+      required: [width, height, length]
+      properties:
+        width:  { type: number, example: 30 }
+        height: { type: number, example: 20 }
+        length: { type: number, example: 10 }
+
+    CotizacionInput:
+      type: object
+      required:
+        - usuario
+        - unidadNegocio
+        - idPaqueteria
+        - serviceType
+        - peso
+        - dimensiones
+        - ciudadOrigen
+        - cpOrigen
+        - ciudadDestino
+        - cpDestino
+      properties:
+        # ── Identificación ───────────────────────────────────────────────────
+        usuario:
+          type: string
+          description: Email del solicitante
+          example: "juan.perez@compucad.com.mx"
+        unidadNegocio:
+          type: string
+          description: Área o unidad de negocio seleccionada por el usuario
+          example: "GSA"
+        idPaqueteria:
+          type: integer
+          description: ID de la paquetería (ver GET /paqueterias)
+          example: 1
+        serviceType:
+          type: string
+          description: Modalidad del servicio
+          enum: [F, R, RF, DE, EF]
+          example: "EF"
+        fecha:
+          type: string
+          format: date-time
+          nullable: true
+        # ── Medidas ──────────────────────────────────────────────────────────
+        peso:
+          type: number
+          example: 2.5
+        dimensiones:
+          $ref: '#/components/schemas/Dimensiones'
+        costoEstimado:
+          type: number
+          nullable: true
+          example: 350.00
+        # ── Detalle del envío ────────────────────────────────────────────────
+        cantidadPaquetes:
+          type: integer
+          nullable: true
+          example: 3
+        tipoPaquete:
+          type: string
+          nullable: true
+          enum: [documentos, paquete, sobre, caja, otro]
+          example: "caja"
+        objetosTraslado:
+          type: string
+          nullable: true
+          description: Descripción de lo que se envía
+          example: "Laptops y accesorios de cómputo"
+        solicitudTraslado:
+          type: string
+          nullable: true
+          description: Número de solicitud, pedido o factura
+          example: "SOL-2026-0042"
+        comentariosGenerales:
+          type: string
+          nullable: true
+        # ── Origen ───────────────────────────────────────────────────────────
+        ciudadOrigen:
+          type: string
+          example: "Guadalajara"
+        cpOrigen:
+          type: string
+          example: "44100"
+        empresaOrigen:
+          type: string
+          nullable: true
+          description: Empresa / razón social del origen
+          example: "Compucad S.A. de C.V."
+        calleOrigen:
+          type: string
+          nullable: true
+          example: "Av. Vallarta 1234"
+        coloniaOrigen:
+          type: string
+          nullable: true
+          example: "Americana"
+        numeroExteriorOrigen:
+          type: string
+          nullable: true
+          example: "1234"
+        referenciasOrigen:
+          type: string
+          nullable: true
+          example: "Entre Lerdo de Tejada y Marsella, edificio gris"
+        telefonoOrigen:
+          type: string
+          nullable: true
+          example: "3312345678"
+        # ── Destino ──────────────────────────────────────────────────────────
+        ciudadDestino:
+          type: string
+          example: "Ciudad de México"
+        cpDestino:
+          type: string
+          example: "06600"
+        empresaDestino:
+          type: string
+          nullable: true
+          description: Empresa / razón social del destino
+          example: "Cliente Final S.A. de C.V."
+        calleDestino:
+          type: string
+          nullable: true
+          example: "Insurgentes Sur 456"
+        coloniaDestino:
+          type: string
+          nullable: true
+          example: "Roma Norte"
+        numeroExteriorDestino:
+          type: string
+          nullable: true
+          example: "456"
+        estadoDestinatario:
+          type: string
+          nullable: true
+          example: "Ciudad de México"
+        referenciasDestino:
+          type: string
+          nullable: true
+          example: "Frente al parque, portón negro"
+        contactoDestinatario:
+          type: string
+          nullable: true
+          example: "María García"
+        telefonoDestino:
+          type: string
+          nullable: true
+          example: "5512345678"
+        correoReferencia:
+          type: string
+          nullable: true
+          example: "maria.garcia@empresa.com"
+        # ── DaaS ─────────────────────────────────────────────────────────────
+        isDaas:
+          type: boolean
+          default: false
+          description: Indica si es un servicio DaaS (Delivery as a Service)
+        nombreProyectoDaas:
+          type: string
+          nullable: true
+          description: Requerido cuando isDaas = true
+          example: "Proyecto Conecta 2026"
+        # ── Gestión ──────────────────────────────────────────────────────────
+        ejecutivoSugeridoEmail:
+          type: string
+          format: email
+          nullable: true
+          example: "ejecutivo@compucad.com.mx"
+
+    # Representación de una cotización tal como la devuelve la BD.
+    # OJO: `dimensiones` se persiste como STRING ("width:30, height:20, length:10"),
+    # a diferencia de CotizacionInput que lo recibe como objeto.
+    Cotizacion:
+      type: object
+      properties:
+        id:                     { type: integer, example: 42 }
+        usuario:                { type: string, example: "juan.perez@compucad.com.mx" }
+        unidadNegocio:          { type: string, nullable: true, example: "GSA" }
+        idPaqueteria:           { type: integer, example: 1 }
+        serviceType:            { type: string, nullable: true, example: "EF" }
+        status:                 { type: string, enum: [PENDIENTE, AUTORIZADA, RECHAZADA], example: "PENDIENTE" }
+        peso:                   { type: number, example: 2.5 }
+        dimensiones:            { type: string, example: "width:30, height:20, length:10" }
+        costoEstimado:          { type: number, nullable: true, example: 350.00 }
+        # ── Origen ──
+        ciudadOrigen:           { type: string, example: "Guadalajara" }
+        cpOrigen:               { type: string, example: "44100" }
+        empresaOrigen:          { type: string, nullable: true }
+        calleOrigen:            { type: string, nullable: true }
+        coloniaOrigen:          { type: string, nullable: true }
+        numeroExteriorOrigen:   { type: string, nullable: true }
+        referenciasOrigen:      { type: string, nullable: true }
+        telefonoOrigen:         { type: string, nullable: true }
+        # ── Destino ──
+        ciudadDestino:          { type: string, example: "Ciudad de México" }
+        cpDestino:              { type: string, example: "06600" }
+        empresaDestino:         { type: string, nullable: true }
+        calleDestino:           { type: string, nullable: true }
+        coloniaDestino:         { type: string, nullable: true }
+        numeroExteriorDestino:  { type: string, nullable: true }
+        referenciasDestino:     { type: string, nullable: true }
+        contactoDestinatario:   { type: string, nullable: true }
+        estadoDestinatario:     { type: string, nullable: true }
+        telefonoDestino:        { type: string, nullable: true }
+        correoReferencia:       { type: string, nullable: true }
+        # ── Detalle ──
+        cantidadPaquetes:       { type: integer, nullable: true }
+        tipoPaquete:            { type: string, nullable: true }
+        objetosTraslado:        { type: string, nullable: true }
+        solicitudTraslado:      { type: string, nullable: true }
+        comentariosGenerales:   { type: string, nullable: true }
+        # ── DaaS ──
+        isDaas:                 { type: boolean, example: false }
+        nombreProyectoDaas:     { type: string, nullable: true }
+        ejecutivoSugeridoEmail: { type: string, nullable: true }
+        # ── Gestión / auditoría ──
+        reviewedBy:             { type: string, format: date-time, nullable: true }
+        reviewedAt:             { type: string, format: date-time, nullable: true }
+        motivoRechazo:          { type: string, nullable: true }
+        fecha:                  { type: string, format: date-time }
+        createdAt:              { type: string, format: date-time }
+        updatedAt:              { type: string, format: date-time }
+        deleted:                { type: boolean, example: false }
+        paqueteria:             { $ref: '#/components/schemas/Paqueteria' }
+
+    Guia:
+      type: object
+      properties:
+        id:         { type: integer, example: 15 }
+        idEnvio:    { type: integer, example: 7 }
+        numeroGuia: { type: string, example: "1234567890" }
+        estadoGuia: { type: string, nullable: true, example: "VINCULADA" }
+        fechaEnvio: { type: string, format: date-time }
+
+    # Representación de un envío. En los listados `paqueteria` NO viene a nivel raíz:
+    # llega anidada dentro de `cotizacion.paqueteria`.
+    Envio:
+      type: object
+      properties:
+        id:            { type: integer, example: 7 }
+        idCotizacion:  { type: integer, nullable: true, example: 42 }
+        idPaqueteria:  { type: integer, example: 1 }
+        usuario:       { type: string, example: "juan.perez@compucad.com.mx" }
+        unidadNegocio: { type: string, nullable: true, example: "GSA" }
+        estado:        { type: string, enum: [CREADO, TRANSITO, ENTREGADO], example: "CREADO" }
+        ciudadOrigen:  { type: string }
+        cpOrigen:      { type: string }
+        empresaOrigen: { type: string, nullable: true }
+        ciudadDestino: { type: string }
+        cpDestino:     { type: string }
+        empresaDestino: { type: string, nullable: true }
+        peso:          { type: number }
+        dimensiones:   { type: string, example: "width:30, height:20, length:10" }
+        costoEnvio:    { type: number, example: 0 }
+        impuestos:     { type: number, example: 0 }
+        serviceType:   { type: string, nullable: true }
+        comentarios:   { type: string, nullable: true }
+        fechaEnvio:    { type: string, format: date-time }
+        createdAt:     { type: string, format: date-time }
+        updatedAt:     { type: string, format: date-time }
+        deleted:       { type: boolean, example: false }
+        cotizacion:
+          allOf:
+            - $ref: '#/components/schemas/Cotizacion'
+          nullable: true
+          description: Cotización origen del envío (incluye su paquetería anidada)
+        guias:
+          type: array
+          items: { $ref: '#/components/schemas/Guia' }
+
+    ApiResponse:
+      type: object
+      properties:
+        status:  { type: integer }
+        message: { type: string }
+        data:    {}
+
+    Error:
+      type: object
+      properties:
+        status:  { type: integer }
+        message: { type: string }
+        error:   { type: string }
+
+# ── PATHS ──────────────────────────────────────────────────────────────────────
+paths:
+
+  /paqueterias:
+    get:
+      tags: [Paqueterías]
+      summary: Lista todas las paqueterías disponibles
+      description: Ordenadas alfabéticamente por `nombre`.
+      responses:
+        '200':
+          description: Lista de paqueterías
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Paqueteria' }
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+
+  /cotizar:
+    post:
+      tags: [Cotizaciones]
+      summary: Crear una cotización nueva
+      description: |
+        Registra una solicitud de cotización en estado **PENDIENTE**.
+        El campo `unidadNegocio` ahora lo selecciona el usuario en el formulario.
+
+        **Modalidades (`serviceType`):**
+        | Valor | Descripción |
+        |-------|-------------|
+        | `F`   | Flete — envío desde almacén |
+        | `R`   | Recolección — DHL/UPS recoge en origen del cliente |
+        | `RF`  | Recolección con flete — recoge y entrega a domicilio |
+        | `DE`  | Domicilio a Empresa |
+        | `EF`  | Empresa a Flete |
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CotizacionInput' }
+            examples:
+              envio_estandar:
+                summary: Envío empresa a empresa (EF)
+                value:
+                  usuario: "juan.perez@compucad.com.mx"
+                  unidadNegocio: "GSA"
+                  idPaqueteria: 1
+                  serviceType: "EF"
+                  peso: 2.5
+                  dimensiones: { width: 30, height: 20, length: 10 }
+                  cantidadPaquetes: 2
+                  tipoPaquete: "caja"
+                  objetosTraslado: "Laptops"
+                  ciudadOrigen: "Guadalajara"
+                  cpOrigen: "44100"
+                  calleOrigen: "Av. Vallarta 1234"
+                  coloniaOrigen: "Americana"
+                  telefonoOrigen: "3312345678"
+                  ciudadDestino: "Ciudad de México"
+                  cpDestino: "06600"
+                  calleDestino: "Insurgentes Sur 456"
+                  coloniaDestino: "Roma Norte"
+                  contactoDestinatario: "María García"
+                  telefonoDestino: "5512345678"
+                  isDaas: false
+              daas:
+                summary: Servicio DaaS
+                value:
+                  usuario: "juan.perez@compucad.com.mx"
+                  unidadNegocio: "Transformación Digital"
+                  idPaqueteria: 1
+                  serviceType: "RF"
+                  peso: 5.0
+                  dimensiones: { width: 50, height: 40, length: 30 }
+                  ciudadOrigen: "Querétaro"
+                  cpOrigen: "76000"
+                  ciudadDestino: "Monterrey"
+                  cpDestino: "64000"
+                  isDaas: true
+                  nombreProyectoDaas: "Proyecto Conecta 2026"
+                  solicitudTraslado: "SOL-2026-0042"
+      responses:
+        '201':
+          description: Cotización creada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Cotizacion' }
+        '500':
+          description: |
+            Error al crear la cotización. Incluye el caso de **campos requeridos faltantes**:
+            el servicio lanza `Faltan campos requeridos: ...` y el controlador lo devuelve como 500.
+            Requeridos: `usuario`, `idPaqueteria`, `unidadNegocio`, `serviceType`, `peso`,
+            `ciudadOrigen`, `cpOrigen`, `ciudadDestino`, `cpDestino`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+              example:
+                status: 500
+                message: "Error al crear cotización: Faltan campos requeridos: unidadNegocio, serviceType"
+                data: null
+
+  /cotizaciones:
+    get:
+      tags: [Cotizaciones]
+      summary: Listar cotizaciones por estado
+      description: |
+        Devuelve cotizaciones (con su `paqueteria` incluida), ordenadas por `fecha` descendente.
+        Si se omite `status` devuelve todas las no eliminadas (`deleted = false`).
+        Si se envía `status`, filtra por ese estado.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDIENTE, AUTORIZADA, RECHAZADA]
+          description: Si se omite, devuelve todas las no eliminadas
+      responses:
+        '200':
+          description: Lista de cotizaciones
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Cotizacion' }
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+
+  /cotizaciones/autorizar:
+    post:
+      tags: [Cotizaciones]
+      summary: Autorizar una cotización pendiente
+      description: |
+        Cambia el estado a **AUTORIZADA** y genera automáticamente un **Envío** en estado `CREADO`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, userAutorizer]
+              properties:
+                id:           { type: integer, example: 42 }
+                userAutorizer: { type: string,  example: "supervisor@compucad.com.mx" }
+      responses:
+        '200':
+          description: Cotización autorizada y envío creado
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: La cotización actualizada y el envío recién creado
+                        properties:
+                          cotizacion: { $ref: '#/components/schemas/Cotizacion' }
+                          envio:      { $ref: '#/components/schemas/Envio' }
+        '400':
+          description: Faltan `id` o `userAutorizer`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '500':
+          description: |
+            Cotización no encontrada, ya tiene un envío ligado, u otro error interno.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+
+  /cotizaciones/rechazar:
+    post:
+      tags: [Cotizaciones]
+      summary: Rechazar una cotización pendiente
+      description: |
+        Cambia el estado a **RECHAZADA** y envía automáticamente un correo al solicitante
+        con el **motivo del rechazo** y los datos de la cotización (incluida su fecha de creación).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, userAutorizer, motivoRechazo]
+              properties:
+                id:            { type: integer, example: 42 }
+                userAutorizer: { type: string,  example: "supervisor@compucad.com.mx" }
+                motivoRechazo: { type: string,  example: "Presupuesto excedido para este mes" }
+      responses:
+        '200':
+          description: Cotización rechazada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Cotizacion' }
+        '400':
+          description: Faltan `id`, `userAutorizer` o `motivoRechazo`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '500':
+          description: Error interno al rechazar la cotización
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+
+  /envios:
+    get:
+      tags: [Envíos]
+      summary: Listar todos los envíos activos
+      description: |
+        Devuelve los envíos no eliminados (`deleted = false`), ordenados por `fechaEnvio`
+        descendente. Cada envío incluye su `cotizacion` (con `paqueteria` anidada) y sus `guias`.
+      responses:
+        '200':
+          description: Lista de envíos
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Envio' }
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+
+  /envios/{idEnvio}:
+    put:
+      tags: [Envíos]
+      summary: Actualizar un envío
+      description: |
+        Actualiza campos de un envío. Cuando `updateData.estado` es **ENTREGADO**,
+        se envía automáticamente un correo de notificación al solicitante.
+        Si la paquetería es DHL, el correo incluye el historial de rastreo.
+      parameters:
+        - name: idEnvio
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [updateData]
+              properties:
+                updateData:
+                  type: object
+                  required: [guias]
+                  description: |
+                    Campos a actualizar. **`guias` es obligatorio**: el servicio lo recorre
+                    siempre (`for...of`), por lo que debe enviarse aunque sea como arreglo vacío
+                    `[]`; de lo contrario la petición falla. Cualquier guía nueva en el arreglo
+                    se vincula automáticamente al envío.
+                  properties:
+                    estado:
+                      type: string
+                      enum: [CREADO, TRANSITO, ENTREGADO]
+                      description: Si es ENTREGADO, se dispara el correo de notificación al solicitante.
+                    costoEnvio:  { type: number }
+                    impuestos:   { type: number }
+                    fechaEnvio:  { type: string, format: date-time }
+                    peso:        { type: number }
+                    typeService:
+                      type: string
+                      description: "Nombre de campo tal cual lo lee el servicio (NO `serviceType`)."
+                    comentarios: { type: string }
+                    dimensiones:
+                      type: object
+                      description: Objeto; se serializa a string al persistir.
+                      properties:
+                        width:  { type: number }
+                        height: { type: number }
+                        length: { type: number }
+                    guias:
+                      type: array
+                      description: Arreglo (puede ir vacío). Cada guía nueva se vincula al envío.
+                      items:
+                        type: object
+                        required: [numeroGuia]
+                        properties:
+                          numeroGuia: { type: string, example: "1234567890" }
+                          estadoGuia: { type: string, nullable: true, example: "VINCULADA" }
+            examples:
+              marcar_entregado:
+                summary: Marcar como ENTREGADO (dispara correo)
+                value:
+                  updateData:
+                    estado: "ENTREGADO"
+                    costoEnvio: 420.50
+                    impuestos: 67.28
+                    guias: []
+              vincular_guia_y_transito:
+                summary: Pasar a TRÁNSITO agregando guía
+                value:
+                  updateData:
+                    estado: "TRANSITO"
+                    guias:
+                      - numeroGuia: "1234567890"
+                        estadoGuia: "VINCULADA"
+      responses:
+        '200':
+          description: Envío actualizado (correo enviado si estado=ENTREGADO). Devuelve el envío con su cotización y guías.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Envio' }
+        '400':
+          description: Faltan `idEnvio` o `updateData`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '500':
+          description: |
+            ID inválido, `updateData.guias` ausente, guía duplicada en otro envío, u otro error interno.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+
+  /envios/guia:
+    post:
+      tags: [Envíos]
+      summary: Vincular una guía a un envío existente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idEnvio, numeroGuia]
+              properties:
+                idEnvio:    { type: integer, example: 7 }
+                numeroGuia: { type: string,  example: "1234567890" }
+      responses:
+        '200':
+          description: Guía vinculada
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Guia' }
+        '400':
+          description: Faltan `idEnvio` o `numeroGuia`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '500':
+          description: La guía ya está vinculada a otro envío, u otro error interno
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
