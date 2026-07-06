@@ -18,6 +18,7 @@ import computerUseRoutes from './agents/computerUse/routes/computerUse.routes.js
 import { isBridgeConnected, getConnectedBridges } from './agents/computerUse/computerUseBridge.service.js';
 import csfRoutes from './agents/csf/routes/csf.routes.js';
 import pruebasHudspotRoutes from './agents/Pruebas hudspot/routes/pruebasHudspot.routes.js';
+import labSeguridadRoutes from './agents/labSeguridad/routes/tracking.routes.js';
 import connectForecastRoutes from './agents/connectForecast/routes/connectForecast.routes.js';
 
 import catalogoRoutes from './agents/catalogo/routes/index.js';
@@ -131,6 +132,8 @@ app.get('/agente/computer-use/bridge/status', apiKeyAuth, (req, res) => {
 // Rutas Auth Entra (Bearer) para Copilot Studio
 app.use("/agente/copilot", entraJwtAuth, copilotRoutes);
 app.use("/agente/aria", ariaRoutes);
+// LAB de ciberseguridad (tracking pixel) — publico a proposito, sin API key.
+app.use("/lab", labSeguridadRoutes);
 // Aplicar autenticación a todas las rutas protegidas
 app.use(apiKeyAuth);
 

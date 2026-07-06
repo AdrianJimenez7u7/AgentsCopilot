@@ -12,12 +12,14 @@ export class SapController {
      */
     static async getItems(req, res) {
         try {
-            const { search, itemGroup, top, skip, fetchAll } = req.query;
+            const { search, itemGroup, top, skip, fetchAll, withStock, warehouseCode } = req.query;
             const session = await SapService.login();
             const data = await SapService.getItems(session, {
                 search,
                 itemGroup,
                 fetchAll: fetchAll === 'true',
+                withStock: withStock === 'true',
+                warehouseCode,
                 top:  top  ? parseInt(top)  : 20,
                 skip: skip ? parseInt(skip) : 0
             });

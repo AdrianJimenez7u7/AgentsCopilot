@@ -74,13 +74,15 @@ export class SapService {
      * @param {number}  [opts.top=20]    - Máximo de registros a retornar
      * @param {number}  [opts.skip=0]    - Paginación
      */
-    static async getItems(session, { search, itemGroup, top = 20, skip = 0, fetchAll = false } = {}) {
+    static async getItems(session, { search, itemGroup, top = 20, skip = 0, fetchAll = false, withStock = false, warehouseCode } = {}) {
         const filters = [];
         if (search) {
-            filters.push(`(contains(ItemCode,'${search}') or contains(ItemName,'${search}'))`);
+            const safe = search.replace(/'/g, "''");
+            filters.push(`(contains(ItemCode,'${safe}') or contains(ItemName,'${safe}'))`);
         }
         if (itemGroup) {
-            filters.push(`ItemsGroupCode eq ${itemGroup}`);
+            const group = parseInt(itemGroup);
+            if (!isNaN(group)) filters.push(`ItemsGroupCode eq ${group}`);
         }
 
         const staticParams = [
@@ -89,9 +91,30 @@ export class SapService {
             `$orderby=ItemCode asc`
         ].filter(Boolean).join('&');
 
+        const STOCK_FIELDS = ['WarehouseCode', 'InStock', 'Committed', 'Ordered'];
+        const pickStockFields = (w) => Object.fromEntries(STOCK_FIELDS.map(k => [k, w[k]]));
+
+        const enrichWithStock = async (items) => {
+            return Promise.all(items.map(async (item) => {
+                try {
+                    const res = await axios.get(
+                        `${process.env.SAP_BASE_URL}Items('${encodeURIComponent(item.ItemCode)}')/ItemWarehouseInfoCollection`,
+                        { headers: { 'Cookie': `B1SESSION=${session.SessionId}` }, httpsAgent }
+                    );
+                    let warehouses = (res.data?.ItemWarehouseInfoCollection ?? []).map(pickStockFields);
+                    if (warehouseCode) warehouses = warehouses.filter(w => w.WarehouseCode === warehouseCode);
+                    return { ...item, ItemWarehouseInfoCollection: warehouses };
+                } catch (err) {
+                    console.error(`[SAP] ItemWarehouseInfoCollection error para ${item.ItemCode}:`, err.response?.data ?? err.message);
+                    return { ...item, ItemWarehouseInfoCollection: [] };
+                }
+            }));
+        };
+
         try {
             if (fetchAll) {
-                const value = await this._fetchAllPages(session, `${process.env.SAP_BASE_URL}Items?${staticParams}`);
+                const raw = await this._fetchAllPages(session, `${process.env.SAP_BASE_URL}Items?${staticParams}`);
+                const value = withStock ? await enrichWithStock(raw) : raw;
                 return { value };
             }
 
@@ -100,6 +123,11 @@ export class SapService {
                 headers: { 'Cookie': `B1SESSION=${session.SessionId}` },
                 httpsAgent
             });
+
+            if (withStock && response.data?.value) {
+                response.data.value = await enrichWithStock(response.data.value);
+            }
+
             return response.data;
         } catch (error) {
             console.error('Error al obtener Items de SAP:', error.response?.data ?? error.message);
@@ -220,36 +248,44 @@ export class SapService {
     static async getItemsStock(session, { search, itemGroup, warehouseCode, top = 20, skip = 0, fetchAll = false } = {}) {
         const filters = [];
         if (search) {
-            filters.push(`(contains(ItemCode,'${search}') or contains(ItemName,'${search}'))`);
+            const safe = search.replace(/'/g, "''");
+            filters.push(`(contains(ItemCode,'${safe}') or contains(ItemName,'${safe}'))`);
         }
         if (itemGroup) {
-            filters.push(`ItemsGroupCode eq ${itemGroup}`);
+            const group = parseInt(itemGroup);
+            if (!isNaN(group)) filters.push(`ItemsGroupCode eq ${group}`);
         }
-
-        const expandFilter = warehouseCode
-            ? `ItemWarehouseInfoCollection($filter=WarehouseCode eq '${warehouseCode}';$select=WarehouseCode,InStock,Committed,Ordered)`
-            : `ItemWarehouseInfoCollection($select=WarehouseCode,InStock,Committed,Ordered)`;
 
         const staticParams = [
             filters.length ? `$filter=${filters.join(' and ')}` : '',
             `$select=ItemCode,ItemName,ItemType,ItemsGroupCode`,
-            `$expand=${expandFilter}`,
             `$orderby=ItemCode asc`
         ].filter(Boolean).join('&');
 
-        const applyWarehouseFilter = (items) => {
-            if (!warehouseCode) return items;
-            return items.map(item => ({
-                ...item,
-                ItemWarehouseInfoCollection: (item.ItemWarehouseInfoCollection ?? [])
-                    .filter(w => w.WarehouseCode === warehouseCode)
+        const STOCK_FIELDS = ['WarehouseCode', 'InStock', 'Committed', 'Ordered'];
+        const pickStockFields = (w) => Object.fromEntries(STOCK_FIELDS.map(k => [k, w[k]]));
+
+        const enrichWithStock = async (items) => {
+            return Promise.all(items.map(async (item) => {
+                try {
+                    const res = await axios.get(
+                        `${process.env.SAP_BASE_URL}Items('${encodeURIComponent(item.ItemCode)}')/ItemWarehouseInfoCollection`,
+                        { headers: { 'Cookie': `B1SESSION=${session.SessionId}` }, httpsAgent }
+                    );
+                    let warehouses = (res.data?.ItemWarehouseInfoCollection ?? []).map(pickStockFields);
+                    if (warehouseCode) warehouses = warehouses.filter(w => w.WarehouseCode === warehouseCode);
+                    return { ...item, ItemWarehouseInfoCollection: warehouses };
+                } catch (err) {
+                    console.error(`[SAP] ItemWarehouseInfoCollection error para ${item.ItemCode}:`, err.response?.data ?? err.message);
+                    return { ...item, ItemWarehouseInfoCollection: [] };
+                }
             }));
         };
 
         try {
             if (fetchAll) {
                 const raw = await this._fetchAllPages(session, `${process.env.SAP_BASE_URL}Items?${staticParams}`);
-                return { value: applyWarehouseFilter(raw) };
+                return { value: await enrichWithStock(raw) };
             }
 
             const params = `${staticParams}&$top=${top}&$skip=${skip}`;
@@ -259,7 +295,7 @@ export class SapService {
             });
 
             if (response.data?.value) {
-                response.data.value = applyWarehouseFilter(response.data.value);
+                response.data.value = await enrichWithStock(response.data.value);
             }
 
             return response.data;
