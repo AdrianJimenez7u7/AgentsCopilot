@@ -7,82 +7,10 @@
 @baseUrl = http://localhost:3000
 @apiKey = {{$dotenv API_KEY}}
 
-### Quien tiene mas oportunidades
 POST {{baseUrl}}/agente/connect-forecast/query
 Content-Type: application/json
 x-api-key: {{apiKey}}
 
 {
-  "question": "Quien tiene mas oportunidades?",
-  "limit": 10
-}
-
-### Quien tiene menos oportunidades abiertas
-POST {{baseUrl}}/agente/connect-forecast/query
-Content-Type: application/json
-x-api-key: {{apiKey}}
-
-{
-  "question": "Quien tiene menos oportunidades abiertas?",
-  "limit": 10
-}
-
-### Cuantas oportunidades abiertas hay en el ultimo mes
-POST {{baseUrl}}/agente/connect-forecast/query
-Content-Type: application/json
-x-api-key: {{apiKey}}
-
-{
-  "question": "Cuantas oportunidades abiertas hay en el ultimo mes?"
-}
-
-### Cuantas oportunidades perdidas hay
-POST {{baseUrl}}/agente/connect-forecast/query
-Content-Type: application/json
-x-api-key: {{apiKey}}
-
-{
-  "question": "Cuantas oportunidades perdidas hay?"
-}
-
-### Que area tiene mas oportunidades
-POST {{baseUrl}}/agente/connect-forecast/query
-Content-Type: application/json
-x-api-key: {{apiKey}}
-
-{
-  "question": "Que area tiene mas oportunidades?",
-  "limit": 10
-}
-
-### Valor estimado por responsable en areas especificas
-POST {{baseUrl}}/agente/connect-forecast/query
-Content-Type: application/json
-x-api-key: {{apiKey}}
-
-{
-  "question": "Quien tiene mas valor estimado en oportunidades abiertas?",
-  "areas": "INFRAESTRUCTURA GOB, INFRAESTRUCTURA IP",
-  "limit": 10
-}
-
-### Pregunta no relacionada con oportunidades
-POST {{baseUrl}}/agente/connect-forecast/query
-Content-Type: application/json
-x-api-key: {{apiKey}}
-
-{
-  "question": "Cual es el clima en Japon manana?"
-}
-
-### Pregunta valida sin datos coincidentes
-POST {{baseUrl}}/agente/connect-forecast/query
-Content-Type: application/json
-x-api-key: {{apiKey}}
-
-{
-  "question": "Cuantas oportunidades abiertas hay este mes?",
-  "areas": "INFRAESTRUCTURA GOB",
-  "createdFrom": "2099-01-01T00:00:00Z",
-  "createdTo": "2099-12-31T23:59:59Z"
+  "question": "¿Cuántas oportunidades de SA se ganaron en Junio?"
 }

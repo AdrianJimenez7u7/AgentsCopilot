@@ -11,7 +11,13 @@ const DEFAULT_OPPORTUNITY_SELECT = [
   'createdon',
   'modifiedon',
   '_customerid_value',
-  '_ownerid_value'
+  '_ownerid_value',
+  'cad_utilidad',
+  'cad_bigdeal',
+  'cr2bd_tipodecontrato',
+  '_cad_tipodeproyecto_value',
+  'cad_cantidad1',
+  'new_costohardware'
 ].join(',');
 
 const OPPORTUNITY_FILTER_FIELDS = new Set([
@@ -32,16 +38,35 @@ const OPPORTUNITY_FILTER_FIELDS = new Set([
   '_parentaccountid_value',
   '_parentcontactid_value',
   'customerid',
-  'ownerid'
+  'ownerid',
+  'cad_utilidad',
+  'cad_bigdeal',
+  'cr2bd_tipodecontrato',
+  '_cad_tipodeproyecto_value',
+  'cad_cantidad1',
+  'new_costohardware'
 ]);
 
-const EXCLUDED_BUSINESS_UNIT_NAMES = new Set([
-  'MICROSOFT',
-  'COMPUCLOUD',
-  'GESTION DE TALENTO',
-  'ADOBE',
-  'AUTODESK',
-  'MENSAJERIA'
+// "SA" / "Servicios Administrados" (linea de DaaS/arrendamiento de equipo): pagina de
+// forecast filtrada por estos Tipo de Proyecto exactos. Confirmado 1:1 contra el reporte
+// de PBI (conteo, venta, utilidad, # de equipos y costo de hardware coinciden exacto).
+const SA_TIPO_PROYECTO_NAMES = [
+  'INFRA-DaaS',
+  'SA Apple',
+  'Póliza SA CDH',
+  'SA Gobierno',
+  'SA Mov',
+  'SAI',
+  'SAI-BI (Big Impression)'
+];
+
+// Formas en que el negocio se refiere al segmento SA; cualquiera de estas se resuelve
+// al mismo grupo de Tipo de Proyecto de arriba.
+const SA_SEGMENT_ALIASES = new Set([
+  'SA',
+  'SERVICIOS ADMINISTRADOS',
+  'SERVICIO ADMINISTRADO',
+  'SOLUCIONES ADMINISTRADAS'
 ]);
 
 function escapeODataString(value) {
@@ -64,14 +89,62 @@ function normalizeBusinessUnitName(value) {
     .toUpperCase();
 }
 
-function isExcludedBusinessUnitName(value) {
-  const normalized = normalizeBusinessUnitName(value);
-  return normalized.startsWith('ERROR') || EXCLUDED_BUSINESS_UNIT_NAMES.has(normalized);
+// Distancia de edición simple (Levenshtein) para tolerar typos al buscar por nombre
+// (ej. "infraestrcutura ip" -> "INFRAESTRUCTURA IP").
+function levenshteinDistance(a, b) {
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const distances = Array.from({ length: rows }, (_, i) => {
+    const row = new Array(cols).fill(0);
+    row[0] = i;
+    return row;
+  });
+
+  for (let j = 1; j < cols; j += 1) {
+    distances[0][j] = j;
+  }
+
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      distances[i][j] = Math.min(
+        distances[i - 1][j] + 1,
+        distances[i][j - 1] + 1,
+        distances[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return distances[rows - 1][cols - 1];
 }
 
-function parseBusinessUnitInput(value) {
+// Encuentra la mejor coincidencia difusa contra una lista de candidatos ya normalizados.
+// Devuelve null si el mejor candidato no supera el umbral de similitud (25% de la longitud).
+function findClosestMatch(requestedNormalized, candidates) {
+  let best = null;
+  let bestDistance = Infinity;
+
+  for (const candidate of candidates) {
+    const distance = levenshteinDistance(requestedNormalized, candidate.normalized);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = candidate;
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  const maxLength = Math.max(requestedNormalized.length, best.normalized.length) || 1;
+  const threshold = Math.max(2, Math.ceil(maxLength * 0.25));
+
+  return bestDistance <= threshold ? { ...best, distance: bestDistance } : null;
+}
+
+function parseListInput(value) {
   if (Array.isArray(value)) {
-    return value.flatMap(parseBusinessUnitInput);
+    return value.flatMap(parseListInput);
   }
 
   if (value === undefined || value === null) {
@@ -135,6 +208,7 @@ export class ConnectForecastDataverseService {
       || 'https://ccad.api.crm.dynamics.com/api/data/v9.2';
     this.scope = `${new URL(this.webApiUrl).origin}/.default`;
     this.businessUnitsCache = null;
+    this.tipoProyectosCache = null;
   }
 
   validateConfig() {
@@ -172,12 +246,17 @@ export class ConnectForecastDataverseService {
     return data.access_token;
   }
 
-  buildOpportunityParams(query = {}) {
+  buildOpportunityParams(query = {}, { skipTop = false } = {}) {
     const params = new URLSearchParams();
     const filters = [];
 
     params.set('$select', normalizeQueryValue(query.select) || normalizeQueryValue(query.$select) || DEFAULT_OPPORTUNITY_SELECT);
-    params.set('$top', String(parseTop(normalizeQueryValue(query.top) || normalizeQueryValue(query.$top))));
+    // Dataverse no incluye @odata.nextLink cuando se manda $top, asi que las consultas que
+    // necesitan paginar todo el resultado (getAllOpportunities) deben omitirlo y controlar
+    // el tamano de pagina con el header Prefer: odata.maxpagesize en su lugar.
+    if (!skipTop) {
+      params.set('$top', String(parseTop(normalizeQueryValue(query.top) || normalizeQueryValue(query.$top))));
+    }
 
     const orderBy = normalizeQueryValue(query.orderby) || normalizeQueryValue(query.orderBy) || normalizeQueryValue(query.$orderby);
     if (orderBy) {
@@ -212,11 +291,6 @@ export class ConnectForecastDataverseService {
     const customerId = normalizeQueryValue(query.customerId);
     if (customerId) {
       filters.push(buildComparison('_customerid_value', 'eq', customerId));
-    }
-
-    const ownerId = normalizeQueryValue(query.ownerId);
-    if (ownerId) {
-      filters.push(buildComparison('_ownerid_value', 'eq', ownerId));
     }
 
     const statusCode = normalizeQueryValue(query.statuscode) || normalizeQueryValue(query.statusCode);
@@ -259,7 +333,12 @@ export class ConnectForecastDataverseService {
       filters.push(buildComparison('estimatedvalue', 'le', maxEstimatedValue));
     }
 
-    const businessUnitIds = parseBusinessUnitInput(query.businessUnitIds || query.businessUnitId);
+    const avance = normalizeQueryValue(query.avance) ?? normalizeQueryValue(query.closeprobability);
+    if (avance !== undefined && avance !== null && avance !== '') {
+      filters.push(buildComparison('closeprobability', 'eq', avance));
+    }
+
+    const businessUnitIds = parseListInput(query.businessUnitIds || query.businessUnitId);
     if (businessUnitIds.length) {
       const businessUnitFilters = businessUnitIds
         .filter(isGuid)
@@ -270,6 +349,38 @@ export class ConnectForecastDataverseService {
       }
     }
 
+    const ownerIds = parseListInput(query.ownerIds || query.ownerId);
+    if (ownerIds.length) {
+      const ownerFilters = ownerIds
+        .filter(isGuid)
+        .map((ownerId) => `_ownerid_value eq ${ownerId}`);
+
+      if (ownerFilters.length) {
+        filters.push(`(${ownerFilters.join(' or ')})`);
+      }
+    }
+
+    const tipoProyectoIds = parseListInput(query.tipoProyectoIds || query.tipoProyectoId);
+    if (tipoProyectoIds.length) {
+      const tipoProyectoFilters = tipoProyectoIds
+        .filter(isGuid)
+        .map((tipoProyectoId) => `_cad_tipodeproyecto_value eq ${tipoProyectoId}`);
+
+      if (tipoProyectoFilters.length) {
+        filters.push(`(${tipoProyectoFilters.join(' or ')})`);
+      }
+    }
+
+    const tipoContrato = normalizeQueryValue(query.tipoContrato) ?? normalizeQueryValue(query.cr2bd_tipodecontrato);
+    if (tipoContrato !== undefined && tipoContrato !== null && tipoContrato !== '') {
+      filters.push(buildComparison('cr2bd_tipodecontrato', 'eq', tipoContrato));
+    }
+
+    const esBigDeal = normalizeQueryValue(query.esBigDeal) ?? normalizeQueryValue(query.cad_bigdeal);
+    if (esBigDeal !== undefined && esBigDeal !== null && esBigDeal !== '') {
+      filters.push(`cad_bigdeal eq ${esBigDeal === true || esBigDeal === 'true' ? 'true' : 'false'}`);
+    }
+
     const cleanFilters = filters.filter(Boolean);
     if (cleanFilters.length) {
       params.set('$filter', cleanFilters.join(' and '));
@@ -278,11 +389,9 @@ export class ConnectForecastDataverseService {
     return params;
   }
 
-  async getBusinessUnits({ includeExcluded = false } = {}) {
+  async getBusinessUnits() {
     if (this.businessUnitsCache) {
-      return includeExcluded
-        ? this.businessUnitsCache
-        : this.businessUnitsCache.filter((unit) => !isExcludedBusinessUnitName(unit.name));
+      return this.businessUnitsCache;
     }
 
     const token = await this.getAccessToken();
@@ -309,43 +418,192 @@ export class ConnectForecastDataverseService {
     const data = await response.json();
     this.businessUnitsCache = data.value || [];
 
-    return includeExcluded
-      ? this.businessUnitsCache
-      : this.businessUnitsCache.filter((unit) => !isExcludedBusinessUnitName(unit.name));
+    return this.businessUnitsCache;
   }
 
   async resolveBusinessUnitIds(values) {
-    const requestedNames = parseBusinessUnitInput(values);
+    const requestedNames = parseListInput(values);
 
     if (!requestedNames.length) {
       return [];
     }
 
-    const excluded = requestedNames.filter(isExcludedBusinessUnitName);
-    if (excluded.length) {
-      throw new Error(`Areas no permitidas para este filtro: ${excluded.join(', ')}`);
-    }
-
-    const businessUnits = await this.getBusinessUnits({ includeExcluded: false });
-    const byName = new Map(
-      businessUnits.map((unit) => [normalizeBusinessUnitName(unit.name), unit])
-    );
+    const businessUnits = await this.getBusinessUnits();
+    const candidates = businessUnits.map((unit) => ({
+      id: unit.businessunitid,
+      name: unit.name,
+      normalized: normalizeBusinessUnitName(unit.name)
+    }));
+    const byName = new Map(candidates.map((candidate) => [candidate.normalized, candidate]));
 
     const notFound = [];
     const ids = [];
 
     for (const requestedName of requestedNames) {
-      const unit = byName.get(normalizeBusinessUnitName(requestedName));
-      if (!unit) {
+      const normalizedRequest = normalizeBusinessUnitName(requestedName);
+      const exact = byName.get(normalizedRequest);
+
+      if (exact) {
+        ids.push(exact.id);
+        continue;
+      }
+
+      // Sin coincidencia exacta: tolerar typos con la coincidencia mas cercana.
+      const closest = findClosestMatch(normalizedRequest, candidates);
+      if (closest) {
+        ids.push(closest.id);
+        continue;
+      }
+
+      const suggestions = [...candidates]
+        .map((candidate) => ({ candidate, distance: levenshteinDistance(normalizedRequest, candidate.normalized) }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 3)
+        .map(({ candidate }) => candidate.name);
+
+      notFound.push(suggestions.length ? `"${requestedName}" (¿quisiste decir: ${suggestions.join(', ')}?)` : `"${requestedName}"`);
+    }
+
+    if (notFound.length) {
+      throw new Error(`No se encontraron areas validas en Dataverse: ${notFound.join('; ')}`);
+    }
+
+    return [...new Set(ids)];
+  }
+
+  async getTipoProyectos() {
+    if (this.tipoProyectosCache) {
+      return this.tipoProyectosCache;
+    }
+
+    const token = await this.getAccessToken();
+    const rows = [];
+    let url = `${this.webApiUrl}/cad_tipodeproyectos?${new URLSearchParams({
+      '$select': 'cad_tipodeproyectoid,cad_tipodeproyecto',
+      '$orderby': 'cad_tipodeproyecto asc'
+    }).toString()}`;
+
+    while (url) {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'OData-MaxVersion': '4.0',
+          'OData-Version': '4.0',
+          Prefer: 'odata.maxpagesize=500'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error obteniendo tipos de proyecto: ${response.status} ${response.statusText} - ${await response.text()}`);
+      }
+
+      const data = await response.json();
+      rows.push(...(data.value || []));
+      url = data['@odata.nextLink'] || null;
+    }
+
+    this.tipoProyectosCache = rows;
+    return rows;
+  }
+
+  async resolveTipoProyectoIds(values) {
+    const requestedNames = parseListInput(values).flatMap((name) => {
+      // Atajo de negocio: "SA" / "Servicios Administrados" agrupa la linea de
+      // DaaS/arrendamiento de equipo, que en Dataverse corresponde a estos Tipo de
+      // Proyecto exactos (ver SA_TIPO_PROYECTO_NAMES).
+      if (SA_SEGMENT_ALIASES.has(normalizeBusinessUnitName(name))) {
+        return SA_TIPO_PROYECTO_NAMES;
+      }
+      return [name];
+    });
+
+    if (!requestedNames.length) {
+      return [];
+    }
+
+    const tipos = await this.getTipoProyectos();
+    const candidates = tipos.map((tipo) => ({
+      id: tipo.cad_tipodeproyectoid,
+      name: tipo.cad_tipodeproyecto,
+      normalized: normalizeBusinessUnitName(tipo.cad_tipodeproyecto)
+    }));
+    const byName = new Map(candidates.map((candidate) => [candidate.normalized, candidate]));
+
+    const notFound = [];
+    const ids = [];
+
+    for (const requestedName of requestedNames) {
+      const normalizedRequest = normalizeBusinessUnitName(requestedName);
+      const exact = byName.get(normalizedRequest);
+
+      if (exact) {
+        ids.push(exact.id);
+        continue;
+      }
+
+      const closest = findClosestMatch(normalizedRequest, candidates);
+      if (closest) {
+        ids.push(closest.id);
+        continue;
+      }
+
+      notFound.push(`"${requestedName}"`);
+    }
+
+    if (notFound.length) {
+      throw new Error(`No se encontraron tipos de proyecto validos en Dataverse: ${notFound.join(', ')}`);
+    }
+
+    return [...new Set(ids)];
+  }
+
+  async resolveOwnerIds(values) {
+    const requestedNames = parseListInput(values);
+
+    if (!requestedNames.length) {
+      return [];
+    }
+
+    const token = await this.getAccessToken();
+    const notFound = [];
+    const ids = [];
+
+    for (const requestedName of requestedNames) {
+      const params = new URLSearchParams({
+        '$select': 'systemuserid,fullname',
+        '$filter': `contains(fullname,'${escapeODataString(requestedName)}') and isdisabled eq false`,
+        '$top': '10'
+      });
+
+      const response = await fetch(`${this.webApiUrl}/systemusers?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'OData-MaxVersion': '4.0',
+          'OData-Version': '4.0'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error buscando ejecutivo "${requestedName}": ${response.status} ${response.statusText} - ${await response.text()}`);
+      }
+
+      const data = await response.json();
+      const matches = data.value || [];
+
+      if (!matches.length) {
         notFound.push(requestedName);
         continue;
       }
 
-      ids.push(unit.businessunitid);
+      matches.forEach((match) => ids.push(match.systemuserid));
     }
 
     if (notFound.length) {
-      throw new Error(`No se encontraron areas validas en Dataverse: ${notFound.join(', ')}`);
+      throw new Error(`No se encontro ningun ejecutivo/responsable con el nombre: ${notFound.join(', ')}`);
     }
 
     return [...new Set(ids)];
@@ -360,16 +618,31 @@ export class ConnectForecastDataverseService {
       || input.businessUnits
       || input.businessUnitNames;
 
-    if (!businessUnitNames) {
-      return input;
+    const ownerNames = input.ownerNames || input.ownerName;
+
+    const tipoProyectoNames = input.tipoProyecto
+      || input.tipoProyectos
+      || input.projectType
+      || input.segment;
+
+    let output = input;
+
+    if (businessUnitNames) {
+      const businessUnitIds = await this.resolveBusinessUnitIds(businessUnitNames);
+      output = { ...output, businessUnitIds };
     }
 
-    const businessUnitIds = await this.resolveBusinessUnitIds(businessUnitNames);
+    if (ownerNames) {
+      const ownerIds = await this.resolveOwnerIds(ownerNames);
+      output = { ...output, ownerIds };
+    }
 
-    return {
-      ...input,
-      businessUnitIds
-    };
+    if (tipoProyectoNames) {
+      const tipoProyectoIds = await this.resolveTipoProyectoIds(tipoProyectoNames);
+      output = { ...output, tipoProyectoIds };
+    }
+
+    return output;
   }
 
   async getOpportunities(query = {}) {
@@ -397,10 +670,7 @@ export class ConnectForecastDataverseService {
   async getAllOpportunities(query = {}, { maxRows = 5000 } = {}) {
     const token = await this.getAccessToken();
     const normalizedQuery = await this.buildOpportunityQuery(query);
-    const params = this.buildOpportunityParams({
-      ...normalizedQuery,
-      top: Math.min(maxRows, 500)
-    });
+    const params = this.buildOpportunityParams(normalizedQuery, { skipTop: true });
     const rows = [];
     let url = `${this.webApiUrl}/opportunities?${params.toString()}`;
 
@@ -412,7 +682,7 @@ export class ConnectForecastDataverseService {
           'Content-Type': 'application/json',
           'OData-MaxVersion': '4.0',
           'OData-Version': '4.0',
-          Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
+          Prefer: `odata.include-annotations="OData.Community.Display.V1.FormattedValue",odata.maxpagesize=${Math.min(maxRows, 500)}`
         }
       });
 
