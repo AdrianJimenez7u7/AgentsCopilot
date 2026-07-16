@@ -1,0 +1,36 @@
+kind: AdaptiveDialog
+modelDescription: Consulta oportunidades de Connect Forecast en Dataverse usando lenguaje natural
+beginDialog:
+  kind: OnRecognizedIntent
+  id: main_trigger
+  intent: {}
+  actions:
+    - kind: HttpRequestAction
+      id: consultar_connect_forecast
+      displayName: Consultar Connect Forecast
+      method: Post
+      url: https://hubbin-api-e6dkcrd0gjb8crh5.southcentralus-01.azurewebsites.net/agente/connect-forecast/query
+      headers:
+        x-api-key: 6tk_LgQwdsEF6vFAI-LDObPQmsqv29OB
+
+      body:
+        kind: JsonRequestContent
+        content: |-
+          ={
+            question: System.Activity.Text,
+            limit: 10,
+            includeCard: true
+          }
+
+      response: Topic.ConnectForecastResponse
+      responseSchema: Any
+      responseHeaders: Topic.ConnectForecastResponseHeaders
+
+    - kind: SendActivity
+      id: sendActivity_tarjeta
+      activity:
+        text:
+          -
+        attachments:
+          - kind: AdaptiveCardTemplate
+            cardContent: =JSON(Topic.ConnectForecastResponse.uiMessage)

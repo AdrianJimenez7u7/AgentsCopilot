@@ -4,6 +4,9 @@ function getErrorStatusCode(error) {
   return error.message?.includes('Areas no permitidas')
     || error.message?.includes('No se encontraron areas validas')
     || error.message?.includes('Falta question')
+    || error.message?.includes('filtro')
+    || error.message?.includes('estatus')
+    || error.message?.includes('ejecutivo')
     ? 400
     : 500;
 }
