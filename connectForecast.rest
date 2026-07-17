@@ -12,5 +12,5 @@ Content-Type: application/json
 x-api-key: {{apiKey}}
 
 {
-  "question": "¿Cuántas oportunidades de SA se ganaron en Junio?"
+  "question": "¿Cuántas oportunidades de SA se ganaron en Junio de alma?"
 }
