@@ -3,6 +3,8 @@
 # npm run dev
 #
 # La extension REST Client puede leer TokenHudspot desde .env con {{$dotenv TokenHudspot}}.
+# Nota: "nivel" no se pide en el body, se infiere automaticamente con IA a partir
+# de datos como "puesto" y "empresa".
 
 @baseUrl = http://localhost:3000
 @token = {{$dotenv TokenHudspot}}
@@ -13,16 +15,13 @@ Content-Type: application/json
 x-api-key: {{token}}
 
 {
-  "cliente": {
-    "nombre": "Juan Perez",
-    "empresa": "Constructora ABC",
-    "correo": "juan.perez@abc.com",
-    "telefono": "5512345678",
-    "puesto": "Gerente de TI",
-    "nivel": "Directivo",
-    "direccion": "Av. Reforma 123, CDMX",
-    "tamanoEmpresa": "51-200 empleados"
-  },
+  "nombre": "Juan Perez",
+  "empresa": "Constructora ABC",
+  "correo": "juan.perez@abc.com",
+  "telefono": "5512345678",
+  "puesto": "Gerente de TI",
+  "direccion": "Av. Reforma 123, CDMX",
+  "tamanoEmpresa": "51-200 empleados",
   "interes": "Licencias de Autodesk AutoCAD para 10 usuarios"
 }
 
@@ -32,11 +31,9 @@ Content-Type: application/json
 x-api-key: {{token}}
 
 {
-  "cliente": {
-    "nombre": "Juan Perez",
-    "empresa": "Constructora ABC",
-    "correo": "juan.perez@abc.com",
-    "telefono": "5512345678"
-  },
+  "nombre": "Juan Perez",
+  "empresa": "Constructora ABC",
+  "correo": "juan.perez@abc.com",
+  "telefono": "5512345678",
   "descripcionTicket": "No puedo activar mi licencia de Copilot, me marca error de activacion desde ayer."
 }
