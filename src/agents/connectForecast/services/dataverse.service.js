@@ -338,6 +338,11 @@ export class ConnectForecastDataverseService {
       filters.push(buildComparison('closeprobability', 'eq', avance));
     }
 
+    const minAvance = normalizeQueryValue(query.minAvance) ?? normalizeQueryValue(query.avanceMinimo);
+    if (minAvance !== undefined && minAvance !== null && minAvance !== '') {
+      filters.push(buildComparison('closeprobability', 'ge', minAvance));
+    }
+
     const businessUnitIds = parseListInput(query.businessUnitIds || query.businessUnitId);
     if (businessUnitIds.length) {
       const businessUnitFilters = businessUnitIds

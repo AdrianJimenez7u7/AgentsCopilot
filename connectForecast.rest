@@ -7,10 +7,94 @@
 @baseUrl = http://localhost:3000
 @apiKey = {{$dotenv API_KEY}}
 
+### =========================================================
+### Reglas de negocio del informe de forecast ("Dame el forecast"):
+### - Ventana fija: mes en curso + 3 meses a futuro (de aqui a 3 meses como nos va).
+### - Solo cuenta como "forecast" a partir de 50% de avance para arriba.
+### - Tipo de contrato: "Nuevo" y "Anexo" se manejan igual cuando se pregunta por Nuevo.
+### - Se puede acotar por tipo de proyecto (ej. "de SA", "de INFRA-COMPUTO").
+### - Secciones: resumen (que tienes de hoy), nuevo, renovacion, top 3 vendedores,
+###   proximos cierres, fechas vencidas (cierre estimado ya paso y sigue abierta).
+### =========================================================
+
+### [Automatico] "Dame el forecast" -> informe completo, todas las UN/tipos de proyecto
 POST {{baseUrl}}/agente/connect-forecast/query
 Content-Type: application/json
 x-api-key: {{apiKey}}
 
 {
-  "question": "¿Cuántas oportunidades de SA se ganaron en Junio de alma?"
+  "question": "Dame el forecast"
+}
+
+### [Automatico] "Dame el forecast de SA" -> informe completo acotado al segmento SA
+POST {{baseUrl}}/agente/connect-forecast/query
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "question": "Dame el forecast de SA"
+}
+
+### [Automatico] Sinonimos del disparador de informe ("informe"/"reporte")
+POST {{baseUrl}}/agente/connect-forecast/query
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "question": "Necesito el reporte completo de INFRA-COMPUTO"
+}
+
+### [Manual] Forzar modo informe explicito via body, aunque la pregunta no diga "forecast"
+POST {{baseUrl}}/agente/connect-forecast/query
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "question": "Que hay para SAI",
+  "report": true,
+  "tipoProyecto": "SAI"
+}
+
+### [Manual] Informe acotado por ejecutivo
+POST {{baseUrl}}/agente/connect-forecast/query
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "question": "Dame el forecast",
+  "owner": "Alejandra Arambula"
+}
+
+### [Manual] Informe con umbral de avance distinto al default (50%) para comparar
+POST {{baseUrl}}/agente/connect-forecast/query
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "question": "Dame el forecast de SA",
+  "minAvance": 0
+}
+
+### [Manual] Informe con tarjeta adaptativa para Copilot Studio
+POST {{baseUrl}}/agente/connect-forecast/query
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "question": "Dame el forecast de SA",
+  "includeCard": true
+}
+
+### =========================================================
+### Consultas individuales (siguen funcionando igual que antes,
+### el modo informe es adicional, no reemplaza esto).
+### =========================================================
+
+### [Automatico] Pregunta individual por tipo de proyecto y estado
+POST {{baseUrl}}/agente/connect-forecast/query
+Content-Type: application/json
+x-api-key: {{apiKey}}
+
+{
+  "question": "¿Cuántas oportunidades hay en curso para el tipo de proyecto INFRA-DaaS?"
 }
