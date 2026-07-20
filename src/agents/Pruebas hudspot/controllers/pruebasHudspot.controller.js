@@ -107,9 +107,16 @@ function getRequestInspection(req) {
   };
 }
 
+function findMissingField(fields) {
+  return Object.entries(fields).find(([, value]) => !value);
+}
+
+function correoFueEnviado(email) {
+  return Boolean(email?.accepted?.length) && !email?.rejected?.length;
+}
+
 export class PruebasHudspotController {
-  static async registrarInteres(req, res) {
-    const body = req.body ?? {};
+  static authenticate(req, res) {
     const tokenFromXHudspot = req.headers['x-hudspot-token'];
     const tokenFromTokenHudspot = req.headers['tokenhudspot'];
     const tokenFromApiKey = req.headers['x-api-key'];
@@ -133,19 +140,17 @@ export class PruebasHudspotController {
 
     if (!expectedToken) {
       logger.error('La variable de entorno TokenHudspot no esta configurada.');
-      return res.status(500).json({
+      res.status(500).json({
         ok: false,
         code: 'TOKEN_HUDSPOT_NOT_CONFIGURED',
         message: 'TokenHudspot no configurado en el servidor.',
-        details: {
-          auth: authDebug,
-          requestInspection
-        }
+        details: { auth: authDebug, requestInspection }
       });
+      return false;
     }
 
     if (!providedToken) {
-      return res.status(401).json({
+      res.status(401).json({
         ok: false,
         code: 'TOKEN_HUDSPOT_MISSING',
         message: 'No se recibio ninguna credencial valida para TokenHudspot.',
@@ -160,57 +165,57 @@ export class PruebasHudspotController {
           requestInspection
         }
       });
+      return false;
     }
 
     if (!timingSafeEqual(providedToken, expectedToken)) {
-      return res.status(401).json({
+      res.status(401).json({
         ok: false,
         code: 'TOKEN_HUDSPOT_INVALID',
         message: 'Se recibio una credencial para TokenHudspot, pero su valor no coincide con el configurado.',
-        details: {
-          auth: authDebug,
-          requestInspection
-        }
+        details: { auth: authDebug, requestInspection }
       });
+      return false;
     }
 
-    const interes = String(body.interes ?? body.message ?? body.descripcion ?? '').trim();
-    const nombreCliente = String(body.nombreCliente ?? body.cliente?.nombre ?? '').trim();
+    return true;
+  }
 
-    if (!interes) {
+  static async registrarInteres(req, res) {
+    if (!PruebasHudspotController.authenticate(req, res)) return;
+
+    const body = req.body ?? {};
+    const nombre = String(body.nombre ?? '').trim();
+    const empresa = String(body.empresa ?? '').trim();
+    const correo = String(body.correo ?? '').trim();
+    const telefono = String(body.telefono ?? '').trim();
+    const puesto = String(body.puesto ?? '').trim();
+    const direccion = String(body.direccion ?? '').trim();
+    const tamanoEmpresa = String(body.tamanoEmpresa ?? '').trim();
+    const interes = String(body.interes ?? '').trim();
+
+    const requiredFields = { nombre, empresa, correo, telefono, puesto, direccion, tamanoEmpresa, interes };
+    const missingField = findMissingField(requiredFields);
+
+    if (missingField) {
       return res.status(400).json({
         ok: false,
-        code: 'INTERES_REQUIRED',
-        message: 'Debes enviar el campo "interes" con lo que busca el cliente.',
-        details: {
-          requiredFields: ['interes', 'nombreCliente']
-        }
-      });
-    }
-
-    if (!nombreCliente) {
-      return res.status(400).json({
-        ok: false,
-        code: 'NOMBRE_CLIENTE_REQUIRED',
-        message: 'Debes enviar el nombre del cliente en "nombreCliente".',
-        details: {
-          requiredFields: ['interes', 'nombreCliente']
-        }
+        code: 'CAMPO_REQUERIDO_FALTANTE',
+        message: `Debes enviar el campo "${missingField[0]}".`,
+        details: { requiredFields: Object.keys(requiredFields) }
       });
     }
 
     try {
       const result = await PruebasHudspotService.procesarSolicitud({
         interes,
-        cliente: {
-          nombre: nombreCliente
-        }
+        cliente: { nombre, empresa, correo, telefono, puesto, direccion, tamanoEmpresa }
       });
 
       return res.status(200).json({
         ok: true,
-        message: 'Interes procesado y propuesta enviada por correo.',
-        ...result
+        datosCapturados: { ...result.cliente, interes },
+        correoEnviado: correoFueEnviado(result.email)
       });
     } catch (error) {
       logger.error('Error procesando la solicitud de Pruebas hudspot', error);
@@ -218,10 +223,51 @@ export class PruebasHudspotController {
         ok: false,
         code: 'PRUEBAS_HUDSPOT_PROCESSING_ERROR',
         message: 'No fue posible procesar la solicitud.',
-        error: error.message,
-        details: {
-          marcaSugerida: interes
-        }
+        error: error.message
+      });
+    }
+  }
+
+  static async registrarTicketAtencionCliente(req, res) {
+    if (!PruebasHudspotController.authenticate(req, res)) return;
+
+    const body = req.body ?? {};
+    const nombre = String(body.nombre ?? '').trim();
+    const empresa = String(body.empresa ?? '').trim();
+    const correo = String(body.correo ?? '').trim();
+    const telefono = String(body.telefono ?? '').trim();
+    const descripcionTicket = String(body.descripcionTicket ?? '').trim();
+
+    const requiredFields = { nombre, empresa, correo, telefono, descripcionTicket };
+    const missingField = findMissingField(requiredFields);
+
+    if (missingField) {
+      return res.status(400).json({
+        ok: false,
+        code: 'CAMPO_REQUERIDO_FALTANTE',
+        message: `Debes enviar el campo "${missingField[0]}".`,
+        details: { requiredFields: Object.keys(requiredFields) }
+      });
+    }
+
+    try {
+      const result = await PruebasHudspotService.procesarTicketAtencionCliente({
+        cliente: { nombre, empresa, correo, telefono },
+        descripcionTicket
+      });
+
+      return res.status(200).json({
+        ok: true,
+        datosCapturados: { ...result.cliente, descripcionTicket },
+        correoEnviado: correoFueEnviado(result.email)
+      });
+    } catch (error) {
+      logger.error('Error procesando el ticket de atencion a cliente', error);
+      return res.status(500).json({
+        ok: false,
+        code: 'ATENCION_CLIENTE_PROCESSING_ERROR',
+        message: 'No fue posible procesar el ticket.',
+        error: error.message
       });
     }
   }

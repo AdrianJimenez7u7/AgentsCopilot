@@ -106,6 +106,39 @@ function detectInterest(interes) {
   };
 }
 
+function inferNivelFromPuesto(puesto) {
+  const text = normalizeText(puesto);
+
+  if (!text) return 'No especificado';
+  if (/(director|gerente general|ceo|presidente|vicepresidente|\bvp\b|dueno|owner|socio)/.test(text)) {
+    return 'Directivo';
+  }
+  if (/(gerente|manager|jefe|lider|lead)/.test(text)) {
+    return 'Gerencial';
+  }
+  if (/(coordinador|supervisor|encargado)/.test(text)) {
+    return 'Coordinacion / Jefatura';
+  }
+  if (/(analista|ejecutivo|especialista|consultor|ingeniero|desarrollador|tecnico|asistente)/.test(text)) {
+    return 'Operativo';
+  }
+
+  return 'No especificado';
+}
+
+function buildContactLines(cliente) {
+  return [
+    `Nombre: ${cliente?.nombre || 'N/D'}`,
+    `Empresa: ${cliente?.empresa || 'N/D'}`,
+    `Correo: ${cliente?.correo || 'N/D'}`,
+    `Telefono: ${cliente?.telefono || 'N/D'}`,
+    `Puesto: ${cliente?.puesto || 'N/D'}`,
+    `Nivel (inferido): ${cliente?.nivel || 'N/D'}`,
+    `Direccion: ${cliente?.direccion || 'N/D'}`,
+    `Tamano de empresa: ${cliente?.tamanoEmpresa || 'N/D'}`
+  ];
+}
+
 function buildProposalEmail({ interes, profile, cliente, subject, summary, scope }) {
   const customerName = cliente?.nombre ? String(cliente.nombre).trim() : 'cliente';
   const text = [
@@ -113,6 +146,9 @@ function buildProposalEmail({ interes, profile, cliente, subject, summary, scope
     '',
     `Se detecto una nueva solicitud ejemplo desde Pruebas hudspot.`,
     `Interes del cliente: ${interes}`,
+    '',
+    'Datos de contacto:',
+    ...buildContactLines(cliente),
     '',
     `Marca principal detectada: ${profile.brand}`,
     '',
@@ -139,6 +175,12 @@ function buildProposalEmail({ interes, profile, cliente, subject, summary, scope
           <div style="margin-bottom:24px;padding:18px;border-radius:14px;background:#f6faff;border:1px solid #d9e9f7;">
             <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#0f4c81;margin-bottom:8px;">Interes recibido</div>
             <div style="font-size:18px;color:#15324b;font-weight:600;">${escapeHtml(interes)}</div>
+          </div>
+          <div style="margin-bottom:24px;padding:18px;border-radius:14px;background:#fbfbfd;border:1px solid #e3e6ec;">
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#0f4c81;margin-bottom:8px;">Datos de contacto</div>
+            <ul style="padding-left:18px;margin:0;color:#31475d;line-height:1.7;">
+              ${buildContactLines(cliente).map((line) => `<li>${escapeHtml(line)}</li>`).join('')}
+            </ul>
           </div>
           <h2 style="color:#15324b;font-size:20px;margin:0 0 14px;">Como puede ayudar Compucad</h2>
           <ul style="padding-left:22px;color:#31475d;line-height:1.8;margin:0 0 24px;">
@@ -225,7 +267,8 @@ Responde exclusivamente en JSON valido con esta estructura:
   "summary": "string",
   "scope": ["string"],
   "agentTips": ["string"],
-  "nextBestActions": ["string"]
+  "nextBestActions": ["string"],
+  "nivelInferido": "string"
 }
 
 Reglas:
@@ -233,11 +276,13 @@ Reglas:
 - Debe enfocarse en como Compucad ayuda con licenciamiento, implementacion, adopcion, capacitacion y acompanamiento.
 - No inventes precios ni promesas contractuales.
 - La respuesta debe ser en espanol.
--
 - "summary" debe tener maximo 45 palabras.
 - "scope" debe traer exactamente 4 puntos.
 - "agentTips" debe traer exactamente 3 puntos.
 - "nextBestActions" debe traer exactamente 3 puntos.
+- "nivelInferido" es el nivel jerarquico estimado del contacto dentro de su empresa, inferido a partir de su puesto
+  (y, si ayuda, del tamano de la empresa). Usa una de estas opciones: "Directivo", "Gerencial", "Coordinacion / Jefatura",
+  "Operativo" o "No especificado" si no hay suficiente informacion. No preguntes por el nivel, infierelo.
   `.trim();
 
   const userPrompt = `
@@ -304,13 +349,80 @@ async function sendProposalEmail({ subject, text, html }) {
   };
 }
 
+function buildTicketEmail({ cliente, descripcionTicket }) {
+  const subject = `Nuevo ticket de atencion a cliente - ${cliente?.empresa || cliente?.nombre || 'Cliente'}`;
+  const text = [
+    `Hola Abraham,`,
+    '',
+    'Se recibio un nuevo ticket de atencion a cliente desde Pruebas hudspot.',
+    '',
+    'Datos de contacto:',
+    `Nombre: ${cliente?.nombre || 'N/D'}`,
+    `Empresa: ${cliente?.empresa || 'N/D'}`,
+    `Correo: ${cliente?.correo || 'N/D'}`,
+    `Telefono: ${cliente?.telefono || 'N/D'}`,
+    '',
+    'Descripcion del ticket:',
+    descripcionTicket,
+    '',
+    'Mensaje generado automaticamente por la API de ejemplo.'
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Segoe UI,Arial,sans-serif;background:#f4f7fb;padding:24px;">
+      <div style="max-width:760px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #dbe5f0;">
+        <div style="background:linear-gradient(135deg,#b91c1c,#f97316);color:#ffffff;padding:28px 32px;">
+          <div style="font-size:12px;letter-spacing:1.6px;text-transform:uppercase;opacity:.88;">Compucad | Pruebas hudspot</div>
+          <h1 style="margin:10px 0 8px;font-size:28px;line-height:1.2;">Nuevo ticket de atencion a cliente</h1>
+          <p style="margin:0;font-size:16px;line-height:1.6;max-width:620px;">${escapeHtml(cliente?.empresa || cliente?.nombre || 'Cliente')}</p>
+        </div>
+        <div style="padding:32px;">
+          <div style="margin-bottom:24px;padding:18px;border-radius:14px;background:#fbfbfd;border:1px solid #e3e6ec;">
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#b91c1c;margin-bottom:8px;">Datos de contacto</div>
+            <ul style="padding-left:18px;margin:0;color:#31475d;line-height:1.7;">
+              <li>Nombre: ${escapeHtml(cliente?.nombre || 'N/D')}</li>
+              <li>Empresa: ${escapeHtml(cliente?.empresa || 'N/D')}</li>
+              <li>Correo: ${escapeHtml(cliente?.correo || 'N/D')}</li>
+              <li>Telefono: ${escapeHtml(cliente?.telefono || 'N/D')}</li>
+            </ul>
+          </div>
+          <div style="padding:18px 20px;border-radius:14px;background:#0f172a;color:#e2e8f0;">
+            <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#fca5a5;margin-bottom:8px;">Descripcion del ticket</div>
+            <div style="font-size:16px;line-height:1.7;">${escapeHtml(descripcionTicket)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
+async function sendTicketEmail({ subject, text, html }) {
+  const info = await transporter.sendMail({
+    from: process.env.EMAIL_USER || 'transformacion.digital@compucad.com.mx',
+    to: DESTINATARIO,
+    subject,
+    text,
+    html
+  });
+
+  return {
+    accepted: info.accepted ?? [],
+    rejected: info.rejected ?? [],
+    messageId: info.messageId ?? null
+  };
+}
+
 export class PruebasHudspotService {
   static async procesarSolicitud({ interes, cliente, metadata }) {
     const detected = detectInterest(interes);
+    let clienteConNivel = { ...cliente, nivel: inferNivelFromPuesto(cliente?.puesto) };
+
     let proposal = buildDeterministicProposal({
       interes,
       profile: detected.primary,
-      cliente
+      cliente: clienteConNivel
     });
     let generationMode = 'fallback';
 
@@ -318,17 +430,22 @@ export class PruebasHudspotService {
       const aiProposal = await generateProposalWithAI({
         interes,
         profile: detected.primary,
-        cliente,
+        cliente: clienteConNivel,
         metadata
       });
 
       if (aiProposal?.subject && aiProposal?.summary) {
         const aiScope = Array.isArray(aiProposal.scope) && aiProposal.scope.length ? aiProposal.scope : proposal.scope;
+        const nivelInferido = String(aiProposal.nivelInferido ?? '').trim();
+        if (nivelInferido) {
+          clienteConNivel = { ...clienteConNivel, nivel: nivelInferido };
+        }
+
         proposal = {
           ...buildProposalEmail({
             interes,
             profile: detected.primary,
-            cliente,
+            cliente: clienteConNivel,
             subject: aiProposal.subject,
             summary: aiProposal.summary,
             scope: aiScope
@@ -363,6 +480,7 @@ export class PruebasHudspotService {
 
     return {
       interesOriginal: interes,
+      cliente: clienteConNivel,
       marcaDetectada: detected.primary.brand,
       marcasCoincidentes: detected.matchedBrands,
       respuestaAgente: {
@@ -387,6 +505,21 @@ export class PruebasHudspotService {
         discoveryQuestions: detected.primary.discoveryQuestions,
         nextBestActions,
         agentTips
+      }
+    };
+  }
+
+  static async procesarTicketAtencionCliente({ cliente, descripcionTicket }) {
+    const ticketEmail = buildTicketEmail({ cliente, descripcionTicket });
+    const emailResult = await sendTicketEmail(ticketEmail);
+
+    return {
+      cliente,
+      descripcionTicket,
+      email: {
+        enviadoA: DESTINATARIO,
+        subject: ticketEmail.subject,
+        ...emailResult
       }
     };
   }
