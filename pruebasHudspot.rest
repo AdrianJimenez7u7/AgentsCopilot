@@ -1,0 +1,42 @@
+# Pruebas hudspot - Endpoints de intencion de compra y atencion a cliente
+# Requiere que el servidor este corriendo:
+# npm run dev
+#
+# La extension REST Client puede leer TokenHudspot desde .env con {{$dotenv TokenHudspot}}.
+
+@baseUrl = http://localhost:3000
+@token = {{$dotenv TokenHudspot}}
+
+### Endpoint 1: Intencion de compra
+POST {{baseUrl}}/agente/pruebas-hudspot/interes
+Content-Type: application/json
+x-api-key: {{token}}
+
+{
+  "cliente": {
+    "nombre": "Juan Perez",
+    "empresa": "Constructora ABC",
+    "correo": "juan.perez@abc.com",
+    "telefono": "5512345678",
+    "puesto": "Gerente de TI",
+    "nivel": "Directivo",
+    "direccion": "Av. Reforma 123, CDMX",
+    "tamanoEmpresa": "51-200 empleados"
+  },
+  "interes": "Licencias de Autodesk AutoCAD para 10 usuarios"
+}
+
+### Endpoint 2: Atencion a cliente
+POST {{baseUrl}}/agente/pruebas-hudspot/atencion-cliente
+Content-Type: application/json
+x-api-key: {{token}}
+
+{
+  "cliente": {
+    "nombre": "Juan Perez",
+    "empresa": "Constructora ABC",
+    "correo": "juan.perez@abc.com",
+    "telefono": "5512345678"
+  },
+  "descripcionTicket": "No puedo activar mi licencia de Copilot, me marca error de activacion desde ayer."
+}

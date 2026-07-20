@@ -218,6 +218,46 @@ function startOfCurrentMonth() {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0));
 }
 
+// Disparador de "informe completo" (ej. "Dame el forecast"): distinto del flujo normal de
+// una sola metrica, siempre regresa el reporte de varias secciones descrito abajo.
+const REPORT_TRIGGER_PATTERN = /\b(forecast|informe|reporte)\b/i;
+
+function formatMoney(value) {
+  const numeric = Number(value) || 0;
+  return `$${numeric.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDateOnly(iso) {
+  return String(iso || '').slice(0, 10);
+}
+
+function getCloseDate(row) {
+  const raw = row?.estimatedclosedate;
+  if (!raw) {
+    return null;
+  }
+
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isRowOpen(row) {
+  return Number(row?.statecode) === 0;
+}
+
+// Regla de negocio fija: el informe de forecast siempre cubre el mes en curso mas los
+// siguientes 3 meses (4 meses en total), sin importar como este redactada la pregunta.
+function getForecastWindow() {
+  const now = new Date();
+  const currentMonth1Based = now.getUTCMonth() + 1;
+
+  return {
+    from: startOfCurrentMonth().toISOString(),
+    to: endOfMonthUTC(now.getUTCFullYear(), currentMonth1Based + 3).toISOString(),
+    label: 'mes en curso + 3 meses a futuro'
+  };
+}
+
 function aggregate(rows, groupBy) {
   const groups = new Map();
 
@@ -635,6 +675,187 @@ function buildUiMessage({ answer, result, areasTomadasEnCuenta, tokensAzureFound
   };
 }
 
+// Informe de forecast: varias secciones fijas en una sola llamada, todas acotadas a la
+// misma ventana (mes en curso + 3 meses a futuro, ver getForecastWindow). Se calculan todas
+// a partir del mismo conjunto de filas para no repetir consultas a Dataverse.
+function buildForecastReport(rows, window) {
+  const resumen = aggregate(rows, null)[0] || {
+    count: 0, estimatedValue: 0, averageProbability: 0,
+    utilidadEstimada: 0, costoHardwareEstimado: 0, margenUtilidad: 0, equipos: 0
+  };
+
+  // Regla de negocio: "Nuevo" y "Anexo" se manejan igual cuando se pregunta por Nuevo.
+  const nuevoRows = rows.filter((row) => {
+    const label = normalizeStatusLabel(getFormatted(row, 'cr2bd_tipodecontrato') || '');
+    return label === normalizeStatusLabel('Nuevo') || label === normalizeStatusLabel('Anexo');
+  });
+  const renovacionRows = rows.filter((row) => normalizeStatusLabel(getFormatted(row, 'cr2bd_tipodecontrato') || '') === normalizeStatusLabel('Renovación'));
+
+  const nuevo = aggregate(nuevoRows, null)[0] || { count: 0, estimatedValue: 0, utilidadEstimada: 0 };
+  const renovacion = aggregate(renovacionRows, null)[0] || { count: 0, estimatedValue: 0, utilidadEstimada: 0 };
+
+  const topVendedores = aggregate(rows, { field: '_ownerid_value', label: 'responsable' })
+    .sort((a, b) => b.estimatedValue - a.estimatedValue)
+    .slice(0, 3);
+
+  const openRows = rows.filter(isRowOpen);
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayTs = todayStart.getTime();
+
+  const withCloseDate = openRows
+    .map((row) => ({ row, date: getCloseDate(row) }))
+    .filter((entry) => entry.date);
+
+  const proximosCierresAll = withCloseDate
+    .filter((entry) => entry.date.getTime() >= todayTs)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const fechasVencidasAll = withCloseDate
+    .filter((entry) => entry.date.getTime() < todayTs)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return {
+    window,
+    resumen,
+    nuevo,
+    renovacion,
+    topVendedores,
+    proximosCierres: proximosCierresAll.slice(0, 8).map((entry) => buildOpportunityItem(entry.row)),
+    proximosCierresTotal: proximosCierresAll.length,
+    fechasVencidas: fechasVencidasAll.slice(0, 10).map((entry) => buildOpportunityItem(entry.row)),
+    fechasVencidasTotal: fechasVencidasAll.length
+  };
+}
+
+function buildForecastAnswer(report, scopeLabel) {
+  const { window } = report;
+  const scopeSuffix = scopeLabel ? ` (${scopeLabel})` : '';
+  const lines = [];
+
+  lines.push(`Forecast${scopeSuffix} — ${window.label} (${formatDateOnly(window.from)} a ${formatDateOnly(window.to)}).`);
+  lines.push('');
+  lines.push(`Resumen (solo ≥50% de avance): ${report.resumen.count} oportunidades, venta estimada ${formatMoney(report.resumen.estimatedValue)}, utilidad estimada ${formatMoney(report.resumen.utilidadEstimada)}, margen ${report.resumen.margenUtilidad}%, ${report.resumen.equipos} equipos.`);
+  lines.push(`Nuevo (incluye Anexo): ${report.nuevo.count} oportunidades por ${formatMoney(report.nuevo.estimatedValue)}.`);
+  lines.push(`Renovación: ${report.renovacion.count} oportunidades por ${formatMoney(report.renovacion.estimatedValue)}.`);
+
+  if (report.topVendedores.length) {
+    lines.push('Top vendedores:');
+    report.topVendedores.forEach((v, index) => lines.push(`  ${index + 1}. ${v.key} — ${formatMoney(v.estimatedValue)} (${v.count} oportunidades)`));
+  } else {
+    lines.push('Top vendedores: sin datos en la ventana.');
+  }
+
+  if (report.proximosCierres.length) {
+    lines.push(`Próximos cierres (mostrando ${report.proximosCierres.length} de ${report.proximosCierresTotal}):`);
+    report.proximosCierres.forEach((item) => lines.push(`  · ${item.name} — ${formatMoney(item.estimatedValue)} — cierra ${item.estimatedCloseDate} — ${item.owner || 'sin responsable'}`));
+  } else {
+    lines.push('Próximos cierres: ninguno pendiente en la ventana.');
+  }
+
+  if (report.fechasVencidas.length) {
+    lines.push(`Fechas vencidas (mostrando ${report.fechasVencidas.length} de ${report.fechasVencidasTotal}) — cierre estimado ya pasó y siguen abiertas:`);
+    report.fechasVencidas.forEach((item) => lines.push(`  · ${item.name} — ${formatMoney(item.estimatedValue)} — debía cerrar ${item.estimatedCloseDate} — ${item.owner || 'sin responsable'}`));
+  } else {
+    lines.push('Fechas vencidas: ninguna, todo al día.');
+  }
+
+  return lines.join('\n');
+}
+
+function buildForecastCard(report, scopeLabel) {
+  const { window } = report;
+
+  const bulletBlock = (title, items, dateLabel) => ({
+    type: 'Container',
+    spacing: 'Medium',
+    items: [
+      { type: 'TextBlock', text: title, weight: 'Bolder', wrap: true },
+      ...(items.length
+        ? items.map((item) => ({
+            type: 'TextBlock',
+            text: `• ${item.name} — ${formatMoney(item.estimatedValue)} — ${dateLabel} ${item.estimatedCloseDate} — ${item.owner || 'sin responsable'}`,
+            wrap: true,
+            spacing: 'Small'
+          }))
+        : [{ type: 'TextBlock', text: 'Sin registros.', wrap: true, isSubtle: true }])
+    ]
+  });
+
+  return {
+    type: 'AdaptiveCard',
+    version: '1.5',
+    body: [
+      {
+        type: 'Container',
+        style: 'emphasis',
+        bleed: true,
+        items: [
+          { type: 'TextBlock', text: 'Forecast', weight: 'Bolder', size: 'Large', wrap: true },
+          {
+            type: 'TextBlock',
+            text: `${window.label} (${formatDateOnly(window.from)} a ${formatDateOnly(window.to)})${scopeLabel ? ' · ' + scopeLabel : ''}`,
+            wrap: true,
+            spacing: 'Small',
+            isSubtle: true
+          }
+        ]
+      },
+      {
+        type: 'FactSet',
+        spacing: 'Medium',
+        facts: [
+          { title: 'Oportunidades', value: String(report.resumen.count) },
+          { title: 'Venta estimada', value: formatMoney(report.resumen.estimatedValue) },
+          { title: 'Utilidad estimada', value: formatMoney(report.resumen.utilidadEstimada) },
+          { title: 'Margen', value: `${report.resumen.margenUtilidad}%` },
+          { title: 'Equipos', value: String(report.resumen.equipos) }
+        ]
+      },
+      {
+        type: 'ColumnSet',
+        spacing: 'Medium',
+        columns: [
+          {
+            type: 'Column',
+            width: 'stretch',
+            items: [
+              { type: 'TextBlock', text: 'Nuevo (incluye Anexo)', weight: 'Bolder', wrap: true },
+              { type: 'TextBlock', text: `${report.nuevo.count} · ${formatMoney(report.nuevo.estimatedValue)}`, wrap: true }
+            ]
+          },
+          {
+            type: 'Column',
+            width: 'stretch',
+            items: [
+              { type: 'TextBlock', text: 'Renovación', weight: 'Bolder', wrap: true },
+              { type: 'TextBlock', text: `${report.renovacion.count} · ${formatMoney(report.renovacion.estimatedValue)}`, wrap: true }
+            ]
+          }
+        ]
+      },
+      {
+        type: 'Container',
+        spacing: 'Medium',
+        items: [
+          { type: 'TextBlock', text: 'Top vendedores', weight: 'Bolder', wrap: true },
+          ...(report.topVendedores.length
+            ? report.topVendedores.map((v, index) => ({
+                type: 'TextBlock',
+                text: `${index + 1}. ${v.key} — ${formatMoney(v.estimatedValue)} (${v.count})`,
+                wrap: true,
+                spacing: 'Small'
+              }))
+            : [{ type: 'TextBlock', text: 'Sin datos.', wrap: true, isSubtle: true }])
+        ]
+      },
+      bulletBlock('Próximos cierres', report.proximosCierres, 'cierra'),
+      bulletBlock('Fechas vencidas', report.fechasVencidas, 'debía cerrar')
+    ],
+    '$schema': 'https://adaptivecards.io/schemas/adaptive-card.json'
+  };
+}
+
 export class ConnectForecastAgentService {
   constructor() {
     this.dataverseService = new ConnectForecastDataverseService();
@@ -803,6 +1024,13 @@ export class ConnectForecastAgentService {
     const { intent, usage } = await this.analyzeQuestion(question);
     const tokensAzureFoundry = buildAzureFoundryTokenUsage(usage);
 
+    // "Dame el forecast"/"informe"/"reporte": informe de varias secciones fijas, no la
+    // respuesta de una sola metrica. Se evalua antes que isAnswerable porque el modelo
+    // puede no saber clasificar una peticion de informe completo como una sola intencion.
+    if (body.report === true || REPORT_TRIGGER_PATTERN.test(question)) {
+      return this.buildForecastReportResponse(intent, body, tokensAzureFoundry);
+    }
+
     // Si el texto es ambiguo pero el body trae filtros explicitos (modo manual),
     // el body gana: no se rechaza la consulta solo porque la pregunta en si no bastaba.
     if (!intent.isAnswerable && !hasManualOverride(body)) {
@@ -883,6 +1111,64 @@ export class ConnectForecastAgentService {
 
     if (body.includeCard === true) {
       response.uiMessage = buildUiMessage(response);
+    }
+
+    return response;
+  }
+
+  // "Dame el forecast": informe de varias secciones (resumen, nuevo, renovacion, top
+  // vendedores, proximos cierres, fechas vencidas), siempre acotado a la ventana fija de
+  // getForecastWindow (mes en curso + 3 meses a futuro) sin importar como se pida.
+  // El alcance (tipoProyecto/UN/ejecutivo) si se puede tomar de la pregunta o del body.
+  async buildForecastReportResponse(intent, body, tokensAzureFoundry) {
+    const window = getForecastWindow();
+
+    const bodyAreas = body.areas || body.area || body.cad_un || body.cad_UN;
+    const intentAreas = intent.areas?.length ? intent.areas : null;
+    const areas = bodyAreas || intentAreas;
+
+    const ownerNames = body.owner || body.ownerName || body.ejecutivo || body.vendedor || body.responsable
+      || intent.ownerName || null;
+
+    const bodyTipoProyecto = body.tipoProyecto || body.tipoProyectos || body.projectType || body.segment;
+    const intentTipoProyecto = intent.tipoProyecto?.length ? intent.tipoProyecto : null;
+    const tipoProyecto = bodyTipoProyecto || intentTipoProyecto;
+
+    // Regla de negocio: solo cuenta como "forecast" a partir de 50% de avance.
+    const minAvance = Number.isFinite(Number(body.minAvance ?? body.avanceMinimo)) && String(body.minAvance ?? body.avanceMinimo ?? '').trim() !== ''
+      ? Number(body.minAvance ?? body.avanceMinimo)
+      : 50;
+
+    const query = {
+      select: DEFAULT_SELECT,
+      estimatedCloseFrom: window.from,
+      estimatedCloseTo: window.to,
+      areas,
+      ownerNames,
+      tipoProyecto,
+      minAvance,
+      maxRows: body.maxRows
+    };
+
+    const maxRows = Math.min(Number(body.maxRows) || 5000, 10000);
+    const rows = await this.dataverseService.getAllOpportunities(query, { maxRows });
+
+    const report = buildForecastReport(rows, window);
+    const scopeLabel = [
+      tipoProyecto ? `tipo de proyecto ${[].concat(tipoProyecto).join(', ')}` : null,
+      areas ? `UN ${[].concat(areas).join(', ')}` : null,
+      ownerNames ? `ejecutivo ${ownerNames}` : null
+    ].filter(Boolean).join(' · ') || null;
+
+    const response = {
+      answer: buildForecastAnswer(report, scopeLabel),
+      report,
+      areasTomadasEnCuenta: buildAreasTomadasEnCuenta(rows),
+      tokensAzureFoundry
+    };
+
+    if (body.includeCard === true) {
+      response.uiMessage = buildForecastCard(report, scopeLabel);
     }
 
     return response;
