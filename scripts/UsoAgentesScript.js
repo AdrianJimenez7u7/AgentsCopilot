@@ -458,7 +458,30 @@ function countMessages(item) {
   return activities.filter((a) => a?.type === 'message').length;
 }
 
-function aggregateUsage(transcripts, environmentName, userEmailLookup, botLookup) {
+function extractPlanStepFinishedEvents(item) {
+  let contentObj = null;
+
+  try {
+    contentObj = item?.content ? JSON.parse(item.content) : null;
+  } catch {
+    contentObj = null;
+  }
+
+  const activities = Array.isArray(contentObj?.activities) ? contentObj.activities : [];
+  return activities
+    .filter((a) => a?.type === 'event' && a?.name === 'DynamicPlanStepFinished')
+    .map((a) => ({
+      taskDialogId: a?.value?.taskDialogId || 'sin-accion',
+      displayedCost: typeof a?.value?.displayedCost === 'number' ? a.value.displayedCost : 0,
+      state: a?.value?.state || 'sin-estado',
+    }));
+}
+
+function sumCredits(stepEvents) {
+  return stepEvents.reduce((acc, step) => acc + (step.displayedCost || 0), 0);
+}
+
+function aggregateUsage(transcripts, environmentName, userEmailLookup, botLookup, cutoff30d) {
   const usageByAgent = new Map();
 
   for (const item of transcripts) {
@@ -472,6 +495,9 @@ function aggregateUsage(transcripts, environmentName, userEmailLookup, botLookup
     const sourceType = detectSourceType(agentName, agentId, runtimeProvider);
     const createdOn = item.createdon ? new Date(item.createdon) : null;
     const messageCount = countMessages(item);
+    const planSteps = extractPlanStepFinishedEvents(item);
+    const stepCredits = sumCredits(planSteps);
+    const isLast30d = Boolean(createdOn && !Number.isNaN(createdOn.getTime()) && createdOn >= cutoff30d);
     const creatorId = item._createdby_value || 'sin-creador-id';
     const creatorName = item['_createdby_value@OData.Community.Display.V1.FormattedValue'] || 'Sin creador';
     const { endUserId, endUserName } = extractEndUser(item);
@@ -493,14 +519,36 @@ function aggregateUsage(transcripts, environmentName, userEmailLookup, botLookup
         sessions: 0,
         firstSeen: null,
         lastSeen: null,
+        creditosTotal: 0,
+        creditos30d: 0,
         creatorsMap: new Map(),
         endUsersMap: new Map(),
+        actionsMap: new Map(),
       });
     }
 
     const current = usageByAgent.get(agentKey);
     current.messages += messageCount;
     current.sessions += 1;
+    current.creditosTotal += stepCredits;
+    if (isLast30d) current.creditos30d += stepCredits;
+
+    for (const step of planSteps) {
+      const actionCurrent = current.actionsMap.get(step.taskDialogId) || {
+        taskDialogId: step.taskDialogId,
+        invocacionesTotal: 0,
+        creditosTotal: 0,
+        invocaciones30d: 0,
+        creditos30d: 0,
+      };
+      actionCurrent.invocacionesTotal += 1;
+      actionCurrent.creditosTotal += step.displayedCost;
+      if (isLast30d) {
+        actionCurrent.invocaciones30d += 1;
+        actionCurrent.creditos30d += step.displayedCost;
+      }
+      current.actionsMap.set(step.taskDialogId, actionCurrent);
+    }
 
     const creatorCurrent = current.creatorsMap.get(creatorId) || { creatorName, sessions: 0 };
     creatorCurrent.sessions += 1;
@@ -510,6 +558,8 @@ function aggregateUsage(transcripts, environmentName, userEmailLookup, botLookup
       endUserName: resolvedEndUserName,
       endUserEmail,
       sessions: 0,
+      creditosTotal: 0,
+      creditos30d: 0,
     };
 
     if (!endUserCurrent.endUserEmail && endUserEmail) {
@@ -520,6 +570,8 @@ function aggregateUsage(transcripts, environmentName, userEmailLookup, botLookup
     }
 
     endUserCurrent.sessions += 1;
+    endUserCurrent.creditosTotal += stepCredits;
+    if (isLast30d) endUserCurrent.creditos30d += stepCredits;
     current.endUsersMap.set(endUserId, endUserCurrent);
 
     if (createdOn && !Number.isNaN(createdOn.getTime())) {
@@ -550,8 +602,11 @@ function aggregateUsage(transcripts, environmentName, userEmailLookup, botLookup
       sessions: 0,
       firstSeen: null,
       lastSeen: null,
+      creditosTotal: 0,
+      creditos30d: 0,
       creatorsMap: new Map(),
       endUsersMap: new Map(),
+      actionsMap: new Map(),
     });
   }
 
@@ -575,10 +630,54 @@ function buildExcelRows(usageRows) {
     fecha_inicio: row.firstSeen ? row.firstSeen.toISOString() : '',
     fecha_fin: row.lastSeen ? row.lastSeen.toISOString() : '',
     usuarios_finales: row.endUsersMap ? row.endUsersMap.size : 0,
+    creditos_totales: row.creditosTotal || 0,
+    creditos_30d: row.creditos30d || 0,
   }));
 }
 
-async function exportToExcel(rows, graphData = null) {
+function buildActionCreditRows(usageRows) {
+  const rows = [];
+
+  for (const row of usageRows) {
+    if (!row.actionsMap) continue;
+    for (const action of row.actionsMap.values()) {
+      rows.push({
+        entorno: row.environmentName || '',
+        agente: row.agentName || '',
+        accion: action.taskDialogId,
+        invocaciones_totales: action.invocacionesTotal,
+        creditos_totales: action.creditosTotal,
+        invocaciones_30d: action.invocaciones30d,
+        creditos_30d: action.creditos30d,
+      });
+    }
+  }
+
+  return rows.sort((a, b) => b.creditos_totales - a.creditos_totales);
+}
+
+function buildEndUserCreditRows(usageRows) {
+  const rows = [];
+
+  for (const row of usageRows) {
+    if (!row.endUsersMap) continue;
+    for (const data of row.endUsersMap.values()) {
+      rows.push({
+        entorno: row.environmentName || '',
+        agente: row.agentName || '',
+        usuario: data.endUserName || '',
+        correo: data.endUserEmail || '',
+        sesiones: data.sessions,
+        creditos_totales: data.creditosTotal || 0,
+        creditos_30d: data.creditos30d || 0,
+      });
+    }
+  }
+
+  return rows.sort((a, b) => b.creditos_totales - a.creditos_totales);
+}
+
+async function exportToExcel(rows, graphData = null, creditData = null) {
   const outputDir = path.join(process.cwd(), 'output');
   await mkdir(outputDir, { recursive: true });
 
@@ -594,11 +693,43 @@ async function exportToExcel(rows, graphData = null) {
     { header: 'fecha inicio', key: 'fecha_inicio', width: 28 },
     { header: 'fecha fin', key: 'fecha_fin', width: 28 },
     { header: 'usuarios finales', key: 'usuarios_finales', width: 18 },
+    { header: 'creditos totales', key: 'creditos_totales', width: 16 },
+    { header: 'creditos 30 dias', key: 'creditos_30d', width: 16 },
     { header: 'correos usuarios finales', key: 'correos_usuarios_finales', width: 60 },
   ];
 
   sheet.addRows(rows);
   sheet.getRow(1).font = { bold: true };
+
+  if (creditData?.actionRows?.length) {
+    const actionSheet = workbook.addWorksheet('Creditos_por_Accion');
+    actionSheet.columns = [
+      { header: 'entorno', key: 'entorno', width: 15 },
+      { header: 'agente', key: 'agente', width: 30 },
+      { header: 'accion', key: 'accion', width: 60 },
+      { header: 'invocaciones totales', key: 'invocaciones_totales', width: 20 },
+      { header: 'creditos totales', key: 'creditos_totales', width: 16 },
+      { header: 'invocaciones 30 dias', key: 'invocaciones_30d', width: 20 },
+      { header: 'creditos 30 dias', key: 'creditos_30d', width: 16 },
+    ];
+    actionSheet.addRows(creditData.actionRows);
+    actionSheet.getRow(1).font = { bold: true };
+  }
+
+  if (creditData?.endUserRows?.length) {
+    const endUserSheet = workbook.addWorksheet('Creditos_por_Usuario');
+    endUserSheet.columns = [
+      { header: 'entorno', key: 'entorno', width: 15 },
+      { header: 'agente', key: 'agente', width: 30 },
+      { header: 'usuario', key: 'usuario', width: 30 },
+      { header: 'correo', key: 'correo', width: 35 },
+      { header: 'sesiones', key: 'sesiones', width: 12 },
+      { header: 'creditos totales', key: 'creditos_totales', width: 16 },
+      { header: 'creditos 30 dias', key: 'creditos_30d', width: 16 },
+    ];
+    endUserSheet.addRows(creditData.endUserRows);
+    endUserSheet.getRow(1).font = { bold: true };
+  }
 
   if (graphData?.apps?.length) {
     const appsSheet = workbook.addWorksheet('M365_Apps');
@@ -723,6 +854,8 @@ async function main() {
   const config = getConfig();
   const allUsageRows = [];
   let graphData = null;
+  const cutoff30d = new Date();
+  cutoff30d.setDate(cutoff30d.getDate() - 30);
 
   for (const environment of config.environments) {
     if (environment.id) {
@@ -748,7 +881,7 @@ async function main() {
       console.warn(`No se pudo consultar tabla bots en ${environment.name}: ${error.message}`);
     }
 
-    const usageRows = aggregateUsage(transcripts, environment.name, userEmailLookup, botLookup);
+    const usageRows = aggregateUsage(transcripts, environment.name, userEmailLookup, botLookup, cutoff30d);
     allUsageRows.push(...usageRows);
     printReport(usageRows, transcripts.length, environment.name, bots);
   }
@@ -777,7 +910,11 @@ async function main() {
   }
 
   const excelRows = buildExcelRows(allUsageRows);
-  const excelPath = await exportToExcel(excelRows, graphData);
+  const creditData = {
+    actionRows: buildActionCreditRows(allUsageRows),
+    endUserRows: buildEndUserCreditRows(allUsageRows),
+  };
+  const excelPath = await exportToExcel(excelRows, graphData, creditData);
 }
 
 main().catch((error) => {

@@ -88,5 +88,6 @@ router.get('/sap/items/stock', SapController.getItemsStock);
 router.get('/sap/items/:itemCode', SapController.getItemByCode);
 router.get('/sap/inventory-transfer-requests', SapController.getInventoryTransferRequests);
 router.get('/sap/inventory-transfer-requests/:docEntry', SapController.getInventoryTransferRequestByDocEntry);
+router.get('/sap/items/:itemCode/bin-locations', SapController.getBinLocationContent);
 
 export default router;

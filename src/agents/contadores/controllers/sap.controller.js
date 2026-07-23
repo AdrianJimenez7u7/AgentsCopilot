@@ -83,14 +83,17 @@ export class SapController {
 
     /**
      * GET /sap/warehouses
-     * Query params: active (boolean), top, skip
+     * Query params: active (boolean), top, skip, fetchAll (boolean)
+     * Por defecto trae TODOS los almacenes (paginando internamente, SAP limita $top a 20).
+     * Pasa fetchAll=false junto con top/skip si necesitas paginar manualmente.
      */
     static async getWarehouses(req, res) {
         try {
-            const { active, top, skip } = req.query;
+            const { active, top, skip, fetchAll } = req.query;
             const session = await SapService.login();
             const data = await SapService.getWarehouses(session, {
                 active: active === 'true',
+                fetchAll: fetchAll !== 'false',
                 top:  top  ? parseInt(top)  : 50,
                 skip: skip ? parseInt(skip) : 0
             });
@@ -140,6 +143,29 @@ export class SapController {
             const status = error.response?.status === 404 ? 404 : 500;
             const detalle = error.response?.data ?? error.message;
             return res.status(status).json({ error: 'Error al consultar InventoryTransferRequest en SAP', detalle });
+        }
+    }
+
+    // ==========================================
+    // BIN LOCATIONS
+    // ==========================================
+
+    /**
+     * GET /sap/items/:itemCode/bin-locations
+     * Equivalente al reporte de SAP "Lista de contenidos de ubicación".
+     */
+    static async getBinLocationContent(req, res) {
+        try {
+            const { itemCode } = req.params;
+            if (!itemCode) {
+                return res.status(400).json({ error: 'itemCode es requerido' });
+            }
+            const session = await SapService.login();
+            const data = await SapService.getBinLocationContent(session, itemCode);
+            return res.status(200).json({ value: data });
+        } catch (error) {
+            const detalle = error.response?.data ?? error.message;
+            return res.status(500).json({ error: 'Error al consultar contenido de ubicación en SAP', detalle });
         }
     }
 }
