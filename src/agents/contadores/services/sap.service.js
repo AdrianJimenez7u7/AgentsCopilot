@@ -291,7 +291,8 @@ export class SapService {
 
         const staticParams = [
             filters.length ? `$filter=${filters.join(' and ')}` : '',
-            `$select=ItemCode,ItemName,ItemType,ItemsGroupCode`,
+            //`$select=ItemCode,ItemName,ItemType,ItemsGroupCode`,
+            `$select=ItemCode,ItemName`,
             `$orderby=ItemCode asc`
         ].filter(Boolean).join('&');
 
@@ -350,7 +351,8 @@ export class SapService {
      */
     static async _ensureSQLQueryBinLocationContent(session) {
         const SQL_CODE = 'ZZ_BinLocationContent';
-        const SQL_TEXT = `SELECT T0."ItemCode", T0."WhsCode", T1."BinCode", T0."OnHandQty" FROM "OIBQ" T0 INNER JOIN "OBIN" T1 ON T0."BinAbs" = T1."AbsEntry" WHERE T0."ItemCode" = :itemCode AND T0."OnHandQty" > 0 ORDER BY T1."BinCode"`;
+        //const SQL_TEXT = `SELECT T0."ItemCode", T0."WhsCode", T1."BinCode", T0."OnHandQty" FROM "OIBQ" T0 INNER JOIN "OBIN" T1 ON T0."BinAbs" = T1."AbsEntry" WHERE T0."ItemCode" = :itemCode AND T0."OnHandQty" > 0 ORDER BY T1."BinCode"`;
+        const SQL_TEXT = `SELECT T0."ItemCode", T1."BinCode", T0."OnHandQty" FROM "OIBQ" T0 INNER JOIN "OBIN" T1 ON T0."BinAbs" = T1."AbsEntry" WHERE T0."ItemCode" = :itemCode AND T0."OnHandQty" > 0 ORDER BY T1."BinCode"`;
 
         const headers = { 'Cookie': `B1SESSION=${session.SessionId}` };
         try {
